@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { readFile } from "fs/promises";
 import { withTempFile, setupIntegrationTest, getText, extractHash } from "../support/fixtures";
 
-describe("boundary duplication auto-fix", () => {
-  it("trailing }: auto-fix strips duplicate, file is correct after one edit", async () => {
+describe("boundary duplication [W_DUP] warning (no auto-fix)", () => {
+  it("trailing }: warns, duplicate kept in file", async () => {
     const file = "function foo() {\n  const x = 1;\n  return x;\n}\n";
     await withTempFile("sample.ts", file, async ({ cwd, path }) => {
       const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
@@ -15,7 +15,7 @@ describe("boundary duplication auto-fix", () => {
       const line2Hash = extractHash(lines1.find(l => l.includes("│  const x = 1;"))!);
       const line3Hash = extractHash(lines1.find(l => l.includes("│  return x;"))!);
 
-      await editTool.execute(
+      const result = await editTool.execute(
         "e1",
         {
           path: "sample.ts",
@@ -29,12 +29,20 @@ describe("boundary duplication auto-fix", () => {
         ctx,
       );
 
+      const resultText = getText(result);
+      // Should NOT be a noop — the edit applied
+      expect(resultText).not.toContain("No changes made");
+      // Warning should be present
+      expect(resultText).toMatch(/\[W_DUP\]/);
+      expect(resultText).toMatch(/ends with/);
+
+      // File has a duplicate } (not silently stripped)
       const content = await readFile(path, "utf-8");
-      expect(content).toBe("function foo() {\n  const y = 2;\n  return y;\n}\n");
+      expect(content).toBe("function foo() {\n  const y = 2;\n  return y;\n}\n}\n");
     });
   });
 
-  it("trailing });: auto-fix strips duplicate, file is correct after one edit", async () => {
+  it("trailing });: warns, duplicate kept in file", async () => {
     const file = 'app.get("/api", (req, res) => {\n  const data = fetchData();\n  res.json(data);\n});\n';
     await withTempFile("server.ts", file, async ({ cwd, path }) => {
       const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
@@ -44,7 +52,7 @@ describe("boundary duplication auto-fix", () => {
       const line2Hash = extractHash(lines1.find(l => l.includes("│  const data"))!);
       const line3Hash = extractHash(lines1.find(l => l.includes("│  res.json"))!);
 
-      await editTool.execute(
+      const result = await editTool.execute(
         "e1",
         {
           path: "server.ts",
@@ -58,12 +66,15 @@ describe("boundary duplication auto-fix", () => {
         ctx,
       );
 
+      const resultText = getText(result);
+      expect(resultText).toMatch(/\[W_DUP\]/);
+
       const content = await readFile(path, "utf-8");
-      expect(content).toBe('app.get("/api", (req, res) => {\n  const result = processData();\n  res.json(result);\n});\n');
+      expect(content).toBe('app.get("/api", (req, res) => {\n  const result = processData();\n  res.json(result);\n});\n});\n');
     });
   });
 
-  it("leading: auto-fix strips duplicate, file is correct after one edit", async () => {
+  it("leading: warns, duplicate kept in file", async () => {
     const file = "before();\nif (ok) {\n  run();\n}\nafter();\n";
     await withTempFile("logic.ts", file, async ({ cwd, path }) => {
       const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
@@ -73,7 +84,7 @@ describe("boundary duplication auto-fix", () => {
       const line2Hash = extractHash(lines1.find(l => l.includes("│if (ok)"))!);
       const line3Hash = extractHash(lines1.find(l => l.includes("│  run();"))!);
 
-      await editTool.execute(
+      const result = await editTool.execute(
         "e1",
         {
           path: "logic.ts",
@@ -87,12 +98,15 @@ describe("boundary duplication auto-fix", () => {
         ctx,
       );
 
+      const resultText = getText(result);
+      expect(resultText).toMatch(/\[W_DUP\]/);
+
       const content = await readFile(path, "utf-8");
-      expect(content).toBe("before();\nif (ok) {\n  runSafe();\n}\nafter();\n");
+      expect(content).toBe("before();\nbefore();\nif (ok) {\n  runSafe();\n}\nafter();\n");
     });
   });
 
-  it("trailing } with multiple identical lines: auto-fix preserves correct hash", async () => {
+  it("trailing } with multiple identical lines: warns, duplicate kept", async () => {
     const file = "if (a) {\n  x();\n}\nif (b) {\n  y();\n}\nif (c) {\n  z();\n}\n";
     await withTempFile("multi.ts", file, async ({ cwd, path }) => {
       const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
@@ -103,11 +117,7 @@ describe("boundary duplication auto-fix", () => {
       const line4Hash = extractHash(lines1.find(l => l.includes("│if (b)"))!);
       const line5Hash = extractHash(lines1.find(l => l.includes("│  y();"))!);
 
-      const braceLines1 = lines1.filter(l => l.endsWith("│}"));
-      expect(braceLines1.length).toBe(3);
-      const survivingBraceHash = extractHash(braceLines1[1]!);
-
-      await editTool.execute(
+      const result = await editTool.execute(
         "e1",
         {
           path: "multi.ts",
@@ -121,19 +131,16 @@ describe("boundary duplication auto-fix", () => {
         ctx,
       );
 
-      const read2 = await readTool.execute("r2", { path: "multi.ts" }, undefined, undefined, ctx);
-      const lines2 = getText(read2).split("\n");
-      const braceLines2 = lines2.filter(l => l.endsWith("│}"));
-      expect(braceLines2.length).toBe(3);
+      const resultText = getText(result);
+      expect(resultText).toMatch(/\[W_DUP\]/);
 
-      const matchingBraces = braceLines2.filter(l => extractHash(l) === survivingBraceHash);
-      expect(matchingBraces.length).toBe(1);
-      const survivingIndex = braceLines2.findIndex(l => extractHash(l) === survivingBraceHash);
-      expect(survivingIndex).toBe(1);
+      // The duplicate } is kept — file now has extra }
+      const content = await readFile(path, "utf-8");
+      expect(content).toBe("if (a) {\n  x();\n}\nif (b) {\n  yNew();\n}\n}\nif (c) {\n  z();\n}\n");
     });
   });
 
-  it("4th } before edit range: auto-fix strips duplicate, edit becomes noop", async () => {
+  it("4th } before edit range: warns, duplicate kept (no longer a noop)", async () => {
     const file = [
       "if (a) {", "  x();", "}",
       "if (b) {", "  y();", "}",
@@ -151,7 +158,7 @@ describe("boundary duplication auto-fix", () => {
       const fooHash = extractHash(lines1.find(l => l.includes("│foo();"))!);
       const barHash = extractHash(lines1.find(l => l.includes("│bar();"))!);
 
-      const edit1 = await editTool.execute(
+      const result = await editTool.execute(
         "e1",
         {
           path: "fourth.ts",
@@ -162,13 +169,16 @@ describe("boundary duplication auto-fix", () => {
         ctx,
       );
 
-      const edit1Text = getText(edit1);
-      expect(edit1Text).toContain("No changes made");
-      expect(edit1Text).toContain("noop");
+      const resultText = getText(result);
+      // Should NOT be a noop — the edit applied (duplicate } kept)
+      expect(resultText).not.toContain("No changes made");
+      expect(resultText).toMatch(/\[W_DUP\]/);
 
-      const { readFile } = await import("fs/promises");
+      // File has an extra } (not silently stripped) — the duplicate stays
       const content = await readFile(path, "utf-8");
-      expect(content).toBe(file);
+      // Original ends with ...bar();\n}\n
+      // After edit: ...bar();\n}\n}\n (duplicate } kept, original } still there)
+      expect(content.endsWith("bar();\n}\n}\n")).toBe(true);
     });
   });
 });

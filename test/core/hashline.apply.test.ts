@@ -198,8 +198,8 @@ describe("applyEdits — noop detection", () => {
 	});
 });
 
-describe("applyEdits — auto-fix heuristics", () => {
-	it("auto-fixes leading duplication by stripping the first replacement line", async () => {
+describe("applyEdits — boundary duplication warnings", () => {
+	it("warns on leading duplication instead of auto-fixing", async () => {
 		const content = "before\nold one\nold two\nafter";
 		const edits: HEdit[] = [
 			{
@@ -210,13 +210,13 @@ describe("applyEdits — auto-fix heuristics", () => {
 
 		const result = applyEdits(content, edits);
 
-		expect(result.content).toBe("before\nnew one\nnew two\nafter");
-		expect(result.autoFixes).toHaveLength(1);
-		expect(result.autoFixes![0]!.kind).toBe("leading");
-		expect(result.autoFixes![0]!.removedLine).toBe("before");
+		// Duplicate "before" is kept (not auto-fixed)
+		expect(result.content).toBe("before\nbefore\nnew one\nnew two\nafter");
+		expect(result.warnings).toBeDefined();
+		expect(result.warnings!.some(w => w.startsWith("[W_DUP]") && w.includes("starts with") && w.includes("before"))).toBe(true);
 	});
 
-	it("auto-fixes trailing duplication by stripping the last replacement line", async () => {
+	it("warns on trailing duplication instead of auto-fixing", async () => {
 		const content = "before\nold one\nold two\nafter";
 		const edits: HEdit[] = [
 			{
@@ -227,10 +227,10 @@ describe("applyEdits — auto-fix heuristics", () => {
 
 		const result = applyEdits(content, edits);
 
-		expect(result.content).toBe("before\nnew one\nnew two\nafter");
-		expect(result.autoFixes).toHaveLength(1);
-		expect(result.autoFixes![0]!.kind).toBe("trailing");
-		expect(result.autoFixes![0]!.removedLine).toBe("after");
+		// Duplicate "after" is kept (not auto-fixed)
+		expect(result.content).toBe("before\nnew one\nnew two\nafter\nafter");
+		expect(result.warnings).toBeDefined();
+		expect(result.warnings!.some(w => w.startsWith("[W_DUP]") && w.includes("ends with") && w.includes("after"))).toBe(true);
 	});
 });
 

@@ -4,3 +4,5 @@
 - hash_range_inclusive replaces the ENTIRE range inclusively. Every line from the first anchor through the second anchor is deleted. Only put replacement lines in content_lines — do not include lines that already exist outside the range.
 - Preserve leading whitespace exactly. The content after │ in read output includes all leading spaces and tabs — copy them into content_lines unchanged.
 - content_lines must be a native JSON array of strings, not a JSON string.
+- **Boundary check:** scan your content_lines before submitting. If the first non-empty line matches the line before start_hash, remove it. If the last non-empty line matches the line after end_hash, remove it. Those lines survive outside your range. A [W_DUP] warning signals you missed this.
+- **Moving blocks:** to move a block atomically, use two changes in one `changes` array: (1) delete source `{ content_lines: [], hash_range_inclusive: [srcStart, srcEnd] }`, (2) insert at target by replacing the target line with itself plus the moved content `{ content_lines: [targetLine, ...movedLines], hash_range_inclusive: [targetHash, targetHash] }`. Both validated against one snapshot — no shifting anchors.

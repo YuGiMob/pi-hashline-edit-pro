@@ -1,4 +1,4 @@
-import { abortIf, visLines, lastNonEmptyIndex, firstNonEmptyIndex } from "../utils";
+import { abortIf, visLines } from "../utils";
 import { _lineHashesPure, HASH_SEP } from "./hash";
 import {
 	valEdits,
@@ -10,7 +10,6 @@ import {
 	type NEdit,
 	type HEdit,
 	type BDupWarn,
-	type AutoFix,
 } from "./resolve";
 
 type LIdx = {
@@ -212,43 +211,7 @@ function assemble(
 	return result;
 }
 
-export function fmtBoundaryWarning(params: {
-	kind: "trailing" | "leading";
-	survivingContent: string;
-	matchIndex: number;
-	resultLines: string[];
-	resultHashes: string[];
-}): string {
-	const header =
-		params.kind === "trailing"
-			? "Boundary duplication (trailing): the last replacement line duplicated the next line. This happens when `content_lines` includes a line that was already outside the replaced range. Delete the duplicate — the original line outside the range is still there."
-			: "Boundary duplication (leading): the first replacement line duplicated the previous line. This happens when `content_lines` includes a line that was already outside the replaced range. Delete the duplicate — the original line outside the range is still there.";
 
-	let pairStart = -1;
-	let bestDist = Infinity;
-	for (let i = 0; i < params.resultLines.length - 1; i++) {
-		if (
-			params.resultLines[i] === params.survivingContent &&
-			params.resultLines[i + 1] === params.survivingContent
-		) {
-			const dist = Math.abs(i - params.matchIndex);
-			if (dist < bestDist) {
-				bestDist = dist;
-				pairStart = i;
-			}
-		}
-	}
-	if (pairStart < 0) pairStart = params.matchIndex;
-
-	const winStart = Math.max(0, pairStart - 2);
-	const winEnd = Math.min(params.resultLines.length - 1, pairStart + 3);
-
-	const rows: string[] = [];
-	for (let i = winStart; i <= winEnd; i++) {
-		rows.push(`${params.resultHashes[i]}${HASH_SEP}${params.resultLines[i]}`);
-	}
-	return `${header}\n\n${rows.join("\n")}`;
-}
 
 export function applyEdits(
 	content: string,
@@ -256,13 +219,12 @@ export function applyEdits(
 	signal?: AbortSignal,
 	precomputedHashes?: string[],
 	filePath?: string,
-	): {
+): {
 	content: string;
 	firstChangedLine: number | undefined;
 	lastChangedLine: number | undefined;
 	warnings?: string[];
 	noopEdits?: NEdit[];
-	autoFixes?: AutoFix[];
 } {
 	abortIf(signal);
 	if (!edits.length)
@@ -277,7 +239,7 @@ export function applyEdits(
 	const noopEdits: NEdit[] = [];
 	const warnings: string[] = [];
 
-	const { resolved: initialResolved, mismatches, boundaryWarnings } = valEdits(
+	const { resolved, mismatches, boundaryWarnings } = valEdits(
 		edits,
 		lineIndex.fileLines,
 		fileHashes,
@@ -293,44 +255,13 @@ export function applyEdits(
 	assertNoBarePrefix(edits, lineIndex.fileLines, fileHashes);
 	warnUnicodeEsc(edits, warnings);
 
-	let resolved = initialResolved;
-	let autoFixes: AutoFix[] | undefined;
-	if (boundaryWarnings.length > 0) {
-		autoFixes = [];
-		const correctedEdits: HEdit[] = edits.map(e => ({
-			...e,
-			content_lines: [...e.content_lines],
-		}));
-		for (const bw of boundaryWarnings) {
-			const edit = correctedEdits[bw.editIndex];
-			if (!edit) continue;
-			if (bw.kind === "trailing") {
-				const idx = lastNonEmptyIndex(edit.content_lines);
-				if (idx >= 0) {
-					const removed = edit.content_lines.splice(idx, 1)[0];
-					autoFixes.push({ kind: "trailing", editIndex: bw.editIndex, removedLine: removed });
-				}
-			} else {
-				const idx = firstNonEmptyIndex(edit.content_lines);
-				if (idx >= 0) {
-					const removed = edit.content_lines.splice(idx, 1)[0];
-					autoFixes.push({ kind: "leading", editIndex: bw.editIndex, removedLine: removed });
-				}
-			}
-		}
-		const correctedResult = valEdits(
-			correctedEdits,
-			lineIndex.fileLines,
-			fileHashes,
-			warnings,
-			signal,
-		);
-		if (correctedResult.mismatches.length) {
-			throw new Error(
-				fmtMismatch(correctedResult.mismatches, lineIndex.fileLines, fileHashes, filePath),
-			);
-		}
-		resolved = correctedResult.resolved;
+
+	// Convert boundary warnings to terse [W_DUP] warnings (no silent auto-fix)
+	for (const bw of boundaryWarnings) {
+		const adj = JSON.stringify(bw.survivingLineContent);
+		const kind = bw.kind === "trailing" ? "ends with" : "starts with";
+		const location = bw.kind === "trailing" ? "next surviving" : "preceding";
+		warnings.push(`[W_DUP] content_lines ${kind} ${adj} which matches the ${location} line. If unintentional, widen your hash_range_inclusive to include it.`);
 	}
 
 	const orderedSpans = resSpans(
@@ -351,7 +282,6 @@ export function applyEdits(
 		lastChangedLine: range?.lastChangedLine,
 		...(warnings.length ? { warnings } : {}),
 		...(noopEdits.length ? { noopEdits } : {}),
-		...(autoFixes ? { autoFixes } : {}),
 	};
 }
 

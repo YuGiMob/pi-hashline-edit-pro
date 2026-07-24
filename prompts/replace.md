@@ -27,6 +27,7 @@ Rules:
 - Preserve leading whitespace exactly as it appears after │ in read output.
 - To delete lines, use content_lines: [].
 - If content_lines matches current content, the edit is a noop (file unchanged).
+- **Verify boundaries:** before submitting, check your `content_lines`. If its first non-empty line matches the line just before `start_hash`, remove it — that line survives outside your range. If its last non-empty line matches the line just after `end_hash`, remove it — it also survives. A `[W_DUP]` warning means you missed this check.
 {{MODE_RULES}}
 On success, the response shows the change summary. {{AUTO_READ_GUIDANCE}}
 
