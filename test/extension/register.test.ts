@@ -21,7 +21,7 @@ describe("extension registration", () => {
 
     register(pi);
 
-    expect(toolNames.sort()).toEqual(["read", "replace", "undo_last_replace"]);
+    expect(toolNames.sort()).toEqual(["read", "replace"]);
 
     expect(eventNames).toEqual(["session_start", "tool_result"]);
   });

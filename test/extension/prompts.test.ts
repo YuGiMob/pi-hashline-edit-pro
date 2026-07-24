@@ -31,8 +31,8 @@ describe("prompts/replace.md (model-facing contract)", () => {
     expect(replacePrompt).toContain("change summary");
   });
 
-  it("documents error recovery", () => {
-    expect(replacePrompt).toContain("undo_last_replace");
+  it("does not mention undo (removed)", () => {
+    expect(replacePrompt).not.toContain("undo_last_replace");
   });
 
   it("contains template variables for mode-specific content", () => {

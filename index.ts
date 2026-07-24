@@ -1,7 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { initHasher } from "./src/hashline";
 import { regReplace, regReplaceFlat } from "./src/replace";
-import { regReplaceUndo } from "./src/replace-undo";
 import { regRead, fmtReadPreview } from "./src/read";
 import { visLines } from "./src/utils";
 import { AUTO_READ_MAX } from "./src/constants";
@@ -17,7 +16,7 @@ export default function (pi: ExtensionAPI): void {
   regRead(pi);
 
   regReplace(pi);
-  regReplaceUndo(pi);
+
 
 function registerReplaceTool(pi: ExtensionAPI, mode: string, autoRead?: boolean): void {
   if (mode === "flat") {

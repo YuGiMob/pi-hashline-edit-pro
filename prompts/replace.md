@@ -29,5 +29,3 @@ Rules:
 - If content_lines matches current content, the edit is a noop (file unchanged).
 {{MODE_RULES}}
 On success, the response shows the change summary. {{AUTO_READ_GUIDANCE}}
-
-Recovery: If a replace produces incorrect results, call undo_last_replace with the file path to revert.
