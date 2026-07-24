@@ -242,7 +242,6 @@ export function applyEdits(
 		edits,
 		lineIndex.fileLines,
 		fileHashes,
-		warnings,
 		signal,
 	);
 	if (mismatches.length) {
