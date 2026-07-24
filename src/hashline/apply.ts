@@ -16,7 +16,6 @@ import {
 type LIdx = {
 	fileLines: string[];
 	lineStarts: number[];
-	hasTerminalNewline: boolean;
 };
 
 export function buildIdx(content: string): LIdx {
@@ -35,7 +34,6 @@ export function buildIdx(content: string): LIdx {
 	return {
 		fileLines,
 		lineStarts,
-		hasTerminalNewline: content.endsWith("\n"),
 	};
 };
 
@@ -73,7 +71,7 @@ function resToSpan(
   lineIndex: LIdx,
   noopEdits: NEdit[],
 ): RESpan | null {
-  const { fileLines, lineStarts, hasTerminalNewline } = lineIndex;
+  const { fileLines, lineStarts } = lineIndex;
 
   const startLine = edit.hash_range_inclusive[0].line;
   const endLine = edit.hash_range_inclusive[1].line;
@@ -281,7 +279,6 @@ export function applyEdits(
 		edits,
 		lineIndex.fileLines,
 		fileHashes,
-		warnings,
 		signal,
 	);
 	if (mismatches.length) {
@@ -322,7 +319,6 @@ export function applyEdits(
 			correctedEdits,
 			lineIndex.fileLines,
 			fileHashes,
-			warnings,
 			signal,
 		);
 		if (correctedResult.mismatches.length) {

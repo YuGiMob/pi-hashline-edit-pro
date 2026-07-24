@@ -267,7 +267,6 @@ export function valEdits(
 	edits: HEdit[],
 	fileLines: string[],
 	fileHashes: string[],
-	warnings: string[],
 	signal: AbortSignal | undefined,
 ): { resolved: RHEdit[]; mismatches: HMismatch[]; boundaryWarnings: BDupWarn[] } {
 	assertAligned(fileLines, fileHashes, "valEdits");
