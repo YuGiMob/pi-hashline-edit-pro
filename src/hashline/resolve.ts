@@ -24,9 +24,6 @@ interface HMismatch {
 export interface BDupWarn {
 	kind: "trailing" | "leading";
 	survivingLineContent: string;
-	survivingLineIndex: number;
-	replacementLineContent: string;
-	editIndex: number;
 }
 
 
@@ -240,8 +237,6 @@ function checkBoundaryDup(
 	adjacentLine: string | undefined,
 	replacementEdge: string | undefined,
 	kind: "trailing" | "leading",
-	survivingLineIndex: number,
-	editIndex: number,
 ): BDupWarn | null {
 	if (
 		adjacentLine === undefined ||
@@ -249,13 +244,10 @@ function checkBoundaryDup(
 		replacementEdge.length === 0 ||
 		replacementEdge !== adjacentLine
 	) return null;
-  return {
-    kind,
-    survivingLineContent: adjacentLine,
-    survivingLineIndex,
-    replacementLineContent: replacementEdge,
-    editIndex,
-  };
+	return {
+		kind,
+		survivingLineContent: adjacentLine,
+	};
 }
 
 
@@ -303,11 +295,11 @@ export function valEdits(
 		const endLine = endResolved.line;
 		const nextLine = fileLines[endLine];
 		const replacementLastLine = lastNonEmpty(edit.content_lines);
-		const trailing = checkBoundaryDup(nextLine, replacementLastLine, "trailing", endLine, resolved.length);
+		const trailing = checkBoundaryDup(nextLine, replacementLastLine, "trailing");
 		if (trailing) boundaryWarnings.push(trailing);
 		const prevLine = fileLines[startResolved.line - 2];
 		const replacementFirstLine = firstNonEmpty(edit.content_lines);
-		const leading = checkBoundaryDup(prevLine, replacementFirstLine, "leading", startResolved.line - 2, resolved.length);
+		const leading = checkBoundaryDup(prevLine, replacementFirstLine, "leading");
 		if (leading) boundaryWarnings.push(leading);
 		resolved.push({
 			content_lines: edit.content_lines,
