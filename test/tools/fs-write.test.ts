@@ -7,6 +7,7 @@ import {
   symlink,
   link,
   chmod,
+  open,
 } from "fs/promises";
 import { join } from "path";
 import { resolveTarget, writeAtomic } from "../../src/fs-write";
@@ -97,6 +98,20 @@ describe("writeAtomic", () => {
       await writeAtomic(filePath, "new content");
       const content = await readFile(filePath, "utf-8");
       expect(content).toBe("new content");
+    });
+  });
+
+  it("overwrites a file held open for reading", async () => {
+    await withTempDir("fs-write-test-", async (dir) => {
+      const filePath = join(dir, "held.txt");
+      await writeFile(filePath, "old content");
+      const handle = await open(filePath, "r");
+      try {
+        await writeAtomic(filePath, "new content");
+      } finally {
+        await handle.close();
+      }
+      expect(await readFile(filePath, "utf-8")).toBe("new content");
     });
   });
 

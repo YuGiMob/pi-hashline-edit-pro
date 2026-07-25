@@ -120,6 +120,14 @@ export async function writeAtomic(
         throw error;
       }
     }
+    if (process.platform === "win32" && errCode(error) === "EPERM") {
+      try {
+        await writeFile(targetPath, content, "utf-8");
+        return;
+      } finally {
+        try { await rm(tempPath, { force: true }); } catch {}
+      }
+    }
     try { await rm(tempPath, { force: true }); } catch {}
     throw error;
   }
