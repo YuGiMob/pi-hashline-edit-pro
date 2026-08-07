@@ -10,8 +10,9 @@ export type MdTheme = Pick<
 	"fg" | "bold" | "italic" | "underline" | "strikethrough"
 >;
 
-export type RPreview = { diff: string } | { error: string };
-
+export type RPreview =
+  | { diff: string; diffLineNumbers?: (number | undefined)[] }
+  | { error: string };
 export type RRState = {
 	argsKey?: string;
 	preview?: RPreview;
@@ -48,15 +49,37 @@ export function getPreviewInput(
 	return request;
 }
 
+const DIFF_MARKER_RE = /^(?:\s*\d+\s*│\s*)?([+-])/;
+
 export function colorLines(lines: string[], theme: FgT): string[] {
 	return lines.map((line) => {
-		if (line.startsWith("+") && !line.startsWith("+++")) {
+		const marker = line.match(DIFF_MARKER_RE)?.[1];
+		if (marker === "+" && !line.startsWith("+++")) {
 			return theme.fg("success", line);
 		}
-		if (line.startsWith("-") && !line.startsWith("---")) {
+		if (marker === "-" && !line.startsWith("---")) {
 			return theme.fg("error", line);
 		}
 		return theme.fg("dim", line);
+	});
+}
+
+export function numberedDiffRows(
+	diff: string,
+	lineNumbers: (number | undefined)[] | undefined,
+): string[] {
+	const rows = diff.split("\n");
+	if (!lineNumbers) return rows;
+	const present = lineNumbers.filter((n): n is number => n !== undefined);
+	const width =
+		present.length > 0
+			? Math.max(...present.map((n) => String(n).length))
+			: 1;
+	const blankPrefix = " ".repeat(width + 3);
+	return rows.map((row, index) => {
+		const num = lineNumbers[index];
+		if (num === undefined) return `${blankPrefix}${row}`;
+		return `${String(num).padStart(width)} │ ${row}`;
 	});
 }
 
@@ -64,8 +87,9 @@ export function fmtPreview(
 	diff: string,
 	expanded: boolean,
 	theme: FgT,
+	lineNumbers?: (number | undefined)[],
 ): string {
-	const lines = diff.split("\n");
+	const lines = numberedDiffRows(diff, lineNumbers);
 	const maxLines = expanded ? 40 : 16;
 	const shown = colorLines(lines.slice(0, maxLines), theme);
 
@@ -77,8 +101,12 @@ export function fmtPreview(
 	return shown.join("\n");
 }
 
-export function fmtResult(diff: string, theme: FgT): string {
-	return colorLines(diff.split("\n"), theme).join("\n");
+export function fmtResult(
+	diff: string,
+	theme: FgT,
+	lineNumbers?: (number | undefined)[],
+): string {
+	return colorLines(numberedDiffRows(diff, lineNumbers), theme).join("\n");
 }
 
 export function fmtCall(
@@ -104,7 +132,7 @@ export function fmtCall(
 	}
 
 	if (state.preview.diff) {
-		text += `\n\n${fmtPreview(state.preview.diff, expanded, theme)}`;
+		text += `\n\n${fmtPreview(state.preview.diff, expanded, theme, state.preview.diffLineNumbers)}`;
 	}
 	return text;
 }
@@ -144,7 +172,7 @@ export function buildAppliedText(
 	const sections: string[] = [];
 
 	if (details?.diff) {
-		sections.push(fmtResult(details.diff, theme));
+		sections.push(fmtResult(details.diff, theme, details.diffLineNumbers));
 	}
 
 	const warnings = extractWarnings(text);

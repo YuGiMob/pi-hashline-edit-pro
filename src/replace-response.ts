@@ -155,6 +155,7 @@ export function buildChanged(input: SuccessInput): TResult {
     content: [{ type: "text", text }],
     details: {
       diff: diffResult.diff,
+      diffLineNumbers: diffResult.rowLines,
       firstChangedLine:
         editMeta.firstChangedLine ?? diffResult.firstChangedLine,
       snapshotId,

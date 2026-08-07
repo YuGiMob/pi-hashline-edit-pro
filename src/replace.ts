@@ -75,6 +75,7 @@ export type ReqParams = {
 
 export type ReplaceDetails = {
   diff: string;
+  diffLineNumbers?: (number | undefined)[];
   firstChangedLine?: number;
   snapshotId?: string;
   classification?: "noop";
@@ -264,8 +265,8 @@ export async function compPreview(
         error: `No changes made to ${path}. The edit produced identical content.`,
       };
     }
-
-    return { diff: genDiff(originalNormalized, result, 4, resultHashes).diff };
+    const diffResult = genDiff(originalNormalized, result, 4, resultHashes);
+    return { diff: diffResult.diff, diffLineNumbers: diffResult.rowLines };
   } catch (error: unknown) {
     return { error: error instanceof Error ? error.message : String(error) };
   }

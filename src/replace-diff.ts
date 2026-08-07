@@ -56,12 +56,14 @@ export function genDiff(
   newContent: string,
   contextLines = 2,
   newContentHashes?: string[],
-): { diff: string; firstChangedLine: number | undefined } {
+): { diff: string; firstChangedLine: number | undefined; rowLines: (number | undefined)[] } {
   const effectiveNewHashes = newContentHashes ?? _lineHashesPure(newContent);
 
   const parts = Diff.diffLines(oldContent, newContent);
   const output: string[] = [];
+  const rowLines: (number | undefined)[] = [];
   let newLineNum = 1;
+  let oldLineNum = 1;
   let lastWasChange = false;
   let firstChangedLine: number | undefined;
 
@@ -77,9 +79,12 @@ export function genDiff(
         if (part.added) {
           const hash = effectiveNewHashes[newLineNum - 1];
           output.push(fmtDiffLine("+", displayLines[k]!, hash));
+          rowLines.push(newLineNum);
           newLineNum++;
         } else {
           output.push(fmtDiffLine("-", displayLines[k]!, undefined));
+          rowLines.push(oldLineNum);
+          oldLineNum++;
         }
       }
       lastWasChange = true;
@@ -106,23 +111,30 @@ export function genDiff(
 
       if (skipStart > 0) {
         output.push(" ...");
+        rowLines.push(undefined);
         newLineNum += skipStart;
+        oldLineNum += skipStart;
       }
       for (const line of linesToShow) {
         if (isEllipsisMarker(line)) {
           output.push(" ...");
+          rowLines.push(undefined);
           newLineNum += skipMiddle;
+          oldLineNum += skipMiddle;
           continue;
         }
         const hash = effectiveNewHashes[newLineNum - 1];
         output.push(fmtDiffLine(" ", line, hash));
+        rowLines.push(newLineNum);
         newLineNum++;
+        oldLineNum++;
       }
     } else {
       newLineNum += displayLines.length;
+      oldLineNum += displayLines.length;
     }
     lastWasChange = false;
   }
 
-  return { diff: output.join("\n"), firstChangedLine };
+  return { diff: output.join("\n"), firstChangedLine, rowLines };
 }

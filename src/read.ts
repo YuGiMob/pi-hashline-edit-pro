@@ -1,10 +1,11 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import {
 	createReadTool,
 	formatSize,
 	truncateHead,
 	type TruncationResult,
 } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { MAX_READ_LINE_BYTES } from "./constants";
 import { loadFileKindAndText } from "./file-kind";
@@ -21,6 +22,36 @@ const R_DESC = loadP("../prompts/read.md");
 
 const R_SNIPPET = loadP("../prompts/read-snippet.md");
 
+const HL_ROW_RE = /^[A-Za-z0-9]{3}│/;
+
+type ReadFgT = Pick<Theme, "fg">;
+
+function fmtNumberedRead(
+	text: string,
+	startLine: number,
+	theme: ReadFgT,
+): string {
+	const lines = text.split("\n");
+	let rowCount = 0;
+	for (const line of lines) {
+		if (HL_ROW_RE.test(line)) rowCount++;
+	}
+	const lastShown = startLine + Math.max(0, rowCount - 1);
+	const width = String(lastShown).length;
+	let current = startLine;
+	const out: string[] = [];
+	for (const line of lines) {
+		if (HL_ROW_RE.test(line)) {
+			out.push(
+				`${theme.fg("dim", `${String(current).padStart(width)} │ `)}${theme.fg("toolOutput", line)}`,
+			);
+			current++;
+		} else {
+			out.push(theme.fg("toolOutput", line));
+		}
+	}
+	return out.join("\n");
+}
 function readGuide(): string[] {
 	return loadGuide("../prompts/read-guidelines.md");
 }
@@ -169,6 +200,31 @@ export function regRead(pi: ExtensionAPI): void {
 				}),
 			),
 		}),
+
+		renderResult(result, _options, theme, context) {
+			const text =
+				context.lastComponent instanceof Text
+					? context.lastComponent
+					: new Text("", 0, 0);
+			const args = (context.args ?? {}) as { offset?: number };
+			const startLine =
+				typeof args.offset === "number" && args.offset > 0
+					? args.offset
+					: 1;
+			const content = (result.content ?? [])
+				.filter(
+					(entry): entry is { type: "text"; text: string } =>
+						entry.type === "text" && typeof entry.text === "string",
+				)
+				.map((entry) => entry.text)
+				.join("\n");
+			text.setText(
+				context.isError
+					? theme.fg("error", content)
+					: fmtNumberedRead(content, startLine, theme),
+			);
+			return text;
+		},
 
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			const rawPath = params.path;

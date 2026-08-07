@@ -1,4 +1,5 @@
 import { readFile } from "fs/promises";
+import { Text } from "@earendil-works/pi-tui";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
@@ -10,6 +11,8 @@ import { toLF, stripBOM, genDiff, restoreEndings, type LineEnding } from "./repl
 import { cntDiff, splitLines, errCode } from "./utils";
 import { loadP, loadGuide } from "./prompts";
 import { buildMetrics } from "./replace-response";
+import { buildAppliedText, getResultText } from "./replace-render";
+import type { ReplaceDetails } from "./replace";
 import { changedRange } from "./hashline";
 export interface UndoEntry {
   content: string;
@@ -97,6 +100,25 @@ export function regReplaceUndo(pi: ExtensionAPI): void {
       }),
     }),
 
+    renderResult(result, _options, theme, context) {
+      const text =
+        context.lastComponent instanceof Text
+          ? context.lastComponent
+          : new Text("", 0, 0);
+      const typedResult = result as {
+        content?: Array<{ type: string; text?: string }>;
+        details?: ReplaceDetails;
+      };
+      const renderedText = getResultText(typedResult);
+      if (context.isError) {
+        text.setText(renderedText ? `\n${theme.fg("error", renderedText)}` : "");
+        return text;
+      }
+      const appliedText = buildAppliedText(renderedText, typedResult.details, theme);
+      text.setText(appliedText ?? renderedText ?? "");
+      return text;
+    },
+
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const path = params.path;
       const absolutePath = toCwd(path, ctx.cwd);
@@ -157,13 +179,12 @@ export function regReplaceUndo(pi: ExtensionAPI): void {
         const linesAddedByReplace = cntDiff(diffResult.diff, "+");
         const linesRemovedByReplace = cntDiff(diffResult.diff, "-");
         const restoredRange = changedRange(currentNormalized, undo.content);
-        const undoDiff = genDiff(currentNormalized, undo.content, 1, undo.hashes).diff;
+        const undoDiff = genDiff(currentNormalized, undo.content, 1, undo.hashes);
 
         await writeAtomic(
           mutationTargetPath,
           undo.bom + restoreEndings(undo.content, undo.originalEnding),
         );
-
         try {
           const store = await loadHashStore();
           upsertSnapshot(store, mutationTargetPath, contentChecksum(undo.content), splitLines(undo.content).length, undo.hashes);
@@ -193,7 +214,8 @@ export function regReplaceUndo(pi: ExtensionAPI): void {
             },
           ],
           details: {
-            diff: undoDiff,
+            diff: undoDiff.diff,
+            diffLineNumbers: undoDiff.rowLines,
             metrics: buildMetrics({
               classification: "applied",
               editsAttempted: 1,
