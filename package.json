@@ -45,7 +45,7 @@
     "xxhash-wasm": "^1.1.0"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": ">=0.75.0",
+    "@earendil-works/pi-coding-agent": ">=0.84.0",
     "@earendil-works/pi-tui": "*"
   },
   "engines": {

@@ -157,13 +157,14 @@ function isBusyError(error: unknown): boolean {
   return error instanceof Error && /busy|locked/i.test(error.message);
 }
 
+const sleepSab = new Int32Array(new SharedArrayBuffer(4));
+
 function sleepSync(ms: number): void {
-  const sab = new Int32Array(new SharedArrayBuffer(4));
-  Atomics.wait(sab, 0, 0, ms);
+  Atomics.wait(sleepSab, 0, 0, ms);
 }
 
 const BUSY_RETRIES = 3;
-const BUSY_RETRY_DELAY_MS = 100;
+const BUSY_RETRY_DELAY_MS = 50;
 
 function withBusyRetry<T>(fn: () => T): T {
   let lastError: unknown;
@@ -173,7 +174,7 @@ function withBusyRetry<T>(fn: () => T): T {
     } catch (error) {
       lastError = error;
       if (!isBusyError(error) || attempt === BUSY_RETRIES) throw error;
-      sleepSync(BUSY_RETRY_DELAY_MS);
+      sleepSync(BUSY_RETRY_DELAY_MS * (1 << attempt));
     }
   }
   throw lastError;

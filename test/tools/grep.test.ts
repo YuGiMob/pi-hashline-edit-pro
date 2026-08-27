@@ -246,6 +246,99 @@ describe("grep tool", () => {
     });
   });
 
+  it("matches a glob with a leading slash", async () => {
+    await withTempDir("grep-glob-slash-", async (dir) => {
+      await mkdir(join(dir, "src"), { recursive: true });
+      await writeFile(join(dir, "src", "a.ts"), "needle\n", "utf-8");
+      await writeFile(join(dir, "b.ts"), "needle\n", "utf-8");
+
+      const { ctx, getTool } = setupIntegrationTest(dir);
+      const grepTool = getTool("grep");
+      const result = await grepTool.execute(
+        "g1",
+        { pattern: "needle", glob: "/src/*.ts" },
+        undefined, undefined, ctx,
+      );
+      const text = getText(result);
+      expect(text).toContain("src/a.ts");
+      expect(text).not.toContain("b.ts");
+    });
+  });
+
+  it("matches a leading-slash glob when path is a subdirectory", async () => {
+    await withTempDir("grep-glob-slash-root-", async (dir) => {
+      await mkdir(join(dir, "src", "auth"), { recursive: true });
+      await writeFile(join(dir, "src", "auth", "login.ts"), "needle\n", "utf-8");
+      await writeFile(join(dir, "src", "other.ts"), "needle\n", "utf-8");
+
+      const { ctx, getTool } = setupIntegrationTest(dir);
+      const grepTool = getTool("grep");
+      const result = await grepTool.execute(
+        "g1",
+        { pattern: "needle", path: "src", glob: "/src/*.ts" },
+        undefined, undefined, ctx,
+      );
+      const text = getText(result);
+      expect(text).toContain("src/auth/login.ts");
+      expect(text).toContain("src/other.ts");
+    });
+  });
+
+  it("matches a cwd-relative glob when path is a subdirectory", async () => {
+    await withTempDir("grep-glob-cwd-", async (dir) => {
+      await mkdir(join(dir, "lib", "deep"), { recursive: true });
+      await writeFile(join(dir, "lib", "a.ts"), "needle\n", "utf-8");
+      await writeFile(join(dir, "lib", "deep", "b.ts"), "needle\n", "utf-8");
+
+      const { ctx, getTool } = setupIntegrationTest(dir);
+      const grepTool = getTool("grep");
+      const result = await grepTool.execute(
+        "g1",
+        { pattern: "needle", path: "lib", glob: "lib/*.ts" },
+        undefined, undefined, ctx,
+      );
+      const text = getText(result);
+      expect(text).toContain("lib/a.ts");
+      expect(text).toContain("lib/deep/b.ts");
+    });
+  });
+
+  it("prefers the search-root-relative glob when both match", async () => {
+    await withTempDir("grep-glob-root-first-", async (dir) => {
+      await mkdir(join(dir, "lib", "deep"), { recursive: true });
+      await writeFile(join(dir, "lib", "deep", "b.ts"), "needle\n", "utf-8");
+
+      const { ctx, getTool } = setupIntegrationTest(dir);
+      const grepTool = getTool("grep");
+      const result = await grepTool.execute(
+        "g1",
+        { pattern: "needle", path: "lib", glob: "deep/*.ts" },
+        undefined, undefined, ctx,
+      );
+      const text = getText(result);
+      expect(text).toContain("lib/deep/b.ts");
+    });
+  });
+
+  it("matches **/*.ts across directories", async () => {
+    await withTempDir("grep-glob-dstar-", async (dir) => {
+      await mkdir(join(dir, "src", "deep"), { recursive: true });
+      await writeFile(join(dir, "src", "deep", "a.ts"), "needle\n", "utf-8");
+      await writeFile(join(dir, "top.spec.ts"), "needle\n", "utf-8");
+
+      const { ctx, getTool } = setupIntegrationTest(dir);
+      const grepTool = getTool("grep");
+      const result = await grepTool.execute(
+        "g1",
+        { pattern: "needle", glob: "**/*.ts" },
+        undefined, undefined, ctx,
+      );
+      const text = getText(result);
+      expect(text).toContain("src/deep/a.ts");
+      expect(text).toContain("top.spec.ts");
+    });
+  });
+
   it("skips a line-oversized file in a directory scan", async () => {
     await withTempDir("grep-big-", async (dir) => {
       await writeFile(join(dir, "small.ts"), "needle\n", "utf-8");

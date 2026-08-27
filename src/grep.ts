@@ -17,6 +17,10 @@ const GREP_KS = new Set(["pattern", "path", "glob", "context", "ignoreCase", "li
 const SKIP_DIRS = new Set(["node_modules", ".git", ".tmp", "coverage"]);
 const MAX_SCAN_FILES = 4000;
 
+function cmp(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 export interface GrepReq {
   pattern: string;
   path?: string;
@@ -53,6 +57,7 @@ function buildRegex(pattern: string, literal: boolean, ignoreCase: boolean): Reg
 }
 
 function globToRegex(glob: string): RegExp {
+  if (glob.startsWith("/")) glob = glob.slice(1);
   let source = "";
   let i = 0;
   while (i < glob.length) {
@@ -142,14 +147,16 @@ async function walkFiles(
   onFile: (absPath: string) => Promise<void>,
 ): Promise<void> {
   const queue: string[] = [root];
-  while (queue.length > 0 && !state.stopped) {
-    const dir = queue.pop()!;
+  let head = 0;
+  while (head < queue.length && !state.stopped) {
+    const dir = queue[head++]!;
     let entries;
     try {
       entries = await readdir(dir, { withFileTypes: true });
     } catch {
       continue;
     }
+    entries.sort((a, b) => cmp(a.name, b.name));
     for (const entry of entries) {
       if (state.stopped) break;
       const full = join(dir, entry.name);
@@ -180,7 +187,7 @@ async function searchFile(
   const displayPath = relative(cwd, absPath).replace(/\\/g, "/");
   if (globRegex) {
     const globPath = relative(globRoot, absPath).replace(/\\/g, "/");
-    if (!globRegex.test(globPath)) return undefined;
+    if (!globRegex.test(globPath) && !globRegex.test(displayPath)) return undefined;
   }
   let file;
   try {
@@ -252,7 +259,7 @@ const grepToolSchema = Type.Object(
     ),
     glob: Type.Optional(
       Type.String({
-        description: "Filter files by glob pattern; * matches across directories, e.g. '*.ts' or '**/*.spec.ts'",
+        description: "Filter files by glob pattern; * matches across directories, e.g. '*.ts' or '**/*.spec.ts'. A leading / is ignored; the pattern may be relative to the search root or to the current directory.",
       }),
     ),
     ignoreCase: Type.Optional(
@@ -319,6 +326,7 @@ export function regGrep(pi: ExtensionAPI): void {
         await walkFiles(base, state, async (absPath) => {
           files.push(absPath);
         });
+        files.sort(cmp);
       }
       const hits: FileHit[] = [];
       let matches = 0;
@@ -382,6 +390,7 @@ export function regGrep(pi: ExtensionAPI): void {
         hits.push({ ...hit, rows: keptRows, hashes: keptHashes });
         if (rowTruncated) countOnly = true;
       }
+      hits.sort((a, b) => cmp(a.displayPath, b.displayPath));
       for (const hit of hits) {
         await recordServedSafe(hit.path, hit.hashes, "grep", new Set(hit.fileHashes));
       }

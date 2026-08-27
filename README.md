@@ -139,7 +139,7 @@ Notes:
 | --- | --- |
 | `pattern` | Search pattern (regex, or literal text when `literal` is true). |
 | `path` | File or directory to search (default: the current working directory). |
-| `glob` | Filter files by glob pattern; `*` matches across directories, e.g. `*.ts` or `**/*.spec.ts`. |
+| `glob` | Filter files by glob pattern; `*` matches across directories, e.g. `*.ts` or `**/*.spec.ts`. A leading `/` is ignored, and the pattern may be relative to the search root or to the current directory. |
 | `ignoreCase` | Case-insensitive search (default: false). |
 | `literal` | Treat the pattern as literal text instead of a regex (default: false). |
 | `context` | Lines of context before and after each match; context rows carry anchors too (default: 0). |
