@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { detectEnding, toLF, restoreEndings, stripBOM, genDiff } from "../../src/replace-diff";
+import { detectEnding, toLF, restoreEndings, stripBOM, genDiff, genPatch } from "../../src/replace-diff";
 import { _lineHashesPure, initHasher } from "../../src/hashline";
 
 beforeAll(async () => {
@@ -191,5 +191,62 @@ describe("genDiff", () => {
     const newContent = "a\nb\nNEW\nu1\nu2\n";
     const { diff } = genDiff(oldContent, newContent, 2);
     expect(diff.split("\n").filter((line) => line.trim() === "...")).toHaveLength(0);
+  });
+});
+
+describe("genDiff - output limits", () => {
+  it("replaces an oversized row with a marker that keeps the diff prefix", () => {
+    const long = "z".repeat(60 * 1024);
+    const { diff } = genDiff(`a\n${long}\nb`, `a\n${long}!\nb`);
+    expect(diff).not.toContain(long);
+    const markers = diff.split("\n").filter((line) => line.includes("content not shown"));
+    expect(markers).toHaveLength(2);
+    expect(markers[0]!).toMatch(/^- {3}│/);
+    expect(markers[1]!).toMatch(/^\+[A-Za-z0-9]{3}│/);
+    expect(markers[0]!.indexOf("│")).toBe(4);
+    expect(markers[1]!.indexOf("│")).toBe(4);
+    expect(diff).toContain("2 row(s) exceed 50.0KB and are shown as markers with their anchors");
+  });
+
+  it("stops emitting once the total byte budget is exhausted", () => {
+    const body = Array.from({ length: 2000 }, (_, i) => `l${i} ` + "y".repeat(80));
+    const { diff } = genDiff(body.join("\n"), body.map((l) => l + "!").join("\n"));
+    expect(diff).toContain("diff truncated at 50.0KB");
+    expect(diff).not.toContain("l1999 ");
+    expect(Buffer.byteLength(diff, "utf-8")).toBeLessThan(60 * 1024);
+  });
+
+  it("keeps the full output with unlimited limits", () => {
+    const long = "y".repeat(60 * 1024);
+    const { diff } = genDiff(`a\n${long}\nb`, `a\n${long}!\nb`, 0, undefined, undefined, { unlimited: true });
+    expect(diff).toContain(long);
+    expect(diff).not.toContain("content not shown");
+  });
+});
+
+describe("genPatch - output limits", () => {
+  it("keeps a small patch intact and applicable", () => {
+    const result = genPatch("sample.ts", "a\nb\nc\n", "a\nB\nc\n");
+    expect(result.truncated).toBe(false);
+    expect(result.patch).toContain("--- sample.ts");
+    expect(result.patch).toContain("+B");
+  });
+
+  it("replaces oversized patch lines with markers and flags the patch as truncated", () => {
+    const long = "z".repeat(60 * 1024);
+    const result = genPatch("min.js", `a\n${long}\nb\n`, `a\n${long}!\nb\n`);
+    expect(result.truncated).toBe(true);
+    expect(result.patch).not.toContain(long);
+    expect(result.patch).toContain("content not shown");
+    expect(Buffer.byteLength(result.patch, "utf-8")).toBeLessThan(2 * 1024);
+  });
+
+  it("cuts the patch when the total byte budget is exhausted", () => {
+    const body = Array.from({ length: 2000 }, (_, i) => `l${i} ` + "y".repeat(80));
+    const result = genPatch("wide.txt", body.join("\n"), body.map((l) => l + "!").join("\n"));
+    expect(result.truncated).toBe(true);
+    expect(result.patch).toContain("patch truncated at 50.0KB");
+    expect(result.patch).not.toContain("l1999 ");
+    expect(Buffer.byteLength(result.patch, "utf-8")).toBeLessThan(60 * 1024);
   });
 });

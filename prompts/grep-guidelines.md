@@ -3,4 +3,5 @@
 - `grep`: use `literal: true` when the pattern contains regex metacharacters you want matched literally.
 - `grep`: use `context` to see surrounding lines; context rows carry anchors too.
 - `grep`: use `glob` to filter files; `*` matches across directories, e.g. `*.ts` or `**/*.spec.ts`.
-- `grep`: results are capped at `limit` matches (default 100) and 2000 rows; refine the pattern or raise limit to see more.
+- `grep`: results are capped at `limit` matches (default 100), 2000 rows, and 50KB; refine the pattern or raise limit to see more.
+- `grep`: a matched line longer than 500 bytes is shown as a fragment around the match with `...` marking the truncated sides; the row keeps its anchor and is editable with replace (which replaces the whole line). Use read to see the full line.

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { readFile } from "fs/promises";
 import { lineHashes } from "../../src/hashline";
+import { loadHashStore } from "../../src/hash-store";
+import { getServed } from "../../src/served";
+import { resolveTarget } from "../../src/fs-write";
+import { toCwd } from "../../src/paths";
 import { withTempFile, withTempBytes, setupIntegrationTest, useTestHome, getText, extractHash } from "../support/fixtures";
 
 const home = useTestHome();
@@ -320,6 +324,53 @@ describe("replace tool - end-to-end", () => {
       expect(details.patch!).toContain("+BBB");
       const { applyPatch } = await import("diff");
       expect(applyPatch("aaa\nbbb\nccc\n", details.patch!)).toBe("aaa\nBBB\nccc\n");
+    });
+  });
+
+  it("caps the post-edit diff when the file contains a very long line", async () => {
+    const long = "x".repeat(200 * 1024);
+    await withTempFile("min.js", `a\n${long}\nb\n`, async ({ cwd }) => {
+      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const readResult = await readTool.execute("r1", { path: "min.js" }, undefined, undefined, ctx);
+      const aHash = extractHash(getText(readResult).split("\n").find((l: string) => l.includes("│a"))!);
+
+      const editResult = await editTool.execute(
+        "e1",
+        { path: "min.js", remove_from: aHash, remove_to: aHash, replacement_lines: ["ALPHA"] },
+        undefined, undefined, ctx,
+      );
+      const details = editResult.details as { diff?: string; patch?: string; patchTruncated?: boolean };
+      expect(details.diff).toBeDefined();
+      expect(details.diff!).not.toContain(long);
+      expect(details.diff!).toContain("shown as markers with their anchors");
+      expect(Buffer.byteLength(details.diff!, "utf-8")).toBeLessThan(5 * 1024);
+      const markerRow = details.diff!.split("\n").find((l) => l.includes("│[Row is"))!;
+      expect(markerRow).toMatch(/^ [A-Za-z0-9]{3}│\[Row is/);
+      const served = getServed(await loadHashStore(), await resolveTarget(toCwd("min.js", cwd)));
+      expect(served?.has(markerRow.match(/^ ([A-Za-z0-9]{3})│/)![1]!)).toBe(true);
+      expect(details.patchTruncated).toBe(true);
+      expect(details.patch).toBeDefined();
+      expect(details.patch!).not.toContain(long);
+      expect(Buffer.byteLength(details.patch!, "utf-8")).toBeLessThan(5 * 1024);
+    });
+  });
+
+  it("lets a replace target an oversized line via its read-marker anchor", async () => {
+    const long = "x".repeat(210_000);
+    await withTempFile("min.js", `a\n${long}\nb\n`, async ({ cwd, path }) => {
+      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const readResult = await readTool.execute("r1", { path: "min.js" }, undefined, undefined, ctx);
+      const text = getText(readResult);
+      const markerRow = text.split("\n").find((l) => l.includes("[Line 2 is"))!;
+      expect(markerRow).toMatch(/^[A-Za-z0-9]{3}│\[Line 2 is/);
+      const markerHash = markerRow.split("│")[0]!;
+      const editResult = await editTool.execute(
+        "e1",
+        { path: "min.js", remove_from: markerHash, remove_to: markerHash, replacement_lines: ["REPLACED"] },
+        undefined, undefined, ctx,
+      );
+      expect(editResult.content[0].text).toContain("Successfully replaced");
+      expect(await readFile(path, "utf-8")).toBe("a\nREPLACED\nb\n");
     });
   });
 });

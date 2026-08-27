@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { DEFAULT_MAX_BYTES } from "@earendil-works/pi-coding-agent";
+import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "@earendil-works/pi-coding-agent";
 import { initHasher } from "./src/hashline";
 import { regReplace } from "./src/replace";
 import { regInsert } from "./src/insert";
@@ -9,7 +9,6 @@ import { regRead, fmtReadPreview } from "./src/read";
 import type { RMetrics } from "./src/replace-response";
 import { extractWarnings } from "./src/replace-render";
 import { MAX_HASH_LINES } from "./src/hashline";
-import { AUTO_READ_MAX } from "./src/constants";
 import {
   readConfig,
   toggleAutoRead,
@@ -93,7 +92,7 @@ export default function (pi: ExtensionAPI): void {
           fileHashes,
           absolutePath,
           DEFAULT_MAX_BYTES,
-          AUTO_READ_MAX,
+          DEFAULT_MAX_LINES,
         );
         await recordServedSafe(absolutePath, preview.servedHashes, "auto-read", new Set(fileHashes));
         return {

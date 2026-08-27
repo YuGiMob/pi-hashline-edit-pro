@@ -11,6 +11,7 @@ export {
 	_lineHashesPure,
 	initHasher,
 	canon,
+	hashSource,
 } from "./hash";
 
 export {

@@ -149,7 +149,7 @@ export function regUndo(pi: ExtensionAPI): void {
 
         const currentNormalized = currentRaw === undefined ? "" : toLF(stripBOM(currentRaw).text);
         const currentHashes = await lineHashes(currentNormalized, mutationTargetPath);
-        const diffResult = genDiff(undo.content, undo.resultContent, 0, undefined, undo.hashes);
+        const diffResult = genDiff(undo.content, undo.resultContent, 0, undefined, undo.hashes, { unlimited: true });
         const linesAddedByReplace = cntDiff(diffResult.diff, "+");
         const linesRemovedByReplace = cntDiff(diffResult.diff, "-");
         const restoredRange = changedRange(currentNormalized, undo.content);
@@ -180,6 +180,7 @@ export function regUndo(pi: ExtensionAPI): void {
           "Call read for fresh anchors.",
         );
 
+        const patchResult = genPatch(path, currentNormalized, undo.content);
         return {
           content: [
             {
@@ -189,7 +190,8 @@ export function regUndo(pi: ExtensionAPI): void {
           ],
           details: {
             diff: undoDiff,
-            patch: genPatch(path, currentNormalized, undo.content),
+            patch: patchResult.patch,
+            ...(patchResult.truncated ? { patchTruncated: true as const } : {}),
             metrics: buildMetrics({
               classification: "applied",
               editsAttempted: 1,

@@ -1,20 +1,21 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { formatSize, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, type TruncationResult } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { readdir, stat } from "fs/promises";
 import { dirname, join, relative } from "path";
 import { loadFileKindAndText } from "./file-kind";
 import { readNormFile } from "./file-reader";
-import { MAX_HASH_LINES, fmtRow } from "./hashline";
+import { MAX_HASH_LINES, fmtRow, HASH_LEN, HASH_SEP } from "./hashline";
+import { MAX_GREP_LINE_BYTES } from "./constants";
 import { toCwd } from "./paths";
 import { loadP, loadGuide } from "./prompts";
 import { normReq } from "./replace-normalize";
 import { recordServedSafe } from "./served";
-import { abortIf, errCode, isRec, makePrepareArguments, rejectUnknownFields, visLines } from "./utils";
+import { abortIf, errCode, isRec, makePrepareArguments, rejectUnknownFields, truncateToBytes, visLines } from "./utils";
 
 const GREP_KS = new Set(["pattern", "path", "glob", "context", "ignoreCase", "literal", "limit"]);
 const SKIP_DIRS = new Set(["node_modules", ".git", ".tmp", "coverage"]);
 const MAX_SCAN_FILES = 4000;
-const MAX_SHOWN_ROWS = 2000;
 
 export interface GrepReq {
   pattern: string;
@@ -92,6 +93,42 @@ interface FileHit {
   hashes: string[];
   matchCount: number;
   totalMatchCount: number;
+  fragmented: boolean[];
+}
+
+const GREP_ROW_OVERHEAD_BYTES = HASH_LEN + Buffer.byteLength(HASH_SEP, "utf-8");
+const GREP_ROW_CONTENT_BYTES = MAX_GREP_LINE_BYTES - GREP_ROW_OVERHEAD_BYTES;
+
+function snapCharBoundaries(line: string, start: number, end: number): [number, number] {
+  let s = start;
+  let e = end;
+  if (s > 0 && s < line.length) {
+    const c = line.charCodeAt(s);
+    if (c >= 0xdc00 && c <= 0xdfff && line.charCodeAt(s - 1) >= 0xd800 && line.charCodeAt(s - 1) <= 0xdbff) s -= 1;
+  }
+  if (e > 0 && e < line.length) {
+    const c = line.charCodeAt(e - 1);
+    if (c >= 0xd800 && c <= 0xdbff && line.charCodeAt(e) >= 0xdc00 && line.charCodeAt(e) <= 0xdfff) e += 1;
+  }
+  return [s, e];
+}
+
+function grepMatchFragment(line: string, regex: RegExp): string {
+  const m = regex.exec(line);
+  const matchStart = m?.index ?? 0;
+  const matchLen = m?.[0].length ?? 0;
+  const budget = GREP_ROW_CONTENT_BYTES - 6;
+  const half = Math.floor((budget - Math.min(matchLen, budget)) / 2);
+  const [start, end] = snapCharBoundaries(line, Math.max(0, matchStart - half), Math.min(line.length, matchStart + matchLen + half));
+  const content = truncateToBytes(line.slice(start, end), budget);
+  const lead = start > 0 ? "..." : "";
+  const tail = end < line.length ? "..." : "";
+  return truncateToBytes(`${lead}${content}${tail}`, GREP_ROW_CONTENT_BYTES);
+}
+
+function grepHeadFragment(line: string): string {
+  const head = truncateToBytes(line, GREP_ROW_CONTENT_BYTES - 3);
+  return head.length < line.length ? `${head}...` : head;
 }
 
 interface ScanState {
@@ -172,11 +209,24 @@ async function searchFile(
     for (let j = Math.max(0, i - context); j <= Math.min(lines.length - 1, i + context); j++) shown.add(j);
   }
   const sorted = [...shown].sort((a, b) => a - b);
+  const matchSet = new Set(matchLines);
   const rows: string[] = [];
   const hashes: string[] = [];
+  const fragmented: boolean[] = [];
   for (const idx of sorted) {
-    rows.push(fmtRow(norm.fileHashes[idx]!, lines[idx]!));
-    hashes.push(norm.fileHashes[idx]!);
+    const hash = norm.fileHashes[idx]!;
+    const line = lines[idx]!;
+    const row = fmtRow(hash, line);
+    if (Buffer.byteLength(row, "utf-8") > MAX_GREP_LINE_BYTES) {
+      const content = matchSet.has(idx) ? grepMatchFragment(line, regex) : grepHeadFragment(line);
+      rows.push(fmtRow(hash, content));
+      hashes.push(hash);
+      fragmented.push(true);
+    } else {
+      rows.push(row);
+      hashes.push(hash);
+      fragmented.push(false);
+    }
   }
   return {
     path: norm.absolutePath,
@@ -186,6 +236,7 @@ async function searchFile(
     hashes,
     matchCount: keptMatches.length,
     totalMatchCount: matchLines.length,
+    fragmented,
   };
 }
 
@@ -274,8 +325,29 @@ export function regGrep(pi: ExtensionAPI): void {
       let limitTruncated = false;
       let rowTruncated = false;
       let rowCount = 0;
-      for (const absPath of files) {
+      let byteCount = 0;
+      let totalRows = 0;
+      let totalBytes = 0;
+      let truncatedBy: "lines" | "bytes" | null = null;
+      let linesReplaced = 0;
+      let countOnly = false;
+      for (let f = 0; f < files.length; f++) {
         abortIf(signal);
+        const absPath = files[f]!;
+        if (countOnly) {
+          const hit = await searchFile(absPath, globRoot, ctx.cwd, regex, globRegex, context, Number.MAX_SAFE_INTEGER);
+          if (!hit) continue;
+          totalRows += hit.rows.length;
+          for (const row of hit.rows) totalBytes += Buffer.byteLength(row, "utf-8") + 1;
+          const remaining = limit - matches;
+          if (remaining > 0) {
+            matches += Math.min(hit.matchCount, remaining);
+            if (hit.matchCount > remaining) limitTruncated = true;
+          } else {
+            limitTruncated = true;
+          }
+          continue;
+        }
         const remaining = limit - matches;
         if (remaining <= 0) {
           limitTruncated = true;
@@ -283,18 +355,32 @@ export function regGrep(pi: ExtensionAPI): void {
         }
         const hit = await searchFile(absPath, globRoot, ctx.cwd, regex, globRegex, context, remaining);
         if (!hit) continue;
-        const rowBudget = MAX_SHOWN_ROWS - rowCount;
-        if (rowBudget <= 0) {
-          rowTruncated = true;
-          break;
+        const keptRows: string[] = [];
+        const keptHashes: string[] = [];
+        for (let i = 0; i < hit.rows.length; i++) {
+          const row = hit.rows[i]!;
+          const rowBytes = Buffer.byteLength(row, "utf-8") + 1;
+          if (rowCount >= DEFAULT_MAX_LINES || byteCount + rowBytes > DEFAULT_MAX_BYTES) {
+            rowTruncated = true;
+            if (truncatedBy === null) truncatedBy = byteCount + rowBytes > DEFAULT_MAX_BYTES ? "bytes" : "lines";
+            for (let j = i; j < hit.rows.length; j++) {
+              totalRows += 1;
+              totalBytes += Buffer.byteLength(hit.rows[j]!, "utf-8") + 1;
+            }
+            break;
+          }
+          keptRows.push(row);
+          keptHashes.push(hit.hashes[i]);
+          if (hit.fragmented[i]) linesReplaced += 1;
+          rowCount += 1;
+          byteCount += rowBytes;
+          totalRows += 1;
+          totalBytes += rowBytes;
         }
-        const keptRows = hit.rows.slice(0, rowBudget);
-        const keptHashes = hit.hashes.slice(0, rowBudget);
-        rowCount += keptRows.length;
         if (hit.totalMatchCount > hit.matchCount) limitTruncated = true;
-        if (keptRows.length < hit.rows.length) rowTruncated = true;
         matches += hit.matchCount;
         hits.push({ ...hit, rows: keptRows, hashes: keptHashes });
+        if (rowTruncated) countOnly = true;
       }
       for (const hit of hits) {
         await recordServedSafe(hit.path, hit.hashes, "grep", new Set(hit.fileHashes));
@@ -303,14 +389,32 @@ export function regGrep(pi: ExtensionAPI): void {
         .map((hit) => `=== ${hit.displayPath} ===\n${hit.rows.join("\n")}`)
         .join("\n");
       const notes: string[] = [];
-      if (rowTruncated) notes.push(`[grep: output truncated at ${MAX_SHOWN_ROWS} rows; refine the pattern to see more.]`);
+      if (rowTruncated) notes.push(`[grep: output truncated at ${DEFAULT_MAX_LINES} rows or ${formatSize(DEFAULT_MAX_BYTES)}; refine the pattern to see more.]`);
       if (limitTruncated) notes.push(`[grep: showing first ${limit} matches; increase limit to see more.]`);
       if (state.stopped) notes.push(`[grep: scan cap of ${MAX_SCAN_FILES} files reached; results may be incomplete.]`);
+      if (linesReplaced > 0) notes.push(`[grep: ${linesReplaced} line(s) exceed ${formatSize(MAX_GREP_LINE_BYTES)} and are shown as truncated fragments; use read to see the full lines.]`);
       const truncated = limitTruncated || rowTruncated;
+      const truncation: TruncationResult | undefined = rowTruncated
+        ? {
+            content: blocks,
+            truncated: true,
+            truncatedBy,
+            totalLines: totalRows,
+            totalBytes,
+            outputLines: rowCount,
+            outputBytes: byteCount,
+            lastLinePartial: false,
+            firstLineExceedsLimit: false,
+            maxLines: DEFAULT_MAX_LINES,
+            maxBytes: DEFAULT_MAX_BYTES,
+          }
+        : undefined;
       const text = blocks.length > 0 ? `${blocks}${notes.length > 0 ? `\n${notes.join("\n")}` : ""}` : "No matches found.";
       return {
         content: [{ type: "text", text }],
         details: {
+          ...(truncation ? { truncation } : {}),
+          ...(linesReplaced > 0 ? { linesTruncated: true as const } : {}),
           metrics: {
             matches,
             files: hits.length,

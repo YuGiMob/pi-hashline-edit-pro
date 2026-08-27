@@ -93,6 +93,19 @@ export function firstNonEmpty(lines: string[]): string | undefined {
 	return idx >= 0 ? lines[idx] : undefined;
 }
 
+export function truncateToBytes(s: string, maxBytes: number): string {
+	if (Buffer.byteLength(s, "utf-8") <= maxBytes) return s;
+	let out = "";
+	let bytes = 0;
+	for (const ch of s) {
+		const chBytes = Buffer.byteLength(ch, "utf-8");
+		if (bytes + chBytes > maxBytes) break;
+		out += ch;
+		bytes += chBytes;
+	}
+	return out;
+}
+
 export function clipLine(line: string, maxLen = 200): string {
 	const flat = line.replace(/\n/g, "\\n");
 	return flat.length > maxLen ? `${flat.slice(0, maxLen)}...` : flat;

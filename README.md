@@ -63,7 +63,7 @@ pi install /path/to/pi-hashline-edit-pro
 
 Paged output ends with a continuation hint, for example `[Showing lines 1-50 of 120. Use offset=51 to continue.]`.
 
-Lines up to 200KB are shown in full. Larger lines are replaced by a marker with a bash inspection hint (`sed -n 'Np' <path> | head -c 204800`), because hash anchors need full lines.
+Lines up to 50KB are shown in full. A larger line is replaced by a marker that keeps the line's anchor: `HASH│[Line N is 2.2MB, exceeds 50KB; content not shown. Use bash: sed -n 'Np' <path> | head -c 51200]`. The marker is served like a normal row, so the whole line can still be replaced via that anchor; `grep` shows a hash-anchored fragment around a match on such a line instead.
 
 Edge cases:
 
@@ -101,7 +101,7 @@ Notes:
 - Common copy-paste slips are fixed automatically and reported: a leftover `HASH│` prefix (including a truncated or expanded prefix of up to 6 characters, e.g. `L3│` or `ab12│`) in `replacement_lines` or `remove_from`/`remove_to`, diff-preview rows pasted into the replacement, a reversed range, or a boundary line pasted twice. New lines that re-include a block adjacent to the range are stripped automatically when that block is unique in the file. The whole run is stripped as one unit (including repeated structural lines like `}`), so re-including an unchanged block next to the range never duplicates it. A missing `path` is resolved from the anchors when they uniquely identify a file in the hash store (reported as a warning); when the anchors match multiple known files the request is rejected with the candidate paths named. `file_path` works as an alias for `path` in all three tools.
 - An edit that produces identical content reports `No changes made` and leaves the anchors alone. When such a noop happened because a boundary anti-duplication cut removed lines from the replacement (the cut blocked a line that duplicates the block next to the range from being added), the same replacement sent once more runs with the edge anti-duplication turned off for that single call and is applied literally. The duplicated lines are kept, and the result carries a `[E_BOUNDARY_BYPASS]` notice. The pending bypass is per file and keyed to that payload; copied `HASH│` prefixes, diff markers, and stray whitespace in the resend are normalized before matching, so a copy-paste resend still hits it. Any applied edit clears it, and a successful `write` also clears it.
 - Every line in the removed range must match what was last shown to you. The extension records the `HASH│content` rows it serves (`read` output, the auto-read block after `write`, the `+HASH│`/` HASH│` rows of post-edit diffs (replace, insert, and undo), the current-range rows of `[E_RANGE_STALE]` feedback, and the context rows of stale/ambiguous-anchor feedback) and verifies the whole range against that record before writing. If an interior line changed on disk since it was shown (external editor, formatter-on-save, code generation) or was never shown, the edit is refused with `[E_RANGE_STALE]` and the current range is returned with fresh anchors, so the retry needs no `read`. Edits outside the served record are only possible for files that were never read (for example right after a `write` with auto-read disabled); once the file has been served, every replaced line must have been shown.
-- After a successful edit you get the post-edit diff with fresh anchors, so you can keep editing without re-reading.
+- After a successful edit you get the post-edit diff with fresh anchors, so you can keep editing without re-reading. The diff is capped at 50KB: a row longer than 50KB is shown as a marker that keeps the row's anchor (so the line stays editable via the diff), and when the total cap is hit the diff ends with a truncation note. Only the rows shown in the capped diff are recorded as served. The same caps apply to the `insert` and `undo_last_change` diffs, to the interactive previews, and to `details.patch` (which is flagged with `details.patchTruncated` when it was cut and can no longer be applied as-is).
 - Do not issue multiple replace or insert calls on the same file in one message; parallel edits split attention across the post-edit diffs and removed lines are easy to miss. Verify each diff before the next edit on that file.
 
 ## The insert tool
@@ -148,7 +148,7 @@ Notes:
 Notes:
 - Results are grouped per file under a `=== path ===` header; every shown row carries the anchor it would have in `read` output.
 - Directory searches skip `node_modules`, `.git`, `.tmp`, and `coverage`. Binary, image, and oversized files are skipped silently.
-- Output is capped at `limit` matched lines and 2000 rows, with a hint when the cap cut results. Directory scans stop after 4000 files with a hint; results may be incomplete.
+- Output is capped at `limit` matched lines, 2000 rows, and 50KB of text (whichever comes first), with a hint naming the cap that cut results. A matched line longer than 500 bytes is shown as a fragment around the match with `...` marking the truncated sides, so the relevant part of the hit stays visible; a context line over 500 bytes is shown as its head with a trailing `...`. Fragments keep the line's anchor (long lines are hashed from their first 500 bytes) and are served like full rows, so a fragmented match is still editable with `replace` (which always replaces the whole line). Directory scans stop after 4000 files with a hint; results may be incomplete.
 - `file_path` works as an alias for `path`.
 - Line endings and BOMs survive every edit. The file's line ending is detected from its first newline and restored on write; a file that mixes LF and CRLF (for example a WSL-edited file) is normalized to the first-seen ending.
 - Files with multiple hard links (`nlink > 1`) are rewritten in place rather than via a temp-file rename, so every link keeps seeing the same content; that write is direct rather than atomic.
@@ -170,7 +170,7 @@ Notes:
 Enabled by default. After a successful `write` that changes the file, the extension reads the file and appends an `--- Auto-read (hashline anchors) ---` block to the result, so you get fresh `HASH│content` anchors without a separate `read` call.
 
 - After `replace`, `insert`, and `undo_last_change`, the result shows the post-edit diff. The `+HASH│` and ` HASH│` rows carry the current hashes, so follow-up edits can anchor on the diff directly. The `-HASH│` rows show removed lines with their old hashes, so you can see exactly which anchors were deleted (those hashes are stale after the edit). When the context line touching a change is blank or whitespace-only, one more context line is shown in that direction, so the change stays anchored to visible content. Call `read` when you want the full file's anchors.
-- Auto-read keeps a 50KB display budget. Lines over 50KB are skipped with a marker instead of their content (use `read` for lines up to 200KB).
+- Auto-read keeps the same 50KB / 2000-line budget as `read`. Lines over 50KB are shown as markers that keep the line's anchor (use `grep` for a fragment around a match).
 - Toggle at runtime with `/toggle-auto-read`; the setting persists across sessions.
 
 ## Tool result details
@@ -178,9 +178,9 @@ Enabled by default. After a successful `write` that changes the file, the extens
 All five tools return machine-readable metadata in `details` alongside the model-visible text:
 
 - `read`: `details.truncation` (set when the output was truncated), `details.snapshotId` (a `v2|path|ino|mtime|ctime|size` fingerprint of the file), `details.nextOffset` (use as the next `offset`), and `details.metrics` with `truncated` and `next_offset`.
-- `replace` and `insert`: `details.diff` (the post-edit diff; `+HASH│` and ` HASH│` rows carry the current anchors), `details.patch` (a standard unified patch of the changes, for external tools), `details.firstChangedLine`, `details.snapshotId`, `details.classification` (`"noop"` when nothing changed), and `details.metrics`: `edits_attempted`, `edits_noop`, `warnings`, `classification` (`"applied"` or `"noop"`), `changed_lines` (`{ first, last }`), `added_lines`, `removed_lines`.
-- `undo_last_change`: `details.diff` (the undo diff with the restored anchors), `details.patch` (a standard unified patch of the restored changes), and `details.metrics` (same shape as `replace`).
-- `grep`: `details.metrics` with `matches`, `files`, and `truncated`.
+- `replace` and `insert`: `details.diff` (the post-edit diff, capped at 50KB with markers for oversized rows; `+HASH│` and ` HASH│` rows carry the current anchors), `details.patch` (a standard unified patch of the changes, for external tools, capped at 50KB like the diff), `details.patchTruncated` (true when the patch was cut to fit the cap and cannot be applied as-is), `details.firstChangedLine`, `details.snapshotId`, `details.classification` (`"noop"` when nothing changed), and `details.metrics`: `edits_attempted`, `edits_noop`, `warnings`, `classification` (`"applied"` or `"noop"`), `changed_lines` (`{ first, last }`), `added_lines`, `removed_lines`.
+- `undo_last_change`: `details.diff` (the undo diff with the restored anchors), `details.patch` (a standard unified patch of the restored changes, capped at 50KB like `replace`), `details.patchTruncated` (true when the patch was cut), and `details.metrics` (same shape as `replace`).
+- `grep`: `details.metrics` with `matches` (matched lines found, capped at `limit`), `files`, and `truncated` (true when the row, byte, file-scan, or `limit` cap cut the results), plus `details.truncation` (the standard pi truncation report — `truncatedBy`, `totalLines`, `outputLines`, `maxLines`, `maxBytes`, … — when the output was cut) and `details.linesTruncated` (true when long lines were shown as fragments).
 
 ## Settings
 
@@ -198,7 +198,7 @@ Settings live in `~/.config/pi-hashline-edit-pro/config.json`, created automatic
 
 ## How anchors work
 
-Each line is canonicalized (carriage returns stripped, trailing whitespace trimmed) and hashed with [xxhash-wasm](https://github.com/jungomi/xxhash-wasm) (xxHash32), then mapped to a 3-character string over `A-Za-z0-9`, which gives 62³ = 238,328 possible anchors. The canonicalization keeps anchors stable across editor-save cycles that add or remove trailing whitespace.
+Each line is canonicalized (carriage returns stripped, trailing whitespace trimmed) and hashed with [xxhash-wasm](https://github.com/jungomi/xxhash-wasm) (xxHash32), then mapped to a 3-character string over `A-Za-z0-9`, which gives 62³ = 238,328 possible anchors. The canonicalization keeps anchors stable across editor-save cycles that add or remove trailing whitespace. A line longer than 500 bytes is hashed from its first 500 bytes; uniqueness is still guaranteed by the collision-resolution below.
 
 The alphabet is sized for an LLM consumer: the model reads the hashes as tokens rather than inspecting glyph shapes, so letters and digits are all included. The URL-safe specials `-` and `_` are deliberately excluded. A hash starting with `-` looks like a diff-preview deletion row, and `-`/`_` at the start of a line are markdown-active, which invites mis-copying and false autocorrections.
 

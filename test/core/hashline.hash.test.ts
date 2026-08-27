@@ -4,6 +4,7 @@ import {
 	lineHashes,
 	parseText,
 	AnchorMismatchError,
+	hashSource,
 } from "../../src/hashline";
 import { splitLines } from "../../src/utils";
 import { useTestHome } from "../support/fixtures";
@@ -171,5 +172,55 @@ describe("perfect hashing", () => {
 			const hashes = await lineHashes(file, home.testPath);
 			expect(hashes).toHaveLength(splitLines(file).length);
 		}
+	});
+});
+
+describe("long-line hash source", () => {
+	it("hashes a line longer than 500 bytes from its first 500 bytes", async () => {
+		const head = "const data = '" + "x".repeat(600);
+		const h1 = await lineHashes(head + "AAA';", home.testPath);
+		const h2 = await lineHashes(head + "BBB';", home.testPath);
+		expect(h1[0]).toBe(h2[0]);
+	});
+
+	it("still assigns unique anchors to long lines sharing the first 500 bytes", async () => {
+		const head = "const a = '" + "x".repeat(600);
+		const file = head + "AAA';\n" + head + "BBB';\n";
+		const hashes = await lineHashes(file, home.testPath);
+		expect(hashes[0]).not.toBe(hashes[1]);
+	});
+
+	it("keeps hashing lines under 500 bytes from the full line", async () => {
+		const h1 = await lineHashes("const x = 'aaa';", home.testPath);
+		const h2 = await lineHashes("const x = 'aab';", home.testPath);
+		expect(h1[0]).not.toBe(h2[0]);
+	});
+
+	it("keeps the anchor of a long line whose tail changed outside the edited range", async () => {
+		const head = "const data = '" + "x".repeat(600);
+		const oldContent = `aaa\n${head}OLD_TAIL';\nccc\n`;
+		const newContent = `aaa\n${head}NEW_TAIL';\nccc\n`;
+		const oldHashes = await lineHashes(oldContent, home.testPath);
+		const newHashes = await lineHashes(newContent, home.testPath, {
+			content: oldContent,
+			hashes: oldHashes,
+			removedHashes: new Set([oldHashes[0]!]),
+		});
+		expect(newHashes[1]).toBe(oldHashes[1]);
+		expect(newHashes[0]).toBe(oldHashes[0]);
+		expect(newHashes[2]).toBe(oldHashes[2]);
+	});
+
+	it("truncates a multibyte line at a code-point boundary", async () => {
+		const source = hashSource("😀".repeat(300));
+		expect(Buffer.byteLength(source, "utf-8")).toBeLessThanOrEqual(500);
+		expect(source.isWellFormed()).toBe(true);
+	});
+
+	it("hashes multibyte lines from the same 500-byte prefix", async () => {
+		const head = "😀".repeat(125);
+		const h1 = await lineHashes(head + "AAA';", home.testPath);
+		const h2 = await lineHashes(head + "BBB';", home.testPath);
+		expect(h1[0]).toBe(h2[0]);
 	});
 });

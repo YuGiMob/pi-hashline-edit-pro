@@ -308,7 +308,7 @@ describe("auto-read handler", () => {
     expect(content[0].text).not.toContain("--- Auto-read");
   });
 
-  it("does not auto-display lines over 50KB even though read allows 200KB lines", async () => {
+  it("does not auto-display lines over 50KB, matching the read budget", async () => {
     await withTempDir("auto-read-big-line-", async (dir) => {
       const filePath = join(dir, "big.txt");
       const big = "Q".repeat(60_000);

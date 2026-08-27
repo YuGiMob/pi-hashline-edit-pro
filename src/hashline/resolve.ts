@@ -546,7 +546,7 @@ export function assertRangeServed(
   for (let line = startLine; line < startLine + shownLength; line++) {
     const hash = fileHashes[line - 1]!;
     shownHashes.push(hash);
-    rows.push(fmtRow(hash, fileLines[line - 1]));
+    rows.push(fmtRow(hash, clipLine(fileLines[line - 1])));
   }
   const location = filePath ? ` in ${filePath}` : "";
   const first = mismatchLines[0]!;

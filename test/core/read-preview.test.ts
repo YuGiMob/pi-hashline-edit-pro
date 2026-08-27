@@ -82,12 +82,12 @@ describe("fmtReadPreview", () => {
     expect(result.text).toContain("[Line 2 is");
   });
 
-  it("returns only the warning when every line is oversized (auto-read budget)", async () => {
+  it("returns only the marker row when every line is oversized (auto-read budget)", async () => {
     const big = "Z".repeat(60_000);
     const result = await fmtReadPreview(`${big}\n`, {}, undefined, home.testPath, DEFAULT_MAX_BYTES);
-    expect(result.text).not.toMatch(/[A-Za-z0-9]{3}│/);
-    expect(result.text).toContain("exceeds 50.0KB");
+    expect(result.text).toMatch(/^[A-Za-z0-9]{3}│\[Line 1 is .*exceeds 50\.0KB/);
     expect(result.text).toContain("sed -n '1p'");
+    expect(result.servedHashes).toHaveLength(1);
     expect(result.nextOffset).toBeUndefined();
   });
 
@@ -103,27 +103,29 @@ describe("fmtReadPreview", () => {
     expect(result.text).toContain("[Showing lines 1-3 of 6. Use offset=4 to continue.]");
   });
 
-  it("shows a 60KB line in full by default", async () => {
+  it("marks a 60KB line with a hash-anchored marker by default", async () => {
     const big = "V".repeat(60_000);
     const result = await fmtReadPreview(`${big}\nb\n`, {}, undefined, home.testPath);
-    expect(result.text).toMatch(new RegExp(`^[A-Za-z0-9]{3}│V{60000}\n[A-Za-z0-9]{3}│b$`));
-    expect(result.text).not.toContain("content not shown");
+    expect(result.text).toMatch(/^[A-Za-z0-9]{3}│\[Line 1 is .*exceeds 50\.0KB/);
+    expect(result.text).not.toContain("│V");
+    expect(result.text).toContain("│b");
+    expect(result.servedHashes).toHaveLength(2);
   });
 
-  it("shows a line just under 200KB in full by default", async () => {
-    const big = "U".repeat(204_700);
+  it("shows a line just under 50KB in full by default", async () => {
+    const big = "U".repeat(50_000);
     const result = await fmtReadPreview(`${big}\n`, {}, undefined, home.testPath);
-    expect(result.text).toMatch(new RegExp(`^[A-Za-z0-9]{3}│U{204700}$`));
+    expect(result.text).toMatch(new RegExp(`^[A-Za-z0-9]{3}│U{50000}$`));
     expect(result.text).not.toContain("content not shown");
   });
 
-  it("marks lines over 200KB by default", async () => {
+  it("marks lines over 50KB by default with a hash-anchored marker", async () => {
     const big = "T".repeat(210_000);
     const result = await fmtReadPreview(`${big}\n`, {}, undefined, home.testPath);
-    expect(result.text).not.toMatch(/[A-Za-z0-9]{3}│/);
-    expect(result.text).toContain("exceeds 200.0KB");
+    expect(result.text).toMatch(/^[A-Za-z0-9]{3}│\[Line 1 is .*exceeds 50\.0KB/);
     expect(result.text).toContain("sed -n '1p'");
-    expect(result.text).toContain("head -c 204800");
+    expect(result.text).toContain("head -c 51200");
+    expect(result.servedHashes).toHaveLength(1);
     expect(result.nextOffset).toBeUndefined();
   });
 });
@@ -147,6 +149,21 @@ describe("fmtReadPreview - oversized marker truncation", () => {
     expect(second.text).toContain("[Line 3 is");
     expect(second.text).toContain("│b");
     expect(second.nextOffset).toBeUndefined();
+  });
+});
+
+describe("fmtReadPreview - oversized warning cap", () => {
+  it("caps the oversized-line warning enumeration at 100 entries", async () => {
+    const big = "Z".repeat(60_000);
+    const content = Array.from({ length: 150 }, () => big).join("\n") + "\n";
+    const result = await fmtReadPreview(content, {}, undefined, home.testPath, DEFAULT_MAX_BYTES);
+    expect(result.text).toContain("1, 2, 3");
+    expect(result.text).toContain("(+50 more)");
+    expect(result.text).toContain("sed -n '1p;2p;3p");
+    expect(result.text).toContain(";100p' <path>");
+    expect(result.text).not.toContain(";101p' <path>");
+    expect(result.text).toContain("Use read with offset");
+    expect(Buffer.byteLength(result.text, "utf-8")).toBeLessThan(50 * 1024);
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, writeFile, readFile } from "fs/promises";
 import { join } from "path";
 import { loadHashStore, getSnapshot } from "../../src/hash-store";
 import { getServed } from "../../src/served";
@@ -335,6 +335,173 @@ describe("grep tool", () => {
         undefined, undefined, ctx,
       );
       expect(getText(result)).toContain("│alpha");
+    });
+  });
+
+  it("shows a fragment around the match for an oversized line and keeps the line editable", async () => {
+    const longLine = "const x = '" + "a".repeat(10000) + "';";
+    await withTempFile("min.js", longLine + "\n", async ({ cwd, path }) => {
+      const { ctx, getTool } = setupIntegrationTest(cwd);
+      const grepTool = getTool("grep");
+      const editTool = getTool("replace");
+      const result = await grepTool.execute("g1", { pattern: "const x", path: "min.js" }, undefined, undefined, ctx);
+      const text = getText(result);
+      expect(text).toContain("=== min.js ===");
+      const row = text.split("\n").find((l) => l.includes("│const x = 'aaaa"))!;
+      expect(row).toContain("...");
+      expect(Buffer.byteLength(row, "utf-8")).toBeLessThanOrEqual(500);
+      expect(text).toContain("truncated fragments");
+      expect(text).not.toContain("a".repeat(10000));
+      const grepHash = extractHash(row);
+      const store = await loadHashStore();
+      const served = getServed(store, await resolveTarget(toCwd("min.js", cwd)));
+      expect(served?.has(grepHash)).toBe(true);
+      const edit = await editTool.execute(
+        "e1",
+        { path: "min.js", remove_from: grepHash, remove_to: grepHash, replacement_lines: ["REPLACED"] },
+        undefined, undefined, ctx,
+      );
+      expect(edit.content[0].text).toContain("Successfully replaced");
+      expect(await readFile(path, "utf-8")).toBe("REPLACED\n");
+    });
+  });
+
+  it("enforces a total byte budget across rows", async () => {
+    const lines = Array.from({ length: 700 }, (_, i) => `line ${i} ` + "x".repeat(90));
+    await withTempFile("wide.txt", lines.join("\n") + "\n", async ({ cwd }) => {
+      const { ctx, getTool } = setupIntegrationTest(cwd);
+      const grepTool = getTool("grep");
+      const result = await grepTool.execute("g1", { pattern: "^line", path: "wide.txt", limit: 1000 }, undefined, undefined, ctx);
+      const text = getText(result);
+      expect(text).toContain("output truncated at 2000 rows or 50.0KB");
+      const rows = text.split("\n").filter((l) => /^[A-Za-z0-9]{3}│/.test(l));
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows.length).toBeLessThan(700);
+      expect(Buffer.byteLength(rows.join("\n"), "utf-8")).toBeLessThanOrEqual(50 * 1024);
+      expect((result.details as { metrics: { truncated: boolean } }).metrics.truncated).toBe(true);
+      const served = getServed(await loadHashStore(), await resolveTarget(toCwd("wide.txt", cwd)));
+      expect(served?.size).toBe(rows.length);
+    });
+  });
+
+  it("fragments a multi-megabyte context line without pathological slowdown", async () => {
+    const huge = "y".repeat(2 * 1024 * 1024);
+    await withTempFile("huge.txt", `needle\n${huge}\n`, async ({ cwd }) => {
+      const { ctx, getTool } = setupIntegrationTest(cwd);
+      const grepTool = getTool("grep");
+      const started = Date.now();
+      const result = await grepTool.execute("g1", { pattern: "needle", path: "huge.txt", context: 1 }, undefined, undefined, ctx);
+      expect(Date.now() - started).toBeLessThan(5000);
+      const text = getText(result);
+      expect(text).toContain("│needle");
+      expect(text).toContain("...");
+      expect(text).not.toContain("y".repeat(1000));
+    });
+  });
+
+  it("fragments a match that itself spans megabytes without pathological slowdown", async () => {
+    const huge = "z".repeat(2 * 1024 * 1024);
+    await withTempFile("huge2.txt", `${huge}\n`, async ({ cwd }) => {
+      const { ctx, getTool } = setupIntegrationTest(cwd);
+      const grepTool = getTool("grep");
+      const started = Date.now();
+      const result = await grepTool.execute("g1", { pattern: "z{1000000}", path: "huge2.txt" }, undefined, undefined, ctx);
+      expect(Date.now() - started).toBeLessThan(5000);
+      const text = getText(result);
+      expect(text).toContain("truncated fragments");
+      expect(text).not.toContain("z".repeat(1000));
+    });
+  });
+
+  it("fragments an emoji-heavy line without splitting surrogate pairs", async () => {
+    const line = "😀".repeat(300) + "needleX";
+    await withTempFile("emoji.txt", line + "\n", async ({ cwd }) => {
+      const { ctx, getTool } = setupIntegrationTest(cwd);
+      const grepTool = getTool("grep");
+      const result = await grepTool.execute("g1", { pattern: "needleX", path: "emoji.txt" }, undefined, undefined, ctx);
+      const row = getText(result).split("\n").find((l) => /^[A-Za-z0-9]{3}│/.test(l))!;
+      expect(row.isWellFormed()).toBe(true);
+      expect(row).toContain("...");
+      expect(Buffer.byteLength(row, "utf-8")).toBeLessThanOrEqual(500);
+    });
+  });
+
+  it("counts only shown fragments in the truncation note", async () => {
+    const lines = Array.from({ length: 300 }, () => "x".repeat(600));
+    await withTempFile("many.txt", lines.join("\n") + "\n", async ({ cwd }) => {
+      const { ctx, getTool } = setupIntegrationTest(cwd);
+      const grepTool = getTool("grep");
+      const result = await grepTool.execute("g1", { pattern: "x{600}", path: "many.txt", limit: 1000 }, undefined, undefined, ctx);
+      const text = getText(result);
+      const rowsShown = text.split("\n").filter((l) => /^[A-Za-z0-9]{3}│/.test(l)).length;
+      const note = text.match(/grep: (\d+) line\(s\) exceed 500B/);
+      expect(note).not.toBeNull();
+      expect(Number(note![1]!)).toBe(rowsShown);
+      expect(Number(note![1]!)).toBeLessThan(300);
+      const details = result.details as { truncation: { totalLines: number }; metrics: { matches: number } };
+      expect(details.truncation.totalLines).toBe(300);
+      expect(details.metrics.matches).toBe(300);
+    });
+  });
+
+  it("counts rows from files after the byte-budget cutoff", async () => {
+    const a = Array.from({ length: 200 }, () => "x".repeat(600)).join("\n") + "\n";
+    const b = Array.from({ length: 100 }, () => "x".repeat(600)).join("\n") + "\n";
+    await withTempDir("grep-totals-", async (dir) => {
+      await writeFile(join(dir, "a.txt"), a, "utf-8");
+      await writeFile(join(dir, "b.txt"), b, "utf-8");
+      const { ctx, getTool } = setupIntegrationTest(dir);
+      const grepTool = getTool("grep");
+      const result = await grepTool.execute("g1", { pattern: "x{600}", limit: 1000 }, undefined, undefined, ctx);
+      const details = result.details as { truncation: { totalLines: number; totalBytes: number }; metrics: { matches: number } };
+      expect(details.truncation.totalLines).toBe(300);
+      expect(details.truncation.totalBytes).toBe(300 * 495);
+      expect(details.metrics.matches).toBe(300);
+    });
+  });
+
+  it("keeps every fragment row within the 500-byte budget", async () => {
+    const line = "a".repeat(300) + "NEEDLE1234" + "b".repeat(300);
+    await withTempFile("wide2.txt", line + "\n", async ({ cwd }) => {
+      const { ctx, getTool } = setupIntegrationTest(cwd);
+      const grepTool = getTool("grep");
+      const result = await grepTool.execute("g1", { pattern: "NEEDLE1234", path: "wide2.txt" }, undefined, undefined, ctx);
+      const rows = getText(result).split("\n").filter((l) => /^[A-Za-z0-9]{3}│/.test(l));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!).toContain("NEEDLE1234");
+      expect(rows[0]!).toContain("...");
+      expect(Buffer.byteLength(rows[0]!, "utf-8")).toBeLessThanOrEqual(500);
+    });
+  });
+
+  it("keeps context head fragments within the 500-byte budget", async () => {
+    const wide = "c".repeat(1000);
+    await withTempFile("wide3.txt", `needle\n${wide}\n`, async ({ cwd }) => {
+      const { ctx, getTool } = setupIntegrationTest(cwd);
+      const grepTool = getTool("grep");
+      const result = await grepTool.execute("g1", { pattern: "needle", path: "wide3.txt", context: 1 }, undefined, undefined, ctx);
+      const rows = getText(result).split("\n").filter((l) => /^[A-Za-z0-9]{3}│/.test(l));
+      expect(rows).toHaveLength(2);
+      for (const row of rows) {
+        expect(Buffer.byteLength(row, "utf-8")).toBeLessThanOrEqual(500);
+      }
+    });
+  });
+
+  it("caps matches at limit when counting files after the byte-budget cutoff", async () => {
+    const a = Array.from({ length: 200 }, () => "x".repeat(600)).join("\n") + "\n";
+    const b = Array.from({ length: 200 }, () => "x".repeat(600)).join("\n") + "\n";
+    await withTempDir("grep-limit-cap-", async (dir) => {
+      await writeFile(join(dir, "a.txt"), a, "utf-8");
+      await writeFile(join(dir, "b.txt"), b, "utf-8");
+      const { ctx, getTool } = setupIntegrationTest(dir);
+      const grepTool = getTool("grep");
+      const result = await grepTool.execute("g1", { pattern: "x{600}", limit: 300 }, undefined, undefined, ctx);
+      const details = result.details as { truncation: { totalLines: number }; metrics: { matches: number; truncated: boolean } };
+      expect(details.metrics.matches).toBe(300);
+      expect(details.truncation.totalLines).toBe(400);
+      expect(details.metrics.truncated).toBe(true);
+      expect(getText(result)).toContain("showing first 300 matches");
     });
   });
 });

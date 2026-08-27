@@ -153,11 +153,13 @@ export function buildChanged(input: SuccessInput, verb = "replaced"): TResult {
     removedLines,
   });
 
+  const patchResult = genPatch(path, originalNormalized, result);
   return {
     content: [{ type: "text", text }],
     details: {
       diff: diffResult.diff,
-      patch: genPatch(path, originalNormalized, result),
+      patch: patchResult.patch,
+      ...(patchResult.truncated ? { patchTruncated: true as const } : {}),
       firstChangedLine:
         editMeta.firstChangedLine ?? diffResult.firstChangedLine,
       snapshotId,

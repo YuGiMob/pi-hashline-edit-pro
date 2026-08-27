@@ -823,4 +823,33 @@ describe("undo cleared after write", () => {
       expect(getText(undoResult)).toMatch(/undone last change/i);
     });
   });
+
+  it("caps the undo diff when the file contains a very long line", async () => {
+    const long = "x".repeat(200 * 1024);
+    await withTempFile("min.js", `a\n${long}\nb\n`, async ({ cwd }) => {
+      const { getTool, ctx } = setupIntegrationTest(cwd);
+      const editTool = getTool("replace");
+      const undo = getTool("undo_last_change");
+      const hashes = await lineHashes(`a\n${long}\nb\n`, home.testPath);
+
+      await editTool.execute(
+        "e1",
+        { path: "min.js", remove_from: hashes[0]!, remove_to: hashes[0]!, replacement_lines: ["ALPHA"] },
+        undefined, undefined, ctx,
+      );
+
+      const undoResult = await undo.execute("u1", { path: "min.js" }, undefined, undefined, ctx);
+      expect(undoResult.isError).toBeFalsy();
+      expect(getText(undoResult)).toMatch(/undone last change/i);
+      expect(getText(undoResult)).toMatch(/Removed 1 line\(s\), restored 1 line\(s\)\./);
+      const details = undoResult.details as { diff?: string; patch?: string; patchTruncated?: boolean };
+      expect(details.diff).toBeDefined();
+      expect(details.diff!).not.toContain(long);
+      expect(Buffer.byteLength(details.diff!, "utf-8")).toBeLessThan(5 * 1024);
+      expect(details.patchTruncated).toBe(true);
+      expect(details.patch).toBeDefined();
+      expect(details.patch!).not.toContain(long);
+      expect(Buffer.byteLength(details.patch!, "utf-8")).toBeLessThan(5 * 1024);
+    });
+  });
 });

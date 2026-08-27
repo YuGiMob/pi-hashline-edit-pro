@@ -8,6 +8,7 @@ import {
   lastNonEmpty,
   firstNonEmpty,
   makePrepareArguments,
+  truncateToBytes,
 } from "../../src/utils";
 
 describe("isRec", () => {
@@ -296,5 +297,28 @@ describe("makePrepareArguments", () => {
     const prepare = makePrepareArguments();
     const result = prepare({ path: "a.txt", file_path: "b.txt" });
     expect(result).toEqual({ path: "a.txt", file_path: "b.txt" });
+  });
+});
+
+describe("truncateToBytes", () => {
+  it("returns strings within the byte budget unchanged", () => {
+    expect(truncateToBytes("abc", 3)).toBe("abc");
+    expect(truncateToBytes("", 0)).toBe("");
+  });
+
+  it("cuts ASCII strings at the byte budget", () => {
+    expect(truncateToBytes("abcdef", 3)).toBe("abc");
+  });
+
+  it("cuts multibyte strings at a character boundary", () => {
+    expect(truncateToBytes("éééé", 5)).toBe("éé");
+  });
+
+  it("never splits a surrogate pair", () => {
+    const emoji = "😀".repeat(10);
+    const cut = truncateToBytes(emoji, 7);
+    expect(cut.isWellFormed()).toBe(true);
+    expect(Buffer.byteLength(cut, "utf-8")).toBeLessThanOrEqual(7);
+    expect(cut).toBe("😀");
   });
 });
