@@ -227,14 +227,37 @@ describe("buildAppliedText", () => {
 				removed_lines: 1,
 			},
 		};
-		const result = buildAppliedText(text, details, mockTheme);
+		const result = buildAppliedText(text, details, mockTheme, false);
 		expect(result).toContain("[success]");
 		expect(result).toContain("Warnings:");
 	});
 
 	it("returns undefined for no content", () => {
-		const result = buildAppliedText(undefined, undefined, mockTheme);
+		const result = buildAppliedText(undefined, undefined, mockTheme, false);
 		expect(result).toBeUndefined();
+	});
+
+	it("shows summary, excerpt, and expand hint when collapsed", () => {
+		const text = "Successfully replaced in x. Added 1 line(s), removed 1 line(s).";
+		const diff = Array.from({ length: 30 }, (_, i) => ` line ${i}`).join("\n");
+		const result = buildAppliedText(text, { diff }, mockTheme, false);
+		expect(result).toContain("Successfully replaced in x.");
+		expect(result).toContain("more diff lines");
+		expect(result).toContain("to expand");
+		expect(result).not.toContain(" line 29");
+	});
+
+	it("shows the full diff without hint when expanded", () => {
+		const text = "Successfully replaced in x.";
+		const diff = Array.from({ length: 30 }, (_, i) => ` line ${i}`).join("\n");
+		const result = buildAppliedText(text, { diff }, mockTheme, true);
+		expect(result).toContain(" line 29");
+		expect(result).not.toContain("to expand");
+	});
+
+	it("omits the hint when the diff fits the preview", () => {
+		const result = buildAppliedText("Successfully replaced in x.", { diff: "+a\n-b" }, mockTheme, false);
+		expect(result).not.toContain("to expand");
 	});
 });
 

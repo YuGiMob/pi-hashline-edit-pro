@@ -1,5 +1,5 @@
 import { Markdown, Text } from "@earendil-works/pi-tui";
-import type { Theme } from "@earendil-works/pi-coding-agent";
+import { keyHint, type Theme } from "@earendil-works/pi-coding-agent";
 import { normReq } from "./replace-normalize";
 import type { ReqParams, ReplaceDetails } from "./replace";
 import { isRec } from "./utils";
@@ -145,20 +145,45 @@ export function isApplied(
 	);
 }
 
+const RESULT_PREVIEW_LINES = 16;
+
+function expandHint(): string {
+	try {
+		return keyHint("app.tools.expand", "to expand");
+	} catch {
+		return "ctrl+o to expand";
+	}
+}
+
+function extractSummary(text: string | undefined): string | undefined {
+	if (!text) return undefined;
+	const warningsIdx = text.indexOf("\n\nWarnings:");
+	const summary = warningsIdx >= 0 ? text.slice(0, warningsIdx) : text;
+	return summary.length > 0 ? summary : undefined;
+}
+
 export function buildAppliedText(
 	text: string | undefined,
 	details: ReplaceDetails | undefined,
 	theme: FgT,
+	expanded: boolean,
 ): string | undefined {
 	const sections: string[] = [];
-
+	const summary = extractSummary(text);
+	if (summary) sections.push(summary);
 	if (details?.diff) {
-		sections.push(fmtResult(details.diff, theme));
+		const diffLines = details.diff.split("\n");
+		const diffSection = expanded
+			? fmtResult(details.diff, theme)
+			: fmtPreview(details.diff, false, theme);
+		const hint =
+			!expanded && diffLines.length > RESULT_PREVIEW_LINES
+				? ` (${expandHint()})`
+				: "";
+		sections.push(`${diffSection}${hint}`);
 	}
-
 	const warnings = extractWarnings(text);
 	if (warnings) sections.push(warnings);
-
 	return sections.length > 0 ? sections.join("\n\n") : undefined;
 }
 
@@ -317,7 +342,7 @@ export function renderEditResult(
 			: new Text("", 0, 0);
 	}
 	if (isApplied(result.details)) {
-		const appliedText = buildAppliedText(renderedText, result.details, theme);
+		const appliedText = buildAppliedText(renderedText, result.details, theme, context.expanded === true);
 		return appliedText ? reuseText(context, appliedText) : new Text("", 0, 0);
 	}
 	if (!renderedText) return new Text("", 0, 0);
