@@ -14,11 +14,11 @@ function diagRef(ref: string): string {
 	}
 
 	if (/^\d+/.test(trimmed)) {
-		return `[E_BAD_REF] Invalid anchor. Use the hash alone (e.g. "aB3"): no line numbers or trailing content.`;
+		return `[E_BAD_REF] Invalid anchor. Use the anchor alone (e.g. "aB3"): no line numbers or trailing content.`;
 	}
 
 	if (trimmed.includes("│")) {
-		return `[E_BAD_REF] Invalid anchor "${trimmed}": use only the 3-char hash, drop everything from "│" onward.`;
+		return `[E_BAD_REF] Invalid anchor "${trimmed}": use only the 3-char anchor, drop everything from "│" onward.`;
 	}
 
 	return `[E_BAD_REF] Invalid anchor "${trimmed}". Expected a 3-char alphanumeric anchor (e.g. "aB3").`;

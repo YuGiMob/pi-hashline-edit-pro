@@ -377,7 +377,7 @@ describe("replace diff in model-visible text", () => {
       register(pi);
       const handler = handlers.get("tool_result");
       const diff = " aaa\n-   │bbb\n+XYZ│BBB\n ccc";
-      const summary = "Successfully replaced in warn.txt. Added 1 line(s), removed 1 line(s).\n\nWarnings:\n[E_BARE_HASH_PREFIX] Stripped \"HASH│\" prefix from replacement_lines line 1.";
+      const summary = "Successfully replaced in warn.txt. Added 1 line(s), removed 1 line(s).\n\nWarnings:\n[E_BARE_HASH_PREFIX] Stripped \"anchor│\" prefix from replacement_lines line 1.";
 
       const result = await handler!(
         {

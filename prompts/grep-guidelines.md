@@ -1,4 +1,4 @@
-- `grep`: results carry `HASH│` anchors recorded like read output, so you can target them with replace or insert immediately.
+- `grep`: results carry anchors recorded like read output, so you can target them with replace or insert immediately.
 - `grep`: pass `path` for a single file or directory; the default is the current working directory. Directory searches skip node_modules, .git, .tmp, and coverage.
 - `grep`: use `literal: true` when the pattern contains regex metacharacters you want matched literally.
 - `grep`: use `context` to see surrounding lines; context rows carry anchors too.

@@ -1,1 +1,1 @@
-Read a file; each line returned as HASH│content
+Read a file; each line returned as anchor│content

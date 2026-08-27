@@ -2,18 +2,18 @@
 
 [![npm version](https://img.shields.io/npm/v/pi-hashline-edit-pro.svg)](https://www.npmjs.com/package/pi-hashline-edit-pro) [![npm downloads](https://img.shields.io/npm/dm/pi-hashline-edit-pro.svg)](https://www.npmjs.com/package/pi-hashline-edit-pro)
 
-Hash-anchored `read`, `replace`, `insert`, and `grep` tools for [pi-coding-agent](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent). Every line of a file gets a unique 3-character hash, and you edit by hash. There are no line numbers and no fuzzy matching, so edits land on the lines you meant.
+Anchor-based `read`, `replace`, `insert`, and `grep` tools for [pi-coding-agent](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent). Every line of a file gets a unique 3-character anchor, and you edit by anchor. There are no line numbers and no fuzzy matching, so edits land on the lines you meant.
 
-Fork of [pi-hashline-edit](https://github.com/RimuruW/pi-hashline-edit) by RimuruW, extended with 3-character hashes and collision resolution.
+Fork of [pi-hashline-edit](https://github.com/RimuruW/pi-hashline-edit) by RimuruW, extended with 3-character anchors and collision resolution.
 
 ## Features
 
-- `read` returns every line as `HASH│content`. The hash is the line's address.
-- `replace` targets a range of hashes, so edits land on the lines you meant.
-- `insert` adds lines after or before a line by hash: the anchor line is preserved and the new lines are applied literally, never deduplicated.
-- `grep` returns matching lines (and requested context) with `HASH│content` rows that are served like read output, so search results are immediately editable.
-- Editing one part of a file leaves the hashes of the rest unchanged, so anchors from an earlier read stay valid across edits.
-- After a `write` you get the new anchors. After a `replace` or `insert` you get the diff with the new hashes.
+- `read` returns every line as `anchor│content`. The anchor is the line's address.
+- `replace` targets a range of anchors, so edits land on the lines you meant.
+- `insert` adds lines after or before a line by anchor: the anchor line is preserved and the new lines are applied literally, never deduplicated.
+- `grep` returns matching lines (and requested context) with `anchor│content` rows that are served like read output, so search results are immediately editable.
+- Editing one part of a file leaves the anchors of the rest unchanged, so anchors from an earlier read stay valid across edits.
+- After a `write` you get the new anchors. After a `replace` or `insert` you get the diff with the new anchors.
 - The most recent replace or insert on a file can be reverted, even after a restart.
 - Permissions, line endings, BOMs, symlinks, and hard links survive every edit.
 
@@ -27,7 +27,7 @@ szJ│  console.log("world");
 kQm│}
 ```
 
-2. Replace a line by its hash:
+2. Replace a line by its anchor:
 
 ```json
 {
@@ -54,7 +54,7 @@ pi install /path/to/pi-hashline-edit-pro
 
 ## The read tool
 
-`read` returns a text file with every line prefixed by `HASH│content`. The hash is 3 characters from `A-Za-z0-9` (for example `aB3`).
+`read` returns a text file with every line prefixed by `anchor│content`. The anchor is 3 characters from `A-Za-z0-9` (for example `aB3`).
 
 | Parameter | Description |
 | --- | --- |
@@ -63,20 +63,20 @@ pi install /path/to/pi-hashline-edit-pro
 
 Paged output ends with a continuation hint, for example `[Showing lines 1-50 of 120. Use offset=51 to continue.]`.
 
-Lines up to 50KB are shown in full. A larger line is replaced by a marker that keeps the line's anchor: `HASH│[Line N is 2.2MB, exceeds 50KB; content not shown. Use bash: sed -n 'Np' <path> | head -c 51200]`. The marker is served like a normal row, so the whole line can still be replaced via that anchor; `grep` shows a hash-anchored fragment around a match on such a line instead.
+Lines up to 50KB are shown in full. A larger line is replaced by a marker that keeps the line's anchor: `anchor│[Line N is 2.2MB, exceeds 50KB; content not shown. Use bash: sed -n 'Np' <path> | head -c 51200]`. The marker is served like a normal row, so the whole line can still be replaced via that anchor; `grep` shows an anchored fragment around a match on such a line instead.
 
 Edge cases:
 
 - Images (JPEG, PNG, GIF, WebP, BMP) come back as visual attachments. Other image formats (for example AVIF, HEIC/HEIF, TIFF, ICO, JPEG 2000, JPEG XL, PSD, APNG) are rejected as binary, since the built-in renderer cannot attach them.
 - Binary files and directories are rejected with a descriptive error. A magic-signature match is ignored when the sampled bytes contain no NUL bytes and decode as UTF-8, so a text file whose first bytes happen to match a binary or image signature (for example starting with `BM` or `8BPS`) is still read as text. The NUL-byte check covers the whole file, not just the sampled bytes: a file with a NUL byte anywhere is rejected as binary.
 - UTF-16 and UTF-32 text (detected via BOM) is rejected, since editing it would corrupt the file.
-- Empty files come back as a single empty-line hash (`HASH│`); use `replace` on that hash to insert content.
+- Empty files come back as a single empty-line anchor (`anchor│`); use `replace` on that anchor to insert content.
 - BOMs are stripped for display. Non-UTF-8 bytes are shown as `U+FFFD`; editing such a file rewrites it as UTF-8, with a warning.
 - Files over 238,328 lines or 100MB are rejected with `[E_FILE_TOO_LARGE]`.
 
 ## The replace tool
 
-The built-in `edit` tool is disabled. `replace` and `insert` are the only edit paths, and both take the hash anchors from `read` output.
+The built-in `edit` tool is disabled. `replace` and `insert` are the only edit paths, and both take the anchors from `read` output.
 
 One edit per call, with `remove_from`, `remove_to`, and `replacement_lines` at the top level:
 
@@ -91,16 +91,16 @@ One edit per call, with `remove_from`, `remove_to`, and `replacement_lines` at t
 
 | Field | Description |
 | --- | --- |
-| `remove_from` | 3-char hash from `read` output marking the FIRST line to remove (inclusive). |
-| `remove_to` | 3-char hash from `read` output marking the LAST line to remove (inclusive). |
+| `remove_from` | 3-char anchor from `read` output marking the FIRST line to remove (inclusive). |
+| `remove_to` | 3-char anchor from `read` output marking the LAST line to remove (inclusive). |
 | `replacement_lines` | Replacement lines as an array of strings, one element per line. Mirror the removed lines exactly, blank lines included: use `[]` to delete the range, `[""]` for a single blank line, `["a", ""]` for a line followed by a blank line, and `["", ""]` for two blank lines. Do not embed `\n` inside an element: each element is exactly one line. |
 
 Notes:
 
 - The request is checked before any file I/O, so a bad request never touches the file.
-- Common copy-paste slips are fixed automatically and reported: a leftover `HASH│` prefix (including a truncated or expanded prefix of up to 6 characters, e.g. `L3│` or `ab12│`) in `replacement_lines` or `remove_from`/`remove_to`, diff-preview rows pasted into the replacement, a reversed range, or a boundary line pasted twice. New lines that re-include a block adjacent to the range are stripped automatically when that block is unique in the file. The whole run is stripped as one unit (including repeated structural lines like `}`), so re-including an unchanged block next to the range never duplicates it. A missing `path` is resolved from the anchors when they uniquely identify a file in the hash store (reported as a warning); when the anchors match multiple known files the request is rejected with the candidate paths named. `file_path` works as an alias for `path` in all three tools.
-- An edit that produces identical content reports `No changes made` and leaves the anchors alone. When such a noop happened because a boundary anti-duplication cut removed lines from the replacement (the cut blocked a line that duplicates the block next to the range from being added), the same replacement sent once more runs with the edge anti-duplication turned off for that single call and is applied literally. The duplicated lines are kept, and the result carries a `[E_BOUNDARY_BYPASS]` notice. The pending bypass is per file and keyed to that payload; copied `HASH│` prefixes, diff markers, and stray whitespace in the resend are normalized before matching, so a copy-paste resend still hits it. Any applied edit clears it, and a successful `write` also clears it.
-- Every line in the removed range must match what was last shown to you. The extension records the `HASH│content` rows it serves (`read` output, the auto-read block after `write`, the `+HASH│`/` HASH│` rows of post-edit diffs (replace, insert, and undo), the current-range rows of `[E_RANGE_STALE]` feedback, and the context rows of stale/ambiguous-anchor feedback) and verifies the whole range against that record before writing. If an interior line changed on disk since it was shown (external editor, formatter-on-save, code generation) or was never shown, the edit is refused with `[E_RANGE_STALE]` and the current range is returned with fresh anchors, so the retry needs no `read`. Edits outside the served record are only possible for files that were never read (for example right after a `write` with auto-read disabled); once the file has been served, every replaced line must have been shown.
+- Common copy-paste slips are fixed automatically and reported: a leftover `anchor│` prefix (including a truncated or expanded prefix of up to 6 characters, e.g. `L3│` or `ab12│`) in `replacement_lines` or `remove_from`/`remove_to`, diff-preview rows pasted into the replacement, a reversed range, or a boundary line pasted twice. New lines that re-include a block adjacent to the range are stripped automatically when that block is unique in the file. The whole run is stripped as one unit (including repeated structural lines like `}`), so re-including an unchanged block next to the range never duplicates it. A missing `path` is resolved from the anchors when they uniquely identify a file in the hash store (reported as a warning); when the anchors match multiple known files the request is rejected with the candidate paths named. `file_path` works as an alias for `path` in all three tools.
+- An edit that produces identical content reports `No changes made` and leaves the anchors alone. When such a noop happened because a boundary anti-duplication cut removed lines from the replacement (the cut blocked a line that duplicates the block next to the range from being added), the same replacement sent once more runs with the edge anti-duplication turned off for that single call and is applied literally. The duplicated lines are kept, and the result carries a `[E_BOUNDARY_BYPASS]` notice. The pending bypass is per file and keyed to that payload; copied `anchor│` prefixes, diff markers, and stray whitespace in the resend are normalized before matching, so a copy-paste resend still hits it. Any applied edit clears it, and a successful `write` also clears it.
+- Every line in the removed range must match what was last shown to you. The extension records the `anchor│content` rows it serves (`read` output, the auto-read block after `write`, the `+anchor│`/` anchor│` rows of post-edit diffs (replace, insert, and undo), the current-range rows of `[E_RANGE_STALE]` feedback, and the context rows of stale/ambiguous-anchor feedback) and verifies the whole range against that record before writing. If an interior line changed on disk since it was shown (external editor, formatter-on-save, code generation) or was never shown, the edit is refused with `[E_RANGE_STALE]` and the current range is returned with fresh anchors, so the retry needs no `read`. Edits outside the served record are only possible for files that were never read (for example right after a `write` with auto-read disabled); once the file has been served, every replaced line must have been shown.
 - After a successful edit you get the post-edit diff with fresh anchors, so you can keep editing without re-reading. The diff is capped at 50KB: a row longer than 50KB is shown as a marker that keeps the row's anchor (so the line stays editable via the diff), and when the total cap is hit the diff ends with a truncation note. Only the rows shown in the capped diff are recorded as served. The same caps apply to the `insert` and `undo_last_change` diffs, to the interactive previews, and to `details.patch` (which is flagged with `details.patchTruncated` when it was cut and can no longer be applied as-is).
 - Do not issue multiple replace or insert calls on the same file in one message; parallel edits split attention across the post-edit diffs and removed lines are easy to miss. Verify each diff before the next edit on that file.
 
@@ -119,7 +119,7 @@ Notes:
 
 | Field | Description |
 | --- | --- |
-| `anchor` | 3-char hash from `read` output marking the line next to which the lines go (inclusive; the line is preserved). A pasted diff row like `+aB3│x` or a `HASH│` prefix is stripped automatically with a warning. |
+| `anchor` | 3-char anchor from `read` output marking the line next to which the lines go (inclusive; the line is preserved). A pasted diff row like `+aB3│x` or an `anchor│` prefix is stripped automatically with a warning. |
 | `direction` | `"after"` to insert below the anchor line, `"before"` to insert above it. |
 | `lines` | Lines to insert as an array of strings, one element per line. Mirror `replacement_lines` semantics: use `[""]` for a blank line and do not embed `\n` inside an element. The anchor line is never part of `lines`. |
 
@@ -127,13 +127,13 @@ Notes:
 
 - The anchor line must have been shown to you (read output, a post-edit diff row, grep output, or stale-range feedback). The same verification as `replace` applies: a stale or unshown anchor is rejected with `[E_STALE_ANCHOR]`, `[E_AMBIGUOUS_ANCHOR]`, or `[E_RANGE_STALE]` and the retry needs no `read`.
 - Lines are applied literally: nothing is removed, and a line that duplicates its neighbor is kept. `replace`'s boundary anti-duplication never runs for `insert`.
-- To seed an empty file, read it and insert after the `HASH│` empty-line row.
+- To seed an empty file, read it and insert after the `anchor│` empty-line row.
 - The same safety machinery as `replace` applies: undo is saved before the write (a failed write restores the previous undo record), line endings and BOMs survive, and an applied insert clears a pending boundary bypass.
 - Inserting nothing (`lines: []`) reports a noop and leaves the file unchanged; inserted lines are never deduplicated.
 
 ## The grep tool
 
-`grep` replaces the built-in grep with a hash-anchored search. Every matching line (and each requested context line) is returned as a `HASH│content` row, and those rows are recorded in the served state exactly like `read` output, so you can target them with `replace` or `insert` immediately without a separate `read`.
+`grep` replaces the built-in grep with an anchored search. Every matching line (and each requested context line) is returned as an `anchor│content` row, and those rows are recorded in the served state exactly like `read` output, so you can target them with `replace` or `insert` immediately without a separate `read`.
 
 | Field | Description |
 | --- | --- |
@@ -167,9 +167,9 @@ Notes:
 
 ## Auto-read
 
-Enabled by default. After a successful `write` that changes the file, the extension reads the file and appends an `--- Auto-read (hashline anchors) ---` block to the result, so you get fresh `HASH│content` anchors without a separate `read` call.
+Enabled by default. After a successful `write` that changes the file, the extension reads the file and appends an `--- Auto-read (hashline anchors) ---` block to the result, so you get fresh `anchor│content` anchors without a separate `read` call.
 
-- After `replace`, `insert`, and `undo_last_change`, the result shows the post-edit diff. The `+HASH│` and ` HASH│` rows carry the current hashes, so follow-up edits can anchor on the diff directly. The `-HASH│` rows show removed lines with their old hashes, so you can see exactly which anchors were deleted (those hashes are stale after the edit). When the context line touching a change is blank or whitespace-only, one more context line is shown in that direction, so the change stays anchored to visible content. Call `read` when you want the full file's anchors.
+- After `replace`, `insert`, and `undo_last_change`, the result shows the post-edit diff. The `+anchor│` and ` anchor│` rows carry the current anchors, so follow-up edits can anchor on the diff directly. The `-anchor│` rows show removed lines with their old anchors, so you can see exactly which anchors were deleted (those anchors are stale after the edit). When the context line touching a change is blank or whitespace-only, one more context line is shown in that direction, so the change stays anchored to visible content. Call `read` when you want the full file's anchors.
 - Auto-read keeps the same 50KB / 2000-line budget as `read`. Lines over 50KB are shown as markers that keep the line's anchor (use `grep` for a fragment around a match).
 - Toggle at runtime with `/toggle-auto-read`; the setting persists across sessions.
 
@@ -220,11 +220,11 @@ A no-op replace never changes the file, so anchors remain valid. On first run af
 | Code | Meaning |
 | --- | --- |
 | `[E_BAD_SHAPE]` | Request envelope or edit item has unknown, missing, or wrongly-typed fields (for example `replacement_lines` must be an array of strings, one element per line). |
-| `[E_BAD_REF]` | An anchor in `remove_from`/`remove_to` is not a bare 3-char hash. |
+| `[E_BAD_REF]` | An anchor in `remove_from`/`remove_to` is not a bare 3-char anchor. |
 | `[E_STALE_ANCHOR]` | An anchor does not match any line in the current file; call `read` for fresh anchors. |
 | `[E_AMBIGUOUS_ANCHOR]` | An anchor matches multiple lines; call `read` for fresh anchors. |
-| `[E_INVALID_PATCH]` | A `replacement_lines` element is a diff-preview row (`+HASH│`, `-HASH│`, `-   │`). The marker is stripped automatically with a warning. |
-| `[E_BARE_HASH_PREFIX]` | A `replacement_lines` element starts with a hash-like `HASH│` prefix. The prefix is stripped automatically with a warning. |
+| `[E_INVALID_PATCH]` | A `replacement_lines` element is a diff-preview row (`+anchor│`, `-anchor│`, `-   │`). The marker is stripped automatically with a warning. |
+| `[E_BARE_HASH_PREFIX]` | A `replacement_lines` element starts with a hash-like `anchor│` prefix. The prefix is stripped automatically with a warning. |
 | `[E_BAD_OP]` | Range start line is after range end line. The pair is swapped automatically with a warning. |
 | `[E_WOULD_EMPTY]` | An edit would empty a non-empty file; use `write` instead. |
 | `[E_NOT_FOUND]` | The path does not exist. |

@@ -23,7 +23,7 @@ const replacePrompt = readFileSync(
 
 describe("prompts/replace.md (model-facing contract)", () => {
   it("declares the tool purpose", () => {
-    expect(replacePrompt).toMatch(/Replace a range of lines \(or a single line\) in a text file.*HASH anchors/);
+    expect(replacePrompt).toMatch(/Replace a range of lines \(or a single line\) in a text file.*anchors/);
   });
 });
 
@@ -34,11 +34,11 @@ const readPrompt = readFileSync(
 
 describe("prompts/read.md (model-facing contract)", () => {
   it("declares the HASH|content output format", () => {
-    expect(readPrompt).toMatch(/HASH│content/);
+    expect(readPrompt).toMatch(/anchor│content/);
     expect(readPrompt).toMatch(/3-char/);
   });
 
-  it("specifies the alphanumeric hash alphabet", () => {
+  it("specifies the alphanumeric anchor alphabet", () => {
     expect(readPrompt).toMatch(/3-char/);
     expect(readPrompt).toContain("alphanumeric");
   });

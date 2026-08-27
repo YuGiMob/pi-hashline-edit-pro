@@ -34,7 +34,7 @@ export function assertInsertReq(request: unknown): asserts request is InsertReq 
     throw new Error('[E_BAD_SHAPE] Insert request requires a non-empty "path" string.');
   }
   if (typeof request.anchor !== "string" || request.anchor.length === 0) {
-    throw new Error('[E_BAD_SHAPE] Insert request requires an "anchor" string (3-char hash from read output).');
+    throw new Error('[E_BAD_SHAPE] Insert request requires an "anchor" string (3-char anchor from read output).');
   }
   if (request.direction !== "before" && request.direction !== "after") {
     throw new Error('[E_BAD_SHAPE] Insert request "direction" must be "before" or "after".');
@@ -52,7 +52,7 @@ const insertToolSchema = Type.Object(
     }),
     anchor: Type.String({
       description:
-        'Bare 3-char HASH only (e.g. "aB3"): copy just the hash from the leftmost column of a read row like `aB3│content`; never the line content. A pasted diff row like `+aB3│x` or a `HASH│` prefix is stripped automatically with a warning. The anchored line is preserved; the new lines go after or before it.',
+        'Bare 3-char anchor only (e.g. "aB3"): copy just the anchor from the leftmost column of a read row like `aB3│content`; never the line content. A pasted diff row like `+aB3│x` or an `anchor│` prefix is stripped automatically with a warning. The anchored line is preserved; the new lines go after or before it.',
     }),
     direction: Type.Union(
       [

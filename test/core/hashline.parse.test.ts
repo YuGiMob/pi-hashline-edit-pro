@@ -13,9 +13,9 @@ describe("parseHashRef", () => {
 		);
 	});
 
-	it("rejects a full HASH│content line copied into remove_from/remove_to", () => {
+	it("rejects a full anchor│content line copied into remove_from/remove_to", () => {
 		expect(() => parseHashRef("aB3│const x = 1;")).toThrow(
-			/use only the 3-char hash, drop everything from "│" onward/,
+			/use only the 3-char anchor, drop everything from "│" onward/,
 		);
 	});
 	it("rejects leading >>> markers (strict mode: no marker stripping)", () => {
@@ -47,7 +47,7 @@ describe("parseHashRef", () => {
 
 	it("rejects legacy LINE#HASH format", () => {
 		expect(() => parseHashRef("5aB3")).toThrow(
-			/Use the hash alone/,
+			/Use the anchor alone/,
 		);
 	});
 

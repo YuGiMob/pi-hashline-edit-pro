@@ -88,7 +88,7 @@ describe("regReplace", () => {
       );
       expect(result.content[0].text).toContain("Successfully replaced");
       expect(result.content[0].text).toContain("Warnings:");
-      expect(result.content[0].text).toContain(`Stripped "HASH│" prefix`);
+      expect(result.content[0].text).toContain(`Stripped "anchor│" prefix`);
       expect(result.details?.diff).toContain("BBB");
       expect(result.details?.diff).not.toContain(`${hashes[1]}│BBB`);
     });
@@ -158,7 +158,7 @@ describe("regReplace", () => {
       );
       expect(result.content[0].text).toContain("Successfully replaced");
       expect(result.content[0].text).toContain("Warnings:");
-      expect(result.content[0].text).toContain(`Stripped "HASH│" prefix`);
+      expect(result.content[0].text).toContain(`Stripped "anchor│" prefix`);
       expect(result.details?.diff).toContain("BBB");
       const content = await readFile(path, "utf-8");
       expect(content).toBe("aaa\nBBB\nccc\n");

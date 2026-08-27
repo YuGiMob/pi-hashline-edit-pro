@@ -139,7 +139,7 @@ describe("applyEdit - recovery scenarios", () => {
       remove_to: hashes[2]!, replacement_lines: [`${hashes[1]!}│b`, `X`] },
     ));
     expect(result.content).toBe("a\nb\nX\nd\ne");
-    expect(result.warnings?.[0]).toMatch(/Stripped "HASH│" prefix/);
+    expect(result.warnings?.[0]).toMatch(/Stripped "anchor│" prefix/);
   });
 
   it("strips diff preview rows in content_lines", async () => {

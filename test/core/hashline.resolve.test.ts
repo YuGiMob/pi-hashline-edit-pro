@@ -86,7 +86,7 @@ describe("resEdit", () => {
 		);
 	});
 
-	it("strips a HASH│content row pasted into remove_from/remove_to with a warning", () => {
+	it("strips an anchor│content row pasted into remove_from/remove_to with a warning", () => {
 		const edit: HTEdit = { remove_from: "MQX│const x = 1;", remove_to: "MQX│const x = 1;", replacement_lines: ["new"] };
 		const warnings: string[] = [];
 		const resolved = resEdit(edit, warnings);
@@ -94,7 +94,7 @@ describe("resEdit", () => {
 		expect(resolved.hash_bounds[1].hash).toBe("MQX");
 		expect(warnings).toHaveLength(2);
 		expect(warnings[0]).toMatch(/^\[E_BAD_REF\]/);
-		expect(warnings[0]).toContain('Stripped "HASH│" prefix');
+		expect(warnings[0]).toContain('Stripped "anchor│" prefix');
 		expect(warnings[0]).toContain("remove_from/remove_to entry");
 	});
 

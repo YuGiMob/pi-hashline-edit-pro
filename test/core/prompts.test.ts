@@ -15,7 +15,7 @@ describe("loadP", () => {
 	it("loads prompt without template variables", () => {
 		const prompt = loadP("../prompts/read.md");
 		expect(prompt).toBeTruthy();
-		expect(prompt).toContain("HASH│content");
+		expect(prompt).toContain("anchor│content");
 	});
 
 	it("handles missing replacements gracefully", () => {
@@ -25,7 +25,7 @@ describe("loadP", () => {
 
 	it("loads read.md without template variables (condensed description no longer needs DEFAULT_MAX_LINES/DEFAULT_MAX_BYTES)", () => {
 		const raw = loadP("../prompts/read.md");
-		expect(raw).toContain("HASH│content");
+		expect(raw).toContain("anchor│content");
 		expect(raw).not.toContain("{{");
 	});
 });
