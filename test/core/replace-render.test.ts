@@ -260,19 +260,21 @@ describe("buildAppliedText", () => {
 		expect(result).not.toContain("to expand");
 	});
 
-	it("uses details.summary and does not duplicate the diff when content is the handler-replaced diff", () => {
-		const diff = Array.from({ length: 30 }, (_, i) => ` line ${i}`).join("\n");
-		const result = buildAppliedText(diff, { diff, summary: "Successfully replaced in x. Added 1 line(s), removed 1 line(s)." }, mockTheme, false);
-		expect(result!.split("Successfully replaced in x.").length - 1).toBe(1);
-		expect(result!.split(" line 0").length - 1).toBe(1);
+	it("omits the summary when the content is the handler-replaced diff (auto-read on)", () => {
+		const diff = Array.from({ length: 30 }, (_, i) => ` Jkx│chain ${i}`).join("\n");
+		const result = buildAppliedText(diff, { diff }, mockTheme, false);
+		expect(result).not.toContain("Successfully replaced");
+		expect(result!.split("chain 0").length - 1).toBe(1);
 		expect(result).toContain("to expand");
 	});
 
-	it("does not treat diff content as a summary when details.summary is missing", () => {
+	it("shows the summary when the content still carries it (auto-read off)", () => {
+		const text = "Successfully replaced in x. Added 1 line(s), removed 1 line(s).";
 		const diff = Array.from({ length: 30 }, (_, i) => ` Jkx│chain ${i}`).join("\n");
-		const result = buildAppliedText(diff, { diff }, mockTheme, false);
+		const result = buildAppliedText(text, { diff }, mockTheme, false);
+		expect(result).toContain("Successfully replaced in x.");
 		expect(result!.split("chain 0").length - 1).toBe(1);
-		expect(result).not.toContain("Successfully replaced");
+		expect(result).toContain("to expand");
 	});
 });
 

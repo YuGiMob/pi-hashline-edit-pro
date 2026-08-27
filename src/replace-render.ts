@@ -170,7 +170,7 @@ export function buildAppliedText(
 	expanded: boolean,
 ): string | undefined {
 	const sections: string[] = [];
-	const summary = details?.summary ?? extractSummary(text);
+	const summary = extractSummary(text);
 	if (summary) sections.push(summary);
 	if (details?.diff) {
 		const diffLines = details.diff.split("\n");

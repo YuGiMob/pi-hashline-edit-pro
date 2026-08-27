@@ -103,7 +103,6 @@ describe("buildChanged", () => {
     expect(output.details.metrics!.classification).toBe("applied");
     expect(output.details.metrics!.edits_attempted).toBe(1);
     expect(output.details.metrics!.changed_lines).toEqual({ first: 2, last: 2 });
-    expect(output.details.summary).toBe("Successfully replaced in test.txt. Added 1 line(s), removed 1 line(s).");
   });
 
   it("includes a standard unified patch that round-trips", async () => {

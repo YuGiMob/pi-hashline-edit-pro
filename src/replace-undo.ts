@@ -181,17 +181,15 @@ export function regUndo(pi: ExtensionAPI): void {
         );
 
         const patchResult = genPatch(path, currentNormalized, undo.content);
-        const summary = parts.join("\n");
         return {
           content: [
             {
               type: "text",
-              text: summary,
+              text: parts.join("\n"),
             },
           ],
           details: {
             diff: undoDiff,
-            summary,
             patch: patchResult.patch,
             ...(patchResult.truncated ? { patchTruncated: true as const } : {}),
             metrics: buildMetrics({
