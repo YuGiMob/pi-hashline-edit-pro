@@ -136,11 +136,14 @@ export function buildChanged(input: SuccessInput, verb = "replaced"): TResult {
   const lineSummary = addedLines > 0 || removedLines > 0
     ? ` Added ${addedLines} line(s), removed ${removedLines} line(s).`
     : "";
+  const summary = resultLines.length === 0
+    ? "File is empty. Use replace to insert content."
+    : `${successPrefix}${lineSummary}`;
   const text = resultLines.length === 0
     ? "File is empty. Use replace to insert content."
     : warningsBlock
-      ? `${successPrefix}${lineSummary}${warningsBlock}`
-      : `${successPrefix}${lineSummary}`;
+      ? `${summary}${warningsBlock}`
+      : summary;
 
   const metrics = buildMetrics({
     classification: "applied",
@@ -158,6 +161,7 @@ export function buildChanged(input: SuccessInput, verb = "replaced"): TResult {
     content: [{ type: "text", text }],
     details: {
       diff: diffResult.diff,
+      summary,
       patch: patchResult.patch,
       ...(patchResult.truncated ? { patchTruncated: true as const } : {}),
       firstChangedLine:

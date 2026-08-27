@@ -157,6 +157,7 @@ function expandHint(): string {
 
 function extractSummary(text: string | undefined): string | undefined {
 	if (!text) return undefined;
+	if (text.includes("│")) return undefined;
 	const warningsIdx = text.indexOf("\n\nWarnings:");
 	const summary = warningsIdx >= 0 ? text.slice(0, warningsIdx) : text;
 	return summary.length > 0 ? summary : undefined;
@@ -169,7 +170,7 @@ export function buildAppliedText(
 	expanded: boolean,
 ): string | undefined {
 	const sections: string[] = [];
-	const summary = extractSummary(text);
+	const summary = details?.summary ?? extractSummary(text);
 	if (summary) sections.push(summary);
 	if (details?.diff) {
 		const diffLines = details.diff.split("\n");

@@ -74,6 +74,7 @@ export type ReqParams = {
 
 export type ReplaceDetails = {
   diff: string;
+  summary?: string;
   patch?: string;
   patchTruncated?: boolean;
   firstChangedLine?: number;
