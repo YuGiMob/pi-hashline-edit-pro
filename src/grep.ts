@@ -47,11 +47,101 @@ export function assertGrepReq(request: unknown): asserts request is GrepReq {
 }
 
 function buildRegex(pattern: string, literal: boolean, ignoreCase: boolean): RegExp {
+  if (!literal) assertSafeRegex(pattern);
   const source = literal ? pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : pattern;
   try {
     return new RegExp(source, ignoreCase ? "ui" : "u");
   } catch {
     throw new Error(`[E_BAD_SHAPE] Invalid pattern: ${pattern}`);
+  }
+}
+
+interface RegexGroupRisk {
+  hasQuantifier: boolean;
+  hasAlternation: boolean;
+}
+
+function unsafeRegex(pattern: string): never {
+  throw new Error(
+    `[E_UNSAFE_REGEX] Refusing potentially exponential regex: ${pattern}. Use literal: true or simplify the expression.`,
+  );
+}
+
+function assertSafeRegex(pattern: string): void {
+  if (pattern.length > 4096) unsafeRegex(pattern);
+
+  const groups: RegexGroupRisk[] = [];
+  let inClass = false;
+  let escaped = false;
+  let variableQuantifiers = 0;
+  let lastAtom: { groupRisky: boolean; quantified: boolean } | undefined;
+
+  for (let i = 0; i < pattern.length; i++) {
+    const ch = pattern[i]!;
+    if (escaped) {
+      if (!inClass && (/[1-9]/.test(ch) || (ch === "k" && pattern[i + 1] === "<"))) {
+        unsafeRegex(pattern);
+      }
+      escaped = false;
+      lastAtom = { groupRisky: false, quantified: false };
+      continue;
+    }
+    if (ch === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (inClass) {
+      if (ch === "]") {
+        inClass = false;
+        lastAtom = { groupRisky: false, quantified: false };
+      }
+      continue;
+    }
+    if (ch === "[") {
+      inClass = true;
+      continue;
+    }
+    if (ch === "(") {
+      groups.push({ hasQuantifier: false, hasAlternation: false });
+      lastAtom = undefined;
+      continue;
+    }
+    if (ch === ")") {
+      const group = groups.pop();
+      if (group) {
+        lastAtom = {
+          groupRisky: group.hasQuantifier || group.hasAlternation,
+          quantified: false,
+        };
+      }
+      continue;
+    }
+    if (ch === "|") {
+      const group = groups.at(-1);
+      if (group) group.hasAlternation = true;
+      lastAtom = undefined;
+      continue;
+    }
+
+    let quantifierLength = 0;
+    if (ch === "*" || ch === "+" || ch === "?") {
+      quantifierLength = 1;
+    } else if (ch === "{") {
+      quantifierLength = /^\{\d+(?:,\d*)?\}/.exec(pattern.slice(i))?.[0].length ?? 0;
+    }
+    if (quantifierLength > 0 && lastAtom) {
+      if (ch === "?" && lastAtom.quantified) continue;
+      const variable = ch !== "{" || pattern.slice(i, i + quantifierLength).includes(",");
+      if (variable && ++variableQuantifiers > 1) unsafeRegex(pattern);
+      if (lastAtom.groupRisky) unsafeRegex(pattern);
+      const group = groups.at(-1);
+      if (group) group.hasQuantifier = true;
+      lastAtom.quantified = true;
+      i += quantifierLength - 1;
+      continue;
+    }
+
+    lastAtom = { groupRisky: false, quantified: false };
   }
 }
 

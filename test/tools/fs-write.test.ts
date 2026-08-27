@@ -9,6 +9,7 @@ import {
   chmod,
   utimes,
   open,
+  rename,
 } from "fs/promises";
 import { join } from "path";
 import { resolveTarget, writeAtomic } from "../../src/fs-write";
@@ -99,6 +100,24 @@ describe("writeAtomic", () => {
       await writeAtomic(filePath, "new content");
       const content = await readFile(filePath, "utf-8");
       expect(content).toBe("new content");
+    });
+  });
+
+  it.skipIf(process.platform === "win32")("rejects a target swapped to a symlink after it was read", async () => {
+    await withTempDir("fs-write-test-", async (dir) => {
+      const target = join(dir, "target.txt");
+      const movedTarget = join(dir, "target-old.txt");
+      const victim = join(dir, "victim.txt");
+      await writeFile(target, "expected content");
+      await writeFile(victim, "victim content");
+      const before = await stat(target);
+      await rename(target, movedTarget);
+      await symlink(victim, target);
+
+      await expect(
+        writeAtomic(target, "attacker-controlled update", { dev: before.dev, ino: before.ino }),
+      ).rejects.toThrow("[E_PATH_CHANGED]");
+      expect(await readFile(victim, "utf-8")).toBe("victim content");
     });
   });
 

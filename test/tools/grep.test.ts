@@ -117,6 +117,58 @@ describe("grep tool", () => {
     });
   });
 
+  it("rejects nested quantified regexes before scanning files", async () => {
+    await withTempFile("sample.ts", `${"a".repeat(10_000)}!\n`, async ({ cwd }) => {
+      const { ctx, getTool } = setupIntegrationTest(cwd);
+      const grepTool = getTool("grep");
+
+      await expect(
+        grepTool.execute(
+          "g1",
+          { pattern: "(a+)+$", path: "sample.ts" },
+          undefined, undefined, ctx,
+        ),
+      ).rejects.toThrow("[E_UNSAFE_REGEX]");
+    });
+  });
+
+  it("rejects regex backreferences but permits the same text literally", async () => {
+    await withTempFile("sample.ts", "(a+)\\1\n", async ({ cwd }) => {
+      const { ctx, getTool } = setupIntegrationTest(cwd);
+      const grepTool = getTool("grep");
+
+      await expect(
+        grepTool.execute(
+          "g1",
+          { pattern: "(a+)\\1", path: "sample.ts" },
+          undefined, undefined, ctx,
+        ),
+      ).rejects.toThrow("[E_UNSAFE_REGEX]");
+
+      const literalResult = await grepTool.execute(
+        "g2",
+        { pattern: "(a+)\\1", path: "sample.ts", literal: true },
+        undefined, undefined, ctx,
+      );
+      expect(getText(literalResult)).toContain("│(a+)\\1");
+    });
+  });
+
+  it("rejects multiple variable quantifiers that can cause polynomial backtracking", async () => {
+    await withTempFile("sample.ts", "aaaa!\n", async ({ cwd }) => {
+      const { ctx, getTool } = setupIntegrationTest(cwd);
+      const grepTool = getTool("grep");
+
+      await expect(
+        grepTool.execute(
+          "g1",
+          { pattern: "a*a*a*b", path: "sample.ts" },
+          undefined, undefined, ctx,
+        ),
+      ).rejects.toThrow("[E_UNSAFE_REGEX]");
+    });
+  });
+
   it("supports case-insensitive search", async () => {
     await withTempFile("sample.ts", "ALPHA\n", async ({ cwd }) => {
       const { ctx, getTool } = setupIntegrationTest(cwd);

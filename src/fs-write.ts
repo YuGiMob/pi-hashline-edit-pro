@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
+import { constants } from "fs";
 import {
-	chmod,
 	lstat,
 	mkdir,
 	open,
@@ -14,6 +14,22 @@ import {
 import { dirname, join, parse, resolve, sep } from "path";
 import { toCwd } from "./paths";
 import { errCode } from "./utils";
+
+export interface FileIdentity {
+  dev: number;
+  ino: number;
+}
+
+function sameIdentity(
+  actual: Pick<Awaited<ReturnType<typeof stat>>, "dev" | "ino">,
+  expected: FileIdentity,
+): boolean {
+  return actual.dev === expected.dev && actual.ino === expected.ino;
+}
+
+function pathChanged(path: string): Error {
+  return new Error(`[E_PATH_CHANGED] Refusing to write ${path}: the target changed after it was read.`);
+}
 
 export async function resolveTarget(path: string): Promise<string> {
   const absolutePath = resolve(path);
@@ -128,6 +144,7 @@ export async function resolveInCwd(path: string, cwd: string): Promise<{ absolut
 export async function writeAtomic(
   path: string,
   content: string,
+  expectedIdentity?: FileIdentity,
 ): Promise<void> {
   const targetPath = await resolveTarget(path);
 
@@ -140,19 +157,25 @@ export async function writeAtomic(
     }
   }
 
+  if (expectedIdentity && (!existingStats || !sameIdentity(existingStats, expectedIdentity))) {
+    throw pathChanged(path);
+  }
+
   if (existingStats && existingStats.nlink > 1) {
-    await writeFile(targetPath, content, "utf-8");
+    const noFollow = process.platform === "win32" ? 0 : constants.O_NOFOLLOW;
+    const handle = await open(targetPath, constants.O_WRONLY | noFollow);
     try {
-      await chmod(targetPath, existingStats.mode & 0o7777);
-    } catch {}
-    try {
-      const handle = await open(targetPath, "r");
+      const openedStats = await handle.stat();
+      if (!sameIdentity(openedStats, existingStats)) throw pathChanged(path);
+      await handle.truncate(0);
+      await handle.writeFile(content, "utf-8");
       try {
-        await handle.sync();
-      } finally {
-        await handle.close();
-      }
-    } catch {}
+        await handle.chmod(existingStats.mode & 0o7777);
+      } catch {}
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
     return;
   }
 
@@ -174,6 +197,14 @@ export async function writeAtomic(
   }
   try {
     await tempHandle.close();
+    try {
+      const finalStats = await lstat(targetPath);
+      if (!existingStats || finalStats.isSymbolicLink() || !sameIdentity(finalStats, existingStats)) {
+        throw pathChanged(path);
+      }
+    } catch (error) {
+      if (errCode(error) !== "ENOENT" || existingStats) throw error;
+    }
     await rename(tempPath, targetPath);
     await syncDir(dir);
   } catch (error: unknown) {

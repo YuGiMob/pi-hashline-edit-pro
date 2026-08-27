@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeAll } from "vitest";
-import { mkdtemp, mkdir, rm, writeFile, stat, readdir } from "fs/promises";
+import { chmod, mkdtemp, mkdir, rm, writeFile, stat, readdir } from "fs/promises";
 import { existsSync } from "fs";
 import { join } from "path";
 import { DatabaseSync } from "node:sqlite";
@@ -191,6 +191,31 @@ describe("hash-store - loadHashStore", () => {
       await loadHashStore();
       const s = await stat(configHome(tmpHome));
       expect(s.isDirectory()).toBe(true);
+    });
+  });
+
+  it.skipIf(process.platform === "win32")("restricts existing state files to the owner", async () => {
+    await withTempHome(async (home) => {
+      const dir = configHome(home);
+      const dbPath = sqlitePath(home);
+      await mkdir(dir, { recursive: true, mode: 0o777 });
+      await chmod(dir, 0o777);
+      new DatabaseSync(dbPath).close();
+      await chmod(dbPath, 0o666);
+
+      const store = await loadHashStore();
+      upsertUndo(store, "/secret.ts", {
+        content: "old secret",
+        bom: "",
+        ending: "\n",
+        hashes: ["aB3"],
+        resultContent: "new secret",
+      });
+
+      expect((await stat(dir)).mode & 0o777).toBe(0o700);
+      for (const path of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
+        expect((await stat(path)).mode & 0o777).toBe(0o600);
+      }
     });
   });
 });

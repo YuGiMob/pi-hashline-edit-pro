@@ -148,6 +148,7 @@ Notes:
 Notes:
 - Results are grouped per file under a `=== path ===` header; every shown row carries the anchor it would have in `read` output.
 - Directory searches skip `node_modules`, `.git`, `.tmp`, and `coverage`. Binary, image, and oversized files are skipped silently.
+- Regex patterns with backreferences, nested quantifiers, quantified alternation, or multiple variable quantifiers are rejected with `[E_UNSAFE_REGEX]` before any files are scanned; use `literal: true` when regex behavior is unnecessary.
 - Output is capped at `limit` matched lines, 2000 rows, and 50KB of text (whichever comes first), with a hint naming the cap that cut results. A matched line longer than 500 bytes is shown as a fragment around the match with `...` marking the truncated sides, so the relevant part of the hit stays visible; a context line over 500 bytes is shown as its head with a trailing `...`. Fragments keep the line's anchor (long lines are hashed from their first 500 bytes) and are served like full rows, so a fragmented match is still editable with `replace` (which always replaces the whole line). Directory scans stop after 4000 files with a hint; results may be incomplete.
 - `file_path` works as an alias for `path`.
 - Line endings and BOMs survive every edit. The file's line ending is detected from its first newline and restored on write; a file that mixes LF and CRLF (for example a WSL-edited file) is normalized to the first-seen ending.
@@ -206,6 +207,8 @@ Anchors are unique by construction. If a line's base hash collides with an alrea
 
 Hashes live in a persistent per-file store (`~/.config/pi-hashline-edit-pro/hash-store.sqlite`) that keeps the hashes of unchanged lines across edits. When a range is replaced, the runtime maps the old content onto the new content and copies hashes for lines that survived; only genuinely new lines get fresh hashes.
 
+On POSIX systems, the state directory is restricted to mode `0700` and the SQLite database plus its WAL/SHM sidecars to `0600`. The undo table contains the complete pre-edit and post-edit text for the latest edit to each file, so the store should still be treated as sensitive data.
+
 The store also keeps a per-file record of the hashes the model was last served (`read` rows, auto-read blocks, post-edit diff rows), pruned to the file's current hashes on every update so removed lines' hashes do not accumulate. `replace` verifies every line of the resolved range against that record before writing; a line whose hash is missing from the record means it either changed on disk after it was shown or was never shown, and the edit is refused with `[E_RANGE_STALE]`. A `write` clears the record, so edits after a write are verified against whatever the next `read` or auto-read block serves.
 
 Two guarantees make this safe even with duplicated content:
@@ -236,6 +239,8 @@ A no-op replace never changes the file, so anchors remain valid. On first run af
 | `[E_BOUNDARY_BYPASS]` | The boundary anti-duplication was turned off for one replace call (an identical replacement had previously been cut to a noop); the duplicate lines were applied literally. The dedup is restored for the next call. |
 | `[E_FILE_TOO_LARGE]` | The file exceeds the 238,328-line hashline limit or the 100MB size limit. |
 | `[E_WRITE_HASH_ECHO]` | A `write` `content` line begins with the exact `anchor│` served for this file at the same line. The write is refused, file byte-identical; retry with bare content (remove the copied anchors). |
+| `[E_PATH_CHANGED]` | A write target changed identity after it was read; the write was refused to avoid following a swapped symlink or overwriting a replacement file. |
+| `[E_UNSAFE_REGEX]` | A grep regex can trigger excessive backtracking; simplify it or search with `literal: true`. |
 
 ## Troubleshooting
 
