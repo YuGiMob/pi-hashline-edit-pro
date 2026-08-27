@@ -72,6 +72,7 @@ export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promis
     await writeAtomic(
       absolutePath,
       pipe.bom + restoreEndings(pipe.result, pipe.originalEnding),
+      pipe.identity,
     );
   } catch (error) {
     await undo.restore();

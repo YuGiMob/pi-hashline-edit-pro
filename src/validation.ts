@@ -1,6 +1,7 @@
 import { constants } from "fs";
 import { access as fsAccess } from "fs/promises";
 import type { LFile } from "./file-kind";
+import type { FileIdentity } from "./fs-write";
 import { errCode } from "./utils";
 
 export async function valAccess(
@@ -26,7 +27,7 @@ export async function valAccess(
 	}
 }
 
-export function valKind(file: LFile, path: string): asserts file is { kind: "text"; text: string; hadUtf8DecodeErrors?: true } {
+export function valKind(file: LFile, path: string): asserts file is { kind: "text"; text: string; identity?: FileIdentity; hadUtf8DecodeErrors?: true } {
 	if (file.kind === "directory") {
 		throw new Error(`[E_NOT_TEXT] Path is a directory: ${path}. Use ls to inspect directories.`);
 	}
@@ -42,4 +43,3 @@ export function valKind(file: LFile, path: string): asserts file is { kind: "tex
 		);
 	}
 }
-

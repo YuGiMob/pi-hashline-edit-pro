@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   runCalls: 0,
   rename: vi.fn(async () => undefined),
   mkdir: vi.fn(async () => undefined),
+  chmod: vi.fn(async () => undefined),
   readFile: vi.fn(async () => {
     const err = new Error("no such file") as NodeJS.ErrnoException;
     err.code = "ENOENT";
@@ -63,6 +64,7 @@ vi.mock("fs/promises", async (importOriginal) => {
     ...actual,
     rename: state.rename,
     mkdir: state.mkdir,
+    chmod: state.chmod,
     readFile: state.readFile,
   };
 });

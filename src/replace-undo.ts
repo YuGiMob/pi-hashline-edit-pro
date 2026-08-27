@@ -1,10 +1,11 @@
-import { readFile } from "fs/promises";
+import { constants } from "fs";
+import { open } from "fs/promises";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { loadHashStore, persistSnapshot, upsertUndo, getUndoEntry, deleteUndo, type UndoRecord } from "./hash-store";
 import { recordServedDiff } from "./served";
-import { resolveInCwd, writeAtomic } from "./fs-write";
+import { resolveInCwd, writeAtomic, type FileIdentity } from "./fs-write";
 import { toLF, stripBOM, restoreEndings, type LineEnding } from "./normalize";
 import { genDiff, genPatch } from "./replace-diff";
 import { cntDiff, errCode, makePrepareArguments } from "./utils";
@@ -122,8 +123,17 @@ export function regUndo(pi: ExtensionAPI): void {
 
       return withFileMutationQueue(mutationTargetPath, async () => {
         let currentRaw: string | undefined;
+        let currentIdentity: FileIdentity | undefined;
         try {
-          currentRaw = await readFile(mutationTargetPath, "utf-8");
+          const noFollow = process.platform === "win32" ? 0 : constants.O_NOFOLLOW;
+          const handle = await open(mutationTargetPath, constants.O_RDONLY | noFollow);
+          try {
+            const { dev, ino } = await handle.stat();
+            currentIdentity = { dev, ino };
+            currentRaw = await handle.readFile("utf-8");
+          } finally {
+            await handle.close();
+          }
         } catch (error) {
           if (errCode(error) !== "ENOENT") throw error;
         }
@@ -147,6 +157,7 @@ export function regUndo(pi: ExtensionAPI): void {
         await writeAtomic(
           mutationTargetPath,
           undo.bom + restoreEndings(undo.content, undo.originalEnding),
+          currentIdentity,
         );
 
         const currentNormalized = currentRaw === undefined ? "" : toLF(stripBOM(currentRaw).text);

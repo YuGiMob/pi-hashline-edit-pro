@@ -12,7 +12,7 @@ import { readNormFile, type NormFile } from "./file-reader";
 import { editToolSchema, type ReqParams, assertReq, normReq } from "./payload-contract";
 import { isRec, abortIf, makePrepareArguments } from "./utils";
 import { loadP, loadGuide } from "./prompts";
-import { resolveInCwd } from "./fs-write";
+import { resolveInCwd, type FileIdentity } from "./fs-write";
 import { applyEdit,
   lineHashes,
   resEdit,
@@ -65,6 +65,7 @@ export interface PipelineResult {
   totalRemovedLines: number;
   hadBoundaryDedup: boolean;
   boundaryRemovedLines: number;
+  identity: FileIdentity;
 }
 
 async function resolveMissingPath(
@@ -170,7 +171,7 @@ export async function execPipeline(
   );
 
   const hashStore = options?.store ?? await loadHashStore();
-  const { normalized: originalNormalized, bom, originalEnding, fileHashes: originalHashes, hadUtf8DecodeErrors, absolutePath } = await readNormFile(
+  const { normalized: originalNormalized, bom, originalEnding, fileHashes: originalHashes, hadUtf8DecodeErrors, absolutePath, identity } = await readNormFile(
     path, cwd, { signal: options?.signal, accessMode: options?.accessMode, maxLines: MAX_HASH_LINES, store: hashStore, noPersist: options?.noPersist, preloadedNorm: options?.preloadedNorm },
   );
 
@@ -227,6 +228,7 @@ export async function execPipeline(
     totalRemovedLines,
     hadBoundaryDedup: (anchorResult.autoFixes?.length ?? 0) > 0,
     boundaryRemovedLines: anchorResult.autoFixes?.length ?? 0,
+    identity,
   };
 }
 

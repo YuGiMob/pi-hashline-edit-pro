@@ -2,6 +2,7 @@ import { open as fsOpen, stat as fsStat } from "fs/promises";
 import { fileTypeFromBuffer } from "file-type";
 import { SNIFF_BYTES, MAX_BYTES } from "./constants";
 import { assertLineLimit, lineLimitMoreThanMessage } from "./utils";
+import type { FileIdentity } from "./fs-write";
 
 const IMG_TYPES = new Set<string>([
   "image/bmp",
@@ -54,7 +55,7 @@ function looksLikeText(sample: Uint8Array): boolean {
 export type LFile =
   | { kind: "directory" }
   | { kind: "image"; mimeType: string }
-  | { kind: "text"; text: string; hadUtf8DecodeErrors?: true }
+  | { kind: "text"; text: string; identity?: FileIdentity; hadUtf8DecodeErrors?: true }
   | { kind: "binary"; description: string }
   | { kind: "too_large"; description: string };
 
@@ -87,6 +88,8 @@ export async function loadFileKindAndText(
 
   const fileHandle = await fsOpen(filePath, "r");
   try {
+    const openedStats = await fileHandle.stat();
+    const identity = { dev: openedStats.dev, ino: openedStats.ino };
     const buffer = Buffer.alloc(SNIFF_BYTES);
     const { bytesRead } = await fileHandle.read(
       buffer,
@@ -95,7 +98,7 @@ export async function loadFileKindAndText(
       0,
     );
     if (bytesRead === 0) {
-      return { kind: "text", text: "" };
+      return { kind: "text", text: "", identity };
     }
 
     const sample = buffer.subarray(0, bytesRead);
@@ -179,6 +182,7 @@ export async function loadFileKindAndText(
     return {
       kind: "text",
       text,
+      identity,
       ...(hadUtf8DecodeErrors ? { hadUtf8DecodeErrors: true as const } : {}),
     };
   } finally {

@@ -1,5 +1,5 @@
 import { existsSync } from "fs";
-import { readFile, rename, mkdir, stat } from "fs/promises";
+import { chmod, readFile, rename, mkdir, stat } from "fs/promises";
 import { hashStorePath, hashStoreDir, legacyHashStorePath } from "./paths";
 import { errCode, isRec, splitLines } from "./utils";
 import { initHasher, contentChecksum } from "./hashline/hasher";
@@ -247,7 +247,10 @@ async function openStore(storePath: string): Promise<HashStore> {
   shutdownHashStore();
 
   await initHasher();
-  await mkdir(hashStoreDir(), { recursive: true });
+  await mkdir(hashStoreDir(), { recursive: true, mode: 0o700 });
+  if (process.platform !== "win32") {
+    await chmod(hashStoreDir(), 0o700);
+  }
 
   let existed = existsSync(storePath);
   let opened: { db: RawDb; stmts: Prepared };
@@ -267,6 +270,16 @@ async function openStore(storePath: string): Promise<HashStore> {
     opened = await openDbWithBusyRetryAsync(() => openDb(storePath));
   }
   const { db, stmts } = opened;
+
+  if (process.platform !== "win32") {
+    for (const candidate of [storePath, `${storePath}-wal`, `${storePath}-shm`]) {
+      try {
+        await chmod(candidate, 0o600);
+      } catch (error) {
+        if (errCode(error) !== "ENOENT") throw error;
+      }
+    }
+  }
 
   if (!existed) {
     try {

@@ -3,7 +3,7 @@ import { stat } from "fs/promises";
 import { relative } from "path";
 import { lineHashes } from "./hashline";
 import { loadFileKindAndText, type LFile } from "./file-kind";
-import { resolveTarget } from "./fs-write";
+import { resolveTarget, type FileIdentity } from "./fs-write";
 import { toCwd } from "./paths";
 import { detectEnding, toLF, stripBOM, type LineEnding } from "./normalize";
 import { abortIf, errCode, assertLineLimit } from "./utils";
@@ -16,6 +16,7 @@ export interface NormFile {
   originalEnding: LineEnding;
   fileHashes: string[];
   hadUtf8DecodeErrors: boolean;
+  identity: FileIdentity;
 }
 
 export type SnapInfo = {
@@ -94,12 +95,18 @@ export async function readNormFile(
   if (options?.maxLines !== undefined) assertLineLimit(normalized, path, options.maxLines);
 
   const fileHashes = await lineHashes(normalized, resolvedPath, undefined, options?.store, options?.noPersist !== true);
+  let identity = file.identity;
+  if (!identity) {
+    const { dev, ino } = await stat(resolvedPath);
+    identity = { dev, ino };
+  }
   return {
     absolutePath: resolvedPath,
     normalized,
     bom,
     originalEnding,
     fileHashes,
+    identity,
     hadUtf8DecodeErrors: file.hadUtf8DecodeErrors === true,
   };
 }
