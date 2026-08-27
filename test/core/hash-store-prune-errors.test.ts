@@ -36,6 +36,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  const { shutdownHashStore } = await import("../../src/hash-store");
+  shutdownHashStore();
   vi.unstubAllEnvs();
   await rm(tmpHome, { recursive: true, force: true });
 });
