@@ -1,6 +1,6 @@
 {
   "name": "pi-hashline-edit-pro",
-  "version": "2.7.1",
+  "version": "2.7.2",
   "type": "module",
   "description": "Hash-anchored read/replace/insert/grep tools for pi-coding-agent. Every line gets a unique 3-char hash (A-Za-z0-9) that stays stable across edits; stale or ambiguous anchors are rejected, never fuzzy-matched. Undo persists across restarts.",
   "main": "index.ts",
