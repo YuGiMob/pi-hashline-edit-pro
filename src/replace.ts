@@ -12,7 +12,7 @@ import {
 import { readNormFile, type NormFile } from "./file-reader";
 import { normReq } from "./replace-normalize";
 import { isRec, rejectUnknownFields, abortIf, makePrepareArguments } from "./utils";
-import { resolveTarget } from "./fs-write";
+import { resolveInCwd } from "./fs-write";
 import { applyEdit,
   lineHashes,
   resEdit,
@@ -23,7 +23,7 @@ import { applyEdit,
   type HEdit,
   type NEdit,
 } from "./hashline";
-import { toCwd } from "./paths";
+import { commitEdit } from "./commit";
 import type { RMetrics } from "./replace-response";
 import {
   makeRenderCall,
@@ -35,7 +35,6 @@ import { loadP, loadGuide } from "./prompts";
 import { loadHashStore, findSnapshotPaths, findServedPaths, type HashStore } from "./hash-store";
 import { getServed, recordServedSafe } from "./served";
 import { noopPayloadKey, markBoundaryNoop, consumeBoundaryBypass, clearBoundaryBypass } from "./boundary-bypass";
-import { commitEdit } from "./commit";
 
 const replacementLinesSchema = Type.Array(
   Type.String({
@@ -365,8 +364,7 @@ export function buildToolDef(): ToolDef {
 
       const normalizedParams = canonical;
       const path = normalizedParams.path;
-      const absolutePath = toCwd(path, ctx.cwd);
-      const mutationTargetPath = await resolveTarget(absolutePath);
+      const { absolute: absolutePath, resolved: mutationTargetPath } = await resolveInCwd(path, ctx.cwd);
       const noopPayload = noopPayloadKey(mutationTargetPath, normalizedParams.remove_from, normalizedParams.remove_to, normalizedParams.replacement_lines);
       const boundaryBypass = consumeBoundaryBypass(mutationTargetPath, noopPayload);
       return withFileMutationQueue(mutationTargetPath, async () => {

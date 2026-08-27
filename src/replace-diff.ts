@@ -9,13 +9,13 @@ import {
 export type LineEnding = "\r\n" | "\n" | "\r";
 
 export function detectEnding(content: string): LineEnding {
+  const crIdx = content.indexOf("\r");
   const lfIdx = content.indexOf("\n");
-  if (lfIdx === -1) {
-    return content.indexOf("\r") >= 0 ? "\r" : "\n";
-  }
-  const crlfIdx = content.indexOf("\r\n");
-  if (crlfIdx === -1) return "\n";
-  return crlfIdx < lfIdx ? "\r\n" : "\n";
+  if (crIdx === -1 && lfIdx === -1) return "\n";
+  if (crIdx === -1) return "\n";
+  if (lfIdx === -1) return "\r";
+  if (crIdx < lfIdx) return content[crIdx + 1] === "\n" ? "\r\n" : "\r";
+  return "\n";
 }
 
 export function toLF(text: string): string {

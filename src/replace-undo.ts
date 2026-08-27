@@ -5,8 +5,7 @@ import { Type } from "typebox";
 import { loadHashStore, upsertSnapshot, upsertUndo, getUndoEntry, deleteUndo, type UndoRecord } from "./hash-store";
 import { recordServedDiff } from "./served";
 import { contentChecksum } from "./hashline/hasher";
-import { resolveTarget, writeAtomic } from "./fs-write";
-import { toCwd } from "./paths";
+import { resolveInCwd, writeAtomic } from "./fs-write";
 import { toLF, stripBOM, genDiff, genPatch, restoreEndings, type LineEnding } from "./replace-diff";
 import { cntDiff, splitLines, errCode, makePrepareArguments } from "./utils";
 import { loadP, loadGuide } from "./prompts";
@@ -101,8 +100,7 @@ export function regUndo(pi: ExtensionAPI): void {
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const path = params.path;
-      const absolutePath = toCwd(path, ctx.cwd);
-      const mutationTargetPath = await resolveTarget(absolutePath);
+      const { resolved: mutationTargetPath } = await resolveInCwd(path, ctx.cwd);
 
       const undo = await getUndo(mutationTargetPath);
       if (!undo) {

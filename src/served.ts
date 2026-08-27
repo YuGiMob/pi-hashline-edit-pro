@@ -1,4 +1,4 @@
-import { loadHashStore, parseStoredHashes, type HashStore } from "./hash-store";
+import { loadHashStore, parseStoredHashes, STORE_NOT_OPEN_MESSAGE, withStore, type HashStore } from "./hash-store";
 import { HASH_CLASS } from "./hashline/alphabet";
 
 const SERVED_DIFF_ROW_RE = new RegExp(`^[+ ](${HASH_CLASS})│`);
@@ -19,14 +19,14 @@ export function getServed(store: HashStore, path: string): Set<string> | undefin
   return new Set(parsed);
 }
 
-export function recordServed(
+function computeUpdate(
   store: HashStore,
   path: string,
   hashes: string[],
   scope?: ReadonlySet<string>,
-): void {
+): Set<string> | undefined {
   const existing = getServed(store, path);
-  if (!existing && hashes.length === 0) return;
+  if (!existing && hashes.length === 0) return undefined;
   const set = existing ?? new Set<string>();
   let changed = false;
   if (scope) {
@@ -43,7 +43,28 @@ export function recordServed(
       changed = true;
     }
   }
-  if (!changed) return;
+  if (!changed) return undefined;
+  return set;
+}
+
+export function recordServed(
+  store: HashStore,
+  path: string,
+  hashes: string[],
+  scope?: ReadonlySet<string>,
+): void {
+  try {
+    withStore(() => {
+      const set = computeUpdate(store, path, hashes, scope);
+      if (!set) return;
+      store.stmts.servedUpsert(path, JSON.stringify([...set]), Date.now());
+    });
+    return;
+  } catch (error) {
+    if (!(error instanceof Error && error.message === STORE_NOT_OPEN_MESSAGE)) throw error;
+  }
+  const set = computeUpdate(store, path, hashes, scope);
+  if (!set) return;
   store.stmts.servedUpsert(path, JSON.stringify([...set]), Date.now());
 }
 

@@ -18,8 +18,7 @@ import { recordServedSafe, clearServed } from "./src/served";
 import { clearBoundaryBypass } from "./src/boundary-bypass";
 import { readNormFile } from "./src/file-reader";
 import { loadFileKindAndText } from "./src/file-kind";
-import { toCwd } from "./src/paths";
-import { resolveTarget } from "./src/fs-write";
+import { resolveInCwd } from "./src/fs-write";
 import { valAccess } from "./src/validation";
 
 export default function (pi: ExtensionAPI): void {
@@ -67,7 +66,7 @@ export default function (pi: ExtensionAPI): void {
       let resolvedPath: string | undefined;
       if (typeof writtenPath === "string") {
         try {
-          resolvedPath = await resolveTarget(toCwd(writtenPath, ctx.cwd));
+          resolvedPath = (await resolveInCwd(writtenPath, ctx.cwd)).resolved;
           await clearUndo(resolvedPath);
           clearBoundaryBypass(resolvedPath);
           const store = await loadHashStore();
@@ -79,7 +78,7 @@ export default function (pi: ExtensionAPI): void {
       if (!autoRead) return;
       if (typeof writtenPath !== "string") return;
       try {
-        resolvedPath ??= await resolveTarget(toCwd(writtenPath, ctx.cwd));
+        resolvedPath ??= (await resolveInCwd(writtenPath, ctx.cwd)).resolved;
         await valAccess(resolvedPath, writtenPath);
         const file = await loadFileKindAndText(resolvedPath, { maxLines: MAX_HASH_LINES, displayPath: writtenPath });
         if (file.kind !== "text") return;

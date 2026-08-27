@@ -6,6 +6,8 @@ import { initHasher, contentChecksum } from "./hashline/hasher";
 import { HASH_RE } from "./hashline/alphabet";
 import { HASH_STORE_VERSION, HASH_STORE_BUSY_TIMEOUT } from "./constants";
 
+export const STORE_NOT_OPEN_MESSAGE = "Hash store is not open; transactional update aborted";
+
 type SqlParams = (string | number)[];
 
 interface RawStatement {
@@ -404,9 +406,9 @@ export function shutdownHashStore(): void {
   snapshotCache.clear();
 }
 
-function withStore(fn: () => void): void {
+export function withStore(fn: () => void): void {
   if (!cachedDb) {
-    throw new Error("Hash store is not open; transactional update aborted");
+    throw new Error(STORE_NOT_OPEN_MESSAGE);
   }
   withBusyRetry(() => {
     cachedDb!.db.exec("BEGIN IMMEDIATE");
@@ -604,12 +606,22 @@ function matchPathsByHashes(
   rows: { path: string; hashes: string }[],
   hashes: string[],
 ): string[] {
+  const needed = new Set(hashes);
+  if (needed.size === 0) return [];
   const matches: string[] = [];
   for (const row of rows) {
     try {
       const parsed = JSON.parse(row.hashes) as unknown;
       if (!isValidHashList(parsed)) continue;
-      if (hashes.every((h) => parsed.includes(h))) matches.push(row.path);
+      const parsedSet = new Set(parsed);
+      let ok = true;
+      for (const h of needed) {
+        if (!parsedSet.has(h)) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok) matches.push(row.path);
     } catch {
       continue;
     }

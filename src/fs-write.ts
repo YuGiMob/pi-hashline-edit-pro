@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import {
+	chmod,
 	lstat,
 	mkdir,
 	open,
@@ -11,6 +12,7 @@ import {
 	writeFile,
 } from "fs/promises";
 import { dirname, join, parse, resolve, sep } from "path";
+import { toCwd } from "./paths";
 import { errCode } from "./utils";
 
 export async function resolveTarget(path: string): Promise<string> {
@@ -110,6 +112,11 @@ async function syncDir(dir: string): Promise<void> {
   }
 }
 
+export async function resolveInCwd(path: string, cwd: string): Promise<{ absolute: string; resolved: string }> {
+  const absolute = toCwd(path, cwd);
+  const resolved = await resolveTarget(absolute);
+  return { absolute, resolved };
+}
 export async function writeAtomic(
   path: string,
   content: string,
@@ -127,6 +134,17 @@ export async function writeAtomic(
 
   if (existingStats && existingStats.nlink > 1) {
     await writeFile(targetPath, content, "utf-8");
+    try {
+      await chmod(targetPath, existingStats.mode & 0o7777);
+    } catch {}
+    try {
+      const handle = await open(targetPath, "r");
+      try {
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+    } catch {}
     return;
   }
 

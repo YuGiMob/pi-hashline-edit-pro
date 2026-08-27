@@ -5,10 +5,9 @@ import { constants } from "fs";
 import { execPipeline, type ReqParams, type ReplaceDetails } from "./replace";
 import { commitEdit } from "./commit";
 import { readNormFile, type NormFile } from "./file-reader";
-import { resolveTarget } from "./fs-write";
+import { resolveInCwd } from "./fs-write";
 import { MAX_HASH_LINES, parseHashRef, resolveAnchorLine, type Anchor } from "./hashline";
 import { stripAnchorRow } from "./hashline/resolve";
-import { toCwd } from "./paths";
 import { loadP, loadGuide } from "./prompts";
 import { normReq } from "./replace-normalize";
 import { genDiff } from "./replace-diff";
@@ -185,8 +184,7 @@ export function buildInsertToolDef(): InsertToolDef {
       const req = canonical;
       const path = req.path;
       const { ref, warnings: anchorWarnings } = parseInsertAnchor(req.anchor);
-      const absolutePath = toCwd(path, ctx.cwd);
-      const mutationTargetPath = await resolveTarget(absolutePath);
+      const { absolute: absolutePath, resolved: mutationTargetPath } = await resolveInCwd(path, ctx.cwd);
       return withFileMutationQueue(mutationTargetPath, async () => {
         abortIf(signal);
         const preload = await readNormFile(path, ctx.cwd, {
