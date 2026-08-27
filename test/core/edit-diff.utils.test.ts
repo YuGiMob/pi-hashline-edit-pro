@@ -205,7 +205,7 @@ describe("genDiff - output limits", () => {
     expect(markers[1]!).toMatch(/^\+[A-Za-z0-9]{3}│/);
     expect(markers[0]!.indexOf("│")).toBe(4);
     expect(markers[1]!.indexOf("│")).toBe(4);
-    expect(diff).toContain("2 row(s) exceed 50.0KB and are shown as markers with their anchors");
+    expect(diff).not.toContain("row(s) exceed");
   });
 
   it("stops emitting once the total byte budget is exhausted", () => {

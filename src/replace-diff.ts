@@ -83,7 +83,6 @@ export function genDiff(
   let outBytes = 0;
   let stopped = false;
   let diffTruncated = false;
-  let linesReplaced = 0;
 
   const emitPlain = (line: string): void => {
     if (stopped) return;
@@ -102,7 +101,6 @@ export function genDiff(
     const full = fmtDiffLine(prefix, line, hash);
     const rowBytes = Buffer.byteLength(full, "utf-8");
     if (rowBytes > maxLineBytes) {
-      linesReplaced += 1;
       const marker = `[Row is ${formatSize(rowBytes)}, exceeds ${formatSize(maxLineBytes)}; content not shown. Use read to see the full line.]`;
       emitPlain(fmtDiffLine(prefix, marker, hash));
       return;
@@ -230,9 +228,6 @@ export function genDiff(
   if (diffTruncated) {
     output.push(" ...");
     output.push(`[diff truncated at ${formatSize(maxBytes)}; use read to see the rest.]`);
-  }
-  if (linesReplaced > 0) {
-    output.push(`[${linesReplaced} row(s) exceed ${formatSize(maxLineBytes)} and are shown as markers with their anchors; use read to see the full lines.]`);
   }
 
   return { diff: output.join("\n"), firstChangedLine };

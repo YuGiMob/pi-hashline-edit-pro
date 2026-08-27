@@ -366,6 +366,22 @@ describe("grep tool", () => {
     });
   });
 
+  it("shows a fragment for a match inside a line over 50KB", async () => {
+    const big = "a".repeat(60_000) + "NEEDLE" + "b".repeat(60_000);
+    await withTempFile("bigline.txt", big + "\n", async ({ cwd }) => {
+      const { ctx, getTool } = setupIntegrationTest(cwd);
+      const grepTool = getTool("grep");
+      const result = await grepTool.execute("g1", { pattern: "NEEDLE", path: "bigline.txt" }, undefined, undefined, ctx);
+      const text = getText(result);
+      const row = text.split("\n").find((l) => /^[A-Za-z0-9]{3}│/.test(l))!;
+      expect(row).toContain("NEEDLE");
+      expect(row).toContain("...");
+      expect(Buffer.byteLength(row, "utf-8")).toBeLessThanOrEqual(500);
+      expect(text).not.toContain("a".repeat(60_000));
+      expect(text).toContain("truncated fragments");
+    });
+  });
+
   it("enforces a total byte budget across rows", async () => {
     const lines = Array.from({ length: 700 }, (_, i) => `line ${i} ` + "x".repeat(90));
     await withTempFile("wide.txt", lines.join("\n") + "\n", async ({ cwd }) => {

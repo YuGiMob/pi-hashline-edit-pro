@@ -342,7 +342,7 @@ describe("replace tool - end-to-end", () => {
       const details = editResult.details as { diff?: string; patch?: string; patchTruncated?: boolean };
       expect(details.diff).toBeDefined();
       expect(details.diff!).not.toContain(long);
-      expect(details.diff!).toContain("shown as markers with their anchors");
+      expect(details.diff!).not.toContain("row(s) exceed");
       expect(Buffer.byteLength(details.diff!, "utf-8")).toBeLessThan(5 * 1024);
       const markerRow = details.diff!.split("\n").find((l) => l.includes("│[Row is"))!;
       expect(markerRow).toMatch(/^ [A-Za-z0-9]{3}│\[Row is/);
