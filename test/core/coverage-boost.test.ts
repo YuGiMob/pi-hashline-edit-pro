@@ -5,6 +5,9 @@ import { initHasher, getH, xxh32, contentChecksum } from "../../src/hashline/has
 import { isValidHashList, isValidServedMap, parseHashList, parseServedMap, parseStoredHashes, parseStoredServed, isValidSnapshot, isCorruptionError, isBusyError } from "../../src/hash-store/validation";
 import { canon, hashSource } from "../../src/hashline/hash";
 import { toCwd } from "../../src/paths";
+import { withTempDir, withTempFile, setupIntegrationTest } from "../support/fixtures";
+import { mkdir, writeFile } from "fs/promises";
+import { join } from "path";
 
 beforeAll(async () => {
   await initHasher();
@@ -206,5 +209,69 @@ describe("coverage boost validation", () => {
     expect(isBusyError(new Error("database is busy"))).toBe(true);
     expect(isBusyError(new Error("database is locked"))).toBe(true);
     expect(isBusyError(new Error("other"))).toBe(false);
+  });
+});
+
+describe("coverage boost grep", () => {
+  it("rejects huge quantifier and other unsafe patterns", async () => {
+    await withTempFile("a.txt", "hello\n", async ({ cwd }) => {
+      const { ctx, getTool } = setupIntegrationTest(cwd);
+      const grep = getTool("grep");
+      await expect(grep.execute("g1", { pattern: "a".repeat(5000), path: "a.txt" }, undefined, undefined, ctx)).rejects.toThrow("[E_UNSAFE_REGEX]");
+      await expect(grep.execute("g1", { pattern: "(a+)+", path: "a.txt" }, undefined, undefined, ctx)).rejects.toThrow("[E_UNSAFE_REGEX]");
+      await expect(grep.execute("g1", { pattern: "a{1001}", path: "a.txt" }, undefined, undefined, ctx)).rejects.toThrow("[E_UNSAFE_REGEX]");
+      await expect(grep.execute("g1", { pattern: "z{2000}", path: "a.txt" }, undefined, undefined, ctx)).rejects.toThrow("[E_UNSAFE_REGEX]");
+    });
+  });
+  it("handles glob and literal and ignoreCase", async () => {
+    await withTempDir("grep-boost-", async dir => {
+      await writeFile(join(dir, "a.ts"), "Hello\n", "utf-8");
+      await writeFile(join(dir, "b.txt"), "Hello\n", "utf-8");
+      await mkdir(join(dir, "sub"), { recursive: true });
+      await writeFile(join(dir, "sub", "c.ts"), "Hello\n", "utf-8");
+      const { ctx, getTool } = setupIntegrationTest(dir);
+      const grep = getTool("grep");
+      const r1 = await grep.execute("g1", { pattern: "Hello", glob: "*.ts" }, undefined, undefined, ctx);
+      expect(r1.content[0].text).toContain("a.ts");
+      const r2 = await grep.execute("g1", { pattern: "hello", ignoreCase: true }, undefined, undefined, ctx);
+      expect(r2.content[0].text).toContain("Hello");
+      const r3 = await grep.execute("g1", { pattern: "Hello", literal: true }, undefined, undefined, ctx);
+      expect(r3.content[0].text).toContain("Hello");
+      const r4 = await grep.execute("g1", { pattern: "Hello", glob: "**/*.ts" }, undefined, undefined, ctx);
+      expect(r4.content[0].text).toContain("sub");
+    });
+  });
+  it("covers walkFiles skip and stat error", async () => {
+    await withTempDir("grep-walk-", async dir => {
+      await mkdir(join(dir, "node_modules"), { recursive: true });
+      await writeFile(join(dir, "node_modules", "x.ts"), "needle\n", "utf-8");
+      await writeFile(join(dir, "ok.ts"), "needle\n", "utf-8");
+      const { ctx, getTool } = setupIntegrationTest(dir);
+      const grep = getTool("grep");
+      const r = await grep.execute("g1", { pattern: "needle" }, undefined, undefined, ctx);
+      expect(r.content[0].text).toContain("ok.ts");
+      expect(r.content[0].text).not.toContain("node_modules");
+    });
+  });
+});
+
+describe("coverage boost hash-store and read", () => {
+  it("covers read preview edge cases", async () => {
+    const { fmtReadPreview } = await import("../../src/read");
+    const hashes = ["abc", "def", "ghi"];
+    const r1 = await fmtReadPreview("", {}, hashes.slice(0, 1), "/tmp/a", 50000, 2000);
+    expect(r1.text).toContain("empty");
+    const r2 = await fmtReadPreview("a\nb\nc", { offset: 10 }, ["abc", "def", "ghi"], "/tmp/a", 50000, 2000);
+    expect(r2.text).toContain("beyond");
+    const r3 = await fmtReadPreview("a\nb\nc\nd\ne\nf", { offset: 2, limit: 2 }, ["a1B", "a2B", "a3B", "a4B", "a5B", "a6B"], "/tmp/a", 50000, 2000);
+    expect(r3.text).toContain("a");
+  });
+  it("covers insert validation", async () => {
+    const { assertInsertReq } = await import("../../src/insert");
+    expect(() => assertInsertReq(null)).toThrow("[E_BAD_SHAPE]");
+    expect(() => assertInsertReq({ path: "", anchor: "abc", direction: "after", lines: [] })).toThrow();
+    expect(() => assertInsertReq({ path: "a", anchor: "", direction: "after", lines: [] })).toThrow();
+    expect(() => assertInsertReq({ path: "a", anchor: "abc", direction: "wrong" as never, lines: [] })).toThrow();
+    expect(() => assertInsertReq({ path: "a", anchor: "abc", direction: "after", lines: "x" as never })).toThrow();
   });
 });
