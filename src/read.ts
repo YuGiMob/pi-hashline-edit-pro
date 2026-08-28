@@ -192,11 +192,13 @@ export function regRead(pi: ExtensionAPI): void {
 			),
 		}),
 		executionMode: "sequential",
-		renderResult(result, { isPartial }, theme, context) {
+		renderResult(result, { isPartial, expanded }, theme, context) {
 			if (isPartial) return new Text((theme as unknown as { fg: (a:string,b:string)=>string }).fg("warning", "Reading..."), 0, 0);
 			const raw = (result.content?.[0] as { text?: string } | undefined)?.text;
 			if (typeof raw !== "string") return new Text("", 0, 0);
 			if ((context as unknown as { isError?: boolean }).isError) return new Text((theme as unknown as { fg: (a:string,b:string)=>string }).fg("error", raw), 0, 0);
+			const isExpanded = expanded === true || (context as unknown as { expanded?: boolean }).expanded === true;
+			if (!isExpanded) return new Text("", 0, 0);
 			const details = (result as unknown as { details?: { offset?: number } }).details;
 			const off = details?.offset ?? (context as unknown as { args?: { offset?: number } }).args?.offset ?? 1;
 			return new Text(numberedRead(raw, off), 0, 0);

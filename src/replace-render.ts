@@ -297,10 +297,12 @@ export function makeRenderCall(
 
 export function renderEditResult(
 	result: { content?: Array<{ type: string; text?: string }>; details?: ReplaceDetails },
-	isPartial: boolean,
+	options: { isPartial: boolean; expanded?: boolean } | boolean,
 	theme: FgT,
 	context: any,
 ): Text | Markdown {
+	const isPartial = typeof options === "boolean" ? options : options.isPartial;
+	const optionsExpanded = typeof options === "boolean" ? undefined : options.expanded;
 	if (isPartial) return reuseText(context, theme.fg("warning", "Editing..."));
 	const renderedText = getResultText(result);
 	const renderState = context.state as RRState | undefined;
@@ -318,7 +320,8 @@ export function renderEditResult(
 			: new Text("", 0, 0);
 	}
 	if (isApplied(result.details)) {
-		const appliedText = buildAppliedText(renderedText, result.details, theme, context.expanded === true);
+		const isExpanded = optionsExpanded === true || context.expanded === true;
+		const appliedText = buildAppliedText(renderedText, result.details, theme, isExpanded);
 		return appliedText ? reuseText(context, appliedText) : new Text("", 0, 0);
 	}
 	if (!renderedText) return new Text("", 0, 0);

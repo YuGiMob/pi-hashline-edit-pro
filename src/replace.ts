@@ -281,13 +281,13 @@ export function buildToolDef(): ToolDef {
     executionMode: "sequential",
     renderShell: "default",
     renderCall: makeRenderCall(compPreview),
-    renderResult(result, { isPartial }, theme, context) {
+    renderResult(result, { isPartial, expanded }, theme, context) {
       return renderEditResult(
         result as {
           content?: Array<{ type: string; text?: string }>;
           details?: ReplaceDetails;
         },
-        isPartial,
+        { isPartial, expanded },
         theme,
         context,
       );

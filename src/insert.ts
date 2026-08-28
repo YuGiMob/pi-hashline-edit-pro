@@ -163,13 +163,13 @@ export function buildInsertToolDef(): InsertToolDef {
     parameters: insertToolSchema,
     renderShell: "default",
     renderCall: makeRenderCall(insertPreview, { getInput: getInsertInput, toolName: "insert" }),
-    renderResult(result, { isPartial }, theme, context) {
+    renderResult(result, { isPartial, expanded }, theme, context) {
       return renderEditResult(
         result as {
           content?: Array<{ type: string; text?: string }>;
           details?: ReplaceDetails;
         },
-        isPartial,
+        { isPartial, expanded },
         theme,
         context,
       );

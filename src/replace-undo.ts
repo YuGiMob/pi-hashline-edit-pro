@@ -99,7 +99,7 @@ export function regUndo(pi: ExtensionAPI): void {
     }),
     executionMode: "sequential",
     renderResult(result, opts, theme, context) {
-      return renderEditResult(result as never, (opts as { isPartial: boolean }).isPartial, theme as never, context as never);
+      return renderEditResult(result as never, opts as { isPartial: boolean; expanded?: boolean }, theme as never, context as never);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const path = params.path;
