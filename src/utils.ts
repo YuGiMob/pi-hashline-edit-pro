@@ -157,3 +157,14 @@ export function clipLine(line: string, maxLen = 200): string {
 	const flat = line.replace(/\n/g, "\\n");
 	return flat.length > maxLen ? `${flat.slice(0, maxLen)}...` : flat;
 }
+export function assertLineLimit(content: string, displayPath: string, limit: number): void {
+	const count = splitLines(content).length;
+	if (count > limit) throw new Error(formatLineLimit(displayPath, limit, count));
+}
+export function lineLimitMoreThanMessage(displayPath: string, limit: number): string {
+	return formatLineLimit(displayPath, limit, undefined);
+}
+function formatLineLimit(displayPath: string, limit: number, count: number | undefined): string {
+	const detail = count === undefined ? `has more than ${limit}` : `has ${count}`;
+	return `[E_FILE_TOO_LARGE] ${displayPath} ${detail} lines, exceeding the ${limit}-line hashline limit. For very large files, use write.`;
+}

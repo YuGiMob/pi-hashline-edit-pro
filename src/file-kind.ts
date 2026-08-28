@@ -1,7 +1,7 @@
 import { open as fsOpen, stat as fsStat } from "fs/promises";
 import { fileTypeFromBuffer } from "file-type";
 import { SNIFF_BYTES, MAX_BYTES } from "./constants";
-import { splitLines } from "./utils";
+import { assertLineLimit, lineLimitMoreThanMessage } from "./utils";
 
 const IMG_TYPES = new Set<string>([
   "image/bmp",
@@ -142,11 +142,7 @@ export async function loadFileKindAndText(
         for (let i = 0; i < decoded.length; i++) {
           if (decoded.charCodeAt(i) === 10) newlineCount++;
         }
-        if (newlineCount > options.maxLines) {
-          throw new Error(
-            `[E_FILE_TOO_LARGE] ${options.displayPath ?? filePath} has more than ${options.maxLines} lines, exceeding the ${options.maxLines}-line hashline limit. For very large files, use write.`,
-          );
-        }
+        if (newlineCount > options.maxLines) throw new Error(lineLimitMoreThanMessage(options.displayPath ?? filePath, options.maxLines));
       }
       return decoded;
     }
@@ -173,12 +169,7 @@ export async function loadFileKindAndText(
     const text = parts.join("");
     if (options?.maxLines !== undefined && text.length > 0) {
       const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-      const finalLineCount = splitLines(normalized).length;
-      if (finalLineCount > options.maxLines) {
-        throw new Error(
-          `[E_FILE_TOO_LARGE] ${options.displayPath ?? filePath} has more than ${options.maxLines} lines, exceeding the ${options.maxLines}-line hashline limit. For very large files, use write.`,
-        );
-      }
+      assertLineLimit(normalized, options.displayPath ?? filePath, options.maxLines);
     }
 
     if (containsNul) {
