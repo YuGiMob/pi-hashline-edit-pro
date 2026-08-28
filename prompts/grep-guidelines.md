@@ -1,3 +1,3 @@
-- `grep`: every hit and `context` line comes back as `anchor│content` — use that anchor directly for `replace`/`insert` without a new `read`.
-- `grep`: use `path` for file or folder (default cwd), `glob` like `*.ts` to filter, `literal:true` for literal text, `context:N` for surrounding lines.
+- `grep`: every hit and `context` line comes back as `lineNumber │ anchor│content` — the `anchor│content` part is usable directly for `replace`/`insert` without a new `read`, while `lineNumber` enables jump-to-line.
+- `grep`: uses ripgrep when available (JS fallback), respects `.gitignore`; use `path` for file or folder (default cwd), `glob` like `*.ts` to filter, `literal:true` for literal text, `context:N` for surrounding lines.
 - `grep`: search skips `node_modules/.git/.tmp/coverage` and skips binary/image files.

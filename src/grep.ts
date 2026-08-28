@@ -3,6 +3,8 @@ import { formatSize, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, type TruncationResult
 import { Type } from "typebox";
 import { readdir, stat } from "fs/promises";
 import { dirname, join, relative } from "path";
+import { spawn, spawnSync } from "child_process";
+import { createInterface } from "readline";
 import { tryReadNormFile } from "./file-reader";
 import { MAX_HASH_LINES, fmtRow, HASH_LEN, HASH_SEP } from "./hashline";
 import { MAX_GREP_LINE_BYTES } from "./constants";
@@ -69,13 +71,11 @@ function unsafeRegex(pattern: string): never {
 
 function assertSafeRegex(pattern: string): void {
   if (pattern.length > 4096) unsafeRegex(pattern);
-
   const groups: RegexGroupRisk[] = [];
   let inClass = false;
   let escaped = false;
   let variableQuantifiers = 0;
   let lastAtom: { groupRisky: boolean; quantified: boolean } | undefined;
-
   for (let i = 0; i < pattern.length; i++) {
     const ch = pattern[i]!;
     if (escaped) {
@@ -122,7 +122,6 @@ function assertSafeRegex(pattern: string): void {
       lastAtom = undefined;
       continue;
     }
-
     let quantifierLength = 0;
     if (ch === "*" || ch === "+" || ch === "?") {
       quantifierLength = 1;
@@ -140,7 +139,6 @@ function assertSafeRegex(pattern: string): void {
       i += quantifierLength - 1;
       continue;
     }
-
     lastAtom = { groupRisky: false, quantified: false };
   }
 }
@@ -179,6 +177,7 @@ interface FileHit {
   fileHashes: string[];
   rows: string[];
   hashes: string[];
+  lineNumbers: number[];
   matchCount: number;
   totalMatchCount: number;
   fragmented: boolean[];
@@ -262,6 +261,57 @@ async function walkFiles(
   }
 }
 
+function makeHitFromIndices(
+  norm: { normalized: string; fileHashes: string[]; absolutePath: string },
+  displayPath: string,
+  matchIndices: number[],
+  context: number,
+  regex: RegExp | undefined,
+  totalMatchCount: number,
+  keptMatchCount: number,
+): FileHit {
+  const lines = visLines(norm.normalized);
+  const shown = new Set<number>();
+  const kept = matchIndices.slice(0, keptMatchCount);
+  for (const i of kept) {
+    for (let j = Math.max(0, i - context); j <= Math.min(lines.length - 1, i + context); j++) shown.add(j);
+  }
+  const sorted = [...shown].sort((a, b) => a - b);
+  const matchSet = new Set(matchIndices);
+  const rows: string[] = [];
+  const hashes: string[] = [];
+  const lineNumbers: number[] = [];
+  const fragmented: boolean[] = [];
+  for (const idx of sorted) {
+    const hash = norm.fileHashes[idx]!;
+    const line = lines[idx]!;
+    const row = fmtRow(hash, line);
+    if (Buffer.byteLength(row, "utf-8") > MAX_GREP_LINE_BYTES) {
+      const content = matchSet.has(idx) && regex ? grepMatchFragment(line, regex) : grepHeadFragment(line);
+      rows.push(fmtRow(hash, content));
+      hashes.push(hash);
+      lineNumbers.push(idx + 1);
+      fragmented.push(true);
+    } else {
+      rows.push(row);
+      hashes.push(hash);
+      lineNumbers.push(idx + 1);
+      fragmented.push(false);
+    }
+  }
+  return {
+    path: norm.absolutePath,
+    displayPath,
+    fileHashes: norm.fileHashes,
+    rows,
+    hashes,
+    lineNumbers,
+    matchCount: kept.length,
+    totalMatchCount,
+    fragmented,
+  };
+}
+
 async function searchFile(
   absPath: string,
   globRoot: string,
@@ -287,41 +337,111 @@ async function searchFile(
     if (regex.test(lines[i]!)) matchLines.push(i);
   }
   if (matchLines.length === 0) return undefined;
-  const keptMatches = matchLines.length > maxMatches ? matchLines.slice(0, maxMatches) : matchLines;
-  const shown = new Set<number>();
-  for (const i of keptMatches) {
-    for (let j = Math.max(0, i - context); j <= Math.min(lines.length - 1, i + context); j++) shown.add(j);
-  }
-  const sorted = [...shown].sort((a, b) => a - b);
-  const matchSet = new Set(matchLines);
-  const rows: string[] = [];
-  const hashes: string[] = [];
-  const fragmented: boolean[] = [];
-  for (const idx of sorted) {
-    const hash = norm.fileHashes[idx]!;
-    const line = lines[idx]!;
-    const row = fmtRow(hash, line);
-    if (Buffer.byteLength(row, "utf-8") > MAX_GREP_LINE_BYTES) {
-      const content = matchSet.has(idx) ? grepMatchFragment(line, regex) : grepHeadFragment(line);
-      rows.push(fmtRow(hash, content));
-      hashes.push(hash);
-      fragmented.push(true);
-    } else {
-      rows.push(row);
-      hashes.push(hash);
-      fragmented.push(false);
-    }
-  }
-  return {
-    path: norm.absolutePath,
-    displayPath,
-    fileHashes: norm.fileHashes,
-    rows,
-    hashes,
-    matchCount: keptMatches.length,
-    totalMatchCount: matchLines.length,
-    fragmented,
-  };
+  const kept = Math.min(matchLines.length, maxMatches);
+  return makeHitFromIndices(norm, displayPath, matchLines, context, regex, matchLines.length, kept);
+}
+
+async function resolveRgPath(): Promise<string | undefined> {
+  try {
+    const r = spawnSync("rg", ["--version"], { stdio: "pipe" });
+    if (!r.error && r.status === 0) return "rg";
+  } catch {}
+  return undefined;
+}
+
+async function collectRgMatches(
+  rgPath: string,
+  pattern: string,
+  searchPath: string,
+  req: GrepReq,
+  signal?: AbortSignal,
+): Promise<Map<string, number[]>> {
+  const args = ["--json", "--line-number", "--color=never", "--hidden"];
+  if (req.ignoreCase) args.push("--ignore-case");
+  if (req.literal) args.push("--fixed-strings");
+  args.push("--", pattern, searchPath);
+  const result = new Map<string, number[]>();
+  return await new Promise<Map<string, number[]>>((resolve, reject) => {
+    const child = spawn(rgPath, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const rl = createInterface({ input: child.stdout });
+    let stderr = "";
+    let timedOut = false;
+    const rgTimeout = setTimeout(() => {
+      timedOut = true;
+      if (!child.killed) child.kill();
+      reject(new Error("rg timeout"));
+    }, 3000);
+    child.stderr?.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    const onAbort = () => {
+      if (!child.killed) child.kill();
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+    const cleanup = () => {
+      clearTimeout(rgTimeout);
+      rl.close();
+      signal?.removeEventListener("abort", onAbort);
+    };
+    rl.on("line", (line) => {
+      if (!line.trim()) return;
+      let event: { type?: string; data?: { path?: { text?: string }; line_number?: number } };
+      try {
+        event = JSON.parse(line);
+      } catch {
+        return;
+      }
+      if (event.type === "match") {
+        const filePath = event.data?.path?.text;
+        const lineNumber = event.data?.line_number;
+        if (typeof filePath === "string" && typeof lineNumber === "number") {
+          let abs: string;
+          try {
+            abs = filePath.startsWith("/") || /^[A-Za-z]:\\/.test(filePath) ? filePath : join(searchPath, filePath);
+          } catch {
+            abs = filePath;
+          }
+          const list = result.get(abs) ?? [];
+          list.push(lineNumber);
+          result.set(abs, list);
+        }
+      }
+    });
+    child.on("error", (error) => {
+      cleanup();
+      reject(error);
+    });
+    child.on("close", (code) => {
+      cleanup();
+      if (timedOut) return;
+      if (signal?.aborted) {
+        reject(new Error("Operation aborted"));
+        return;
+      }
+      if (code !== 0 && code !== 1) {
+        const msg = stderr.trim() || `ripgrep exited with code ${code}`;
+        reject(new Error(msg));
+        return;
+      }
+      resolve(result);
+    });
+  });
+}
+
+
+function gutterWidthFor(numbers: number[]): number {
+  let max = 0;
+  for (const n of numbers) if (n > max) max = n;
+  return String(max || 1).length;
+}
+
+function displayRowsForHit(hit: FileHit): string[] {
+  const width = gutterWidthFor(hit.lineNumbers);
+  return hit.rows.map((row, i) => {
+    const n = hit.lineNumbers[i]!;
+    const padded = String(n).padStart(width, " ");
+    return `${padded} │ ${row}`;
+  });
 }
 
 const grepToolSchema = Type.Object(
@@ -380,10 +500,8 @@ export function regGrep(pi: ExtensionAPI): void {
       const canonical = normReq(params);
       assertGrepReq(canonical);
       const req = canonical;
-      const regex = buildRegex(req.pattern, req.literal === true, req.ignoreCase === true);
       const context = req.context ?? 0;
       const limit = req.limit ?? 100;
-      const globRegex = req.glob === undefined ? undefined : globToRegex(req.glob);
       const base = req.path ? toCwd(req.path, ctx.cwd) : ctx.cwd;
       abortIf(signal);
       let baseStat;
@@ -396,16 +514,14 @@ export function regGrep(pi: ExtensionAPI): void {
         throw new Error(`[E_ACCESS] Cannot access path: ${req.path ?? ctx.cwd}`);
       }
       const globRoot = baseStat.isFile() ? dirname(base) : base;
-      const state: ScanState = { scanned: 0, stopped: false };
-      const files: string[] = [];
-      if (baseStat.isFile()) {
-        files.push(base);
-      } else {
-        await walkFiles(base, state, async (absPath) => {
-          files.push(absPath);
-        }, signal);
-        files.sort(cmp);
-      }
+      const globRegex = req.glob === undefined ? undefined : globToRegex(req.glob);
+      let rgPath: string | undefined;
+      try {
+        rgPath = await resolveRgPath();
+      } catch {}
+      const validatedRegex = buildRegex(req.pattern, req.literal === true, req.ignoreCase === true);
+      let regexForFragment: RegExp = validatedRegex;
+      let regexForJs: RegExp = validatedRegex;
       const hits: FileHit[] = [];
       let matches = 0;
       let limitTruncated = false;
@@ -417,56 +533,159 @@ export function regGrep(pi: ExtensionAPI): void {
       let truncatedBy: "lines" | "bytes" | null = null;
       let linesReplaced = 0;
       let countOnly = false;
-      for (let f = 0; f < files.length; f++) {
-        abortIf(signal);
-        const absPath = files[f]!;
-        if (countOnly) {
-          const hit = await searchFile(absPath, globRoot, ctx.cwd, regex, globRegex, context, Number.MAX_SAFE_INTEGER, signal);
-          if (!hit) continue;
-          totalRows += hit.rows.length;
-          for (const row of hit.rows) totalBytes += Buffer.byteLength(row, "utf-8") + 1;
-          const remaining = limit - matches;
-          if (remaining > 0) {
-            matches += Math.min(hit.matchCount, remaining);
-            if (hit.matchCount > remaining) limitTruncated = true;
-          } else {
-            limitTruncated = true;
-          }
-          continue;
+      const state: ScanState = { scanned: 0, stopped: false };
+      const files: string[] = [];
+      let rgMatches: Map<string, number[]> | undefined;
+      if (rgPath) {
+        try {
+          rgMatches = await collectRgMatches(rgPath, req.pattern, base, req, signal);
+        } catch (e) {
+          if (signal?.aborted) throw e;
+          rgMatches = undefined;
+          rgPath = undefined;
+          regexForJs = buildRegex(req.pattern, req.literal === true, req.ignoreCase === true);
+          regexForFragment = regexForJs;
         }
-        const remaining = limit - matches;
-        if (remaining <= 0) {
-          limitTruncated = true;
-          break;
-        }
-        const hit = await searchFile(absPath, globRoot, ctx.cwd, regex, globRegex, context, remaining, signal);
-        if (!hit) continue;
-        const keptRows: string[] = [];
-        const keptHashes: string[] = [];
-        for (let i = 0; i < hit.rows.length; i++) {
-          const row = hit.rows[i]!;
-          const rowBytes = Buffer.byteLength(row, "utf-8") + 1;
-          if (rowCount >= DEFAULT_MAX_LINES || byteCount + rowBytes > DEFAULT_MAX_BYTES) {
-            rowTruncated = true;
-            if (truncatedBy === null) truncatedBy = byteCount + rowBytes > DEFAULT_MAX_BYTES ? "bytes" : "lines";
-            for (let j = i; j < hit.rows.length; j++) {
-              totalRows += 1;
-              totalBytes += Buffer.byteLength(hit.rows[j]!, "utf-8") + 1;
+      }
+      if (rgPath && rgMatches) {
+        const sortedFiles = [...rgMatches.keys()].sort(cmp);
+        for (let f = 0; f < sortedFiles.length; f++) {
+          abortIf(signal);
+          const absPath = sortedFiles[f]!;
+          const allNums = rgMatches.get(absPath) ?? [];
+          const totalForFile = allNums.length;
+          const sortedNums = [...allNums].sort((a, b) => a - b);
+          const indices = sortedNums.map((n) => n - 1).filter((n) => n >= 0);
+          if (countOnly) {
+            const norm = await tryReadNormFile(absPath, ctx.cwd, { maxLines: MAX_HASH_LINES, noPersist: true, signal });
+            if (!norm) continue;
+            const hit = makeHitFromIndices(norm, relative(ctx.cwd, absPath).replace(/\\/g, "/"), indices, context, regexForFragment, totalForFile, indices.length);
+            const display = displayRowsForHit(hit);
+            totalRows += display.length;
+            for (const r of display) totalBytes += Buffer.byteLength(r, "utf-8") + 1;
+            const remaining = limit - matches;
+            if (remaining > 0) {
+              const add = Math.min(hit.matchCount, remaining);
+              matches += add;
+              if (hit.matchCount > remaining) limitTruncated = true;
+            } else {
+              limitTruncated = true;
             }
+            continue;
+          }
+          const remaining = limit - matches;
+          if (remaining <= 0) {
+            limitTruncated = true;
             break;
           }
-          keptRows.push(row);
-          keptHashes.push(hit.hashes[i]);
-          if (hit.fragmented[i]) linesReplaced += 1;
-          rowCount += 1;
-          byteCount += rowBytes;
-          totalRows += 1;
-          totalBytes += rowBytes;
+          const norm = await tryReadNormFile(absPath, ctx.cwd, { maxLines: MAX_HASH_LINES, noPersist: true, signal });
+          if (!norm) continue;
+          if (globRegex) {
+            const displayPath = relative(ctx.cwd, absPath).replace(/\\/g, "/");
+            const globPath = relative(globRoot, absPath).replace(/\\/g, "/");
+            if (!globRegex.test(globPath) && !globRegex.test(displayPath)) continue;
+          }
+          const hit = makeHitFromIndices(norm, relative(ctx.cwd, absPath).replace(/\\/g, "/"), indices, context, regexForFragment, totalForFile, Math.min(totalForFile, remaining));
+          if (!hit) continue;
+          const display = displayRowsForHit(hit);
+          const keptRows: string[] = [];
+          const keptHashes: string[] = [];
+          const keptLineNumbers: number[] = [];
+          const keptFragmented: boolean[] = [];
+          for (let i = 0; i < display.length; i++) {
+            const row = display[i]!;
+            const rowBytes = Buffer.byteLength(row, "utf-8") + 1;
+            if (rowCount >= DEFAULT_MAX_LINES || byteCount + rowBytes > DEFAULT_MAX_BYTES) {
+              rowTruncated = true;
+              if (truncatedBy === null) truncatedBy = byteCount + rowBytes > DEFAULT_MAX_BYTES ? "bytes" : "lines";
+              for (let j = i; j < display.length; j++) {
+                totalRows += 1;
+                totalBytes += Buffer.byteLength(display[j]!, "utf-8") + 1;
+              }
+              break;
+            }
+            keptRows.push(row);
+            keptHashes.push(hit.hashes[i]!);
+            keptLineNumbers.push(hit.lineNumbers[i]!);
+            keptFragmented.push(hit.fragmented[i]!);
+            if (hit.fragmented[i]) linesReplaced += 1;
+            rowCount += 1;
+            byteCount += rowBytes;
+            totalRows += 1;
+            totalBytes += rowBytes;
+          }
+          if (hit.totalMatchCount > hit.matchCount) limitTruncated = true;
+          matches += hit.matchCount;
+          const displayHit: FileHit = { ...hit, rows: keptRows, hashes: keptHashes, lineNumbers: keptLineNumbers, fragmented: keptFragmented };
+          hits.push(displayHit);
+          if (rowTruncated) countOnly = true;
         }
-        if (hit.totalMatchCount > hit.matchCount) limitTruncated = true;
-        matches += hit.matchCount;
-        hits.push({ ...hit, rows: keptRows, hashes: keptHashes });
-        if (rowTruncated) countOnly = true;
+      } else {
+        if (baseStat.isFile()) {
+          files.push(base);
+        } else {
+          await walkFiles(base, state, async (absPath) => {
+            files.push(absPath);
+          }, signal);
+          files.sort(cmp);
+        }
+        for (let f = 0; f < files.length; f++) {
+          abortIf(signal);
+          const absPath = files[f]!;
+          if (countOnly) {
+            const hit = await searchFile(absPath, globRoot, ctx.cwd, regexForJs!, globRegex, context, Number.MAX_SAFE_INTEGER, signal);
+            if (!hit) continue;
+            const display = displayRowsForHit(hit);
+            totalRows += display.length;
+            for (const row of display) totalBytes += Buffer.byteLength(row, "utf-8") + 1;
+            const remaining = limit - matches;
+            if (remaining > 0) {
+              matches += Math.min(hit.matchCount, remaining);
+              if (hit.matchCount > remaining) limitTruncated = true;
+            } else {
+              limitTruncated = true;
+            }
+            continue;
+          }
+          const remaining = limit - matches;
+          if (remaining <= 0) {
+            limitTruncated = true;
+            break;
+          }
+          const hit = await searchFile(absPath, globRoot, ctx.cwd, regexForJs!, globRegex, context, remaining, signal);
+          if (!hit) continue;
+          const display = displayRowsForHit(hit);
+          const keptRows: string[] = [];
+          const keptHashes: string[] = [];
+          const keptLineNumbers: number[] = [];
+          const keptFragmented: boolean[] = [];
+          for (let i = 0; i < display.length; i++) {
+            const row = display[i]!;
+            const rowBytes = Buffer.byteLength(row, "utf-8") + 1;
+            if (rowCount >= DEFAULT_MAX_LINES || byteCount + rowBytes > DEFAULT_MAX_BYTES) {
+              rowTruncated = true;
+              if (truncatedBy === null) truncatedBy = byteCount + rowBytes > DEFAULT_MAX_BYTES ? "bytes" : "lines";
+              for (let j = i; j < display.length; j++) {
+                totalRows += 1;
+                totalBytes += Buffer.byteLength(display[j]!, "utf-8") + 1;
+              }
+              break;
+            }
+            keptRows.push(row);
+            keptHashes.push(hit.hashes[i]!);
+            keptLineNumbers.push(hit.lineNumbers[i]!);
+            keptFragmented.push(hit.fragmented[i]!);
+            if (hit.fragmented[i]) linesReplaced += 1;
+            rowCount += 1;
+            byteCount += rowBytes;
+            totalRows += 1;
+            totalBytes += rowBytes;
+          }
+          if (hit.totalMatchCount > hit.matchCount) limitTruncated = true;
+          matches += hit.matchCount;
+          hits.push({ ...hit, rows: keptRows, hashes: keptHashes, lineNumbers: keptLineNumbers, fragmented: keptFragmented });
+          if (rowTruncated) countOnly = true;
+        }
       }
       hits.sort((a, b) => cmp(a.displayPath, b.displayPath));
       for (const hit of hits) {
