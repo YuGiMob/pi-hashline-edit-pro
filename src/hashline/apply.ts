@@ -154,7 +154,7 @@ export function applyEdit(
 	signal?: AbortSignal,
 	precomputedHashes?: string[],
 	filePath?: string,
-	servedHashes?: ReadonlySet<string>,
+	servedHashes?: ReadonlyMap<string, string>,
 	skipBoundaryDedup?: boolean,
 	): {
 	content: string;
@@ -190,7 +190,7 @@ export function applyEdit(
 			fileHashes,
 			filePath,
 		);
-		throw new AnchorMismatchError(feedback.text, feedback.hashes);
+		throw new AnchorMismatchError(feedback.text, feedback.hashes, feedback.servedMap);
 	}
 
 	warnUnicodeEsc(prefixFixed, warnings);
@@ -233,7 +233,7 @@ export function applyEdit(
 				fileHashes,
 				filePath,
 			);
-			throw new AnchorMismatchError(feedback.text, feedback.hashes);
+			throw new AnchorMismatchError(feedback.text, feedback.hashes, feedback.servedMap);
 		}
 		resolved = correctedResult.resolved;
 	}

@@ -11,7 +11,7 @@ import { MAX_GREP_LINE_BYTES } from "./constants";
 import { toCwd } from "./paths";
 import { loadP, loadGuide } from "./prompts";
 import { normReq } from "./payload-contract";
-import { recordServedSafe } from "./served";
+import { recordServedSafe, buildServedMap } from "./served";
 import { abortIf, errCode, isRec, makePrepareArguments, rejectUnknownFields, truncateToBytes, visLines } from "./utils";
 
 const GREP_KS = new Set(["pattern", "path", "glob", "context", "ignoreCase", "literal", "limit"]);
@@ -175,6 +175,7 @@ interface FileHit {
   path: string;
   displayPath: string;
   fileHashes: string[];
+  fileLines: string[];
   rows: string[];
   hashes: string[];
   lineNumbers: number[];
@@ -303,6 +304,7 @@ function makeHitFromIndices(
     path: norm.absolutePath,
     displayPath,
     fileHashes: norm.fileHashes,
+    fileLines: lines,
     rows,
     hashes,
     lineNumbers,
@@ -689,7 +691,8 @@ export function regGrep(pi: ExtensionAPI): void {
       }
       hits.sort((a, b) => cmp(a.displayPath, b.displayPath));
       for (const hit of hits) {
-        await recordServedSafe(hit.path, hit.hashes, "grep", new Set(hit.fileHashes));
+        const servedMap = buildServedMap(hit.fileHashes, hit.fileLines, hit.hashes);
+        await recordServedSafe(hit.path, servedMap, "grep", new Set(hit.fileHashes));
       }
       const blocks = hits
         .map((hit) => `=== ${hit.displayPath} ===\n${hit.rows.join("\n")}`)

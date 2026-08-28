@@ -9,6 +9,15 @@ export function isValidHashList(value: unknown): value is string[] {
   return true;
 }
 
+export function isValidServedMap(value: unknown): value is Record<string, string> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof k !== "string" || !HASH_RE.test(k)) return false;
+    if (typeof v !== "string") return false;
+  }
+  return true;
+}
+
 export function parseHashList(raw: string, onInvalid: () => void, context?: string): string[] | undefined {
   let parsed: unknown;
   try {
@@ -26,9 +35,31 @@ export function parseHashList(raw: string, onInvalid: () => void, context?: stri
   return parsed;
 }
 
+export function parseServedMap(raw: string, onInvalid: () => void, context?: string): Map<string, string> | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    console.error(`[parseServedMap]${context ? ` ${context}:` : ""} failed to parse stored served JSON:`, error);
+    onInvalid();
+    return undefined;
+  }
+  if (!isValidServedMap(parsed)) {
+    console.error(`[parseServedMap]${context ? ` ${context}:` : ""} stored served did not pass validation:`, (() => { try { return JSON.stringify(parsed)?.slice(0, 500) ?? String(parsed).slice(0, 500); } catch { return String(parsed).slice(0, 500); } })());
+    onInvalid();
+    return undefined;
+  }
+  return new Map(Object.entries(parsed as Record<string, string>));
+}
+
 export function parseStoredHashes(row: Record<string, unknown> | undefined, onInvalid: () => void): string[] | undefined {
   if (!row) return undefined;
   return parseHashList(row.hashes as string, onInvalid);
+}
+
+export function parseStoredServed(row: Record<string, unknown> | undefined, onInvalid: () => void): Map<string, string> | undefined {
+  if (!row) return undefined;
+  return parseServedMap(row.hashes as string, onInvalid);
 }
 
 export function isValidSnapshot(value: unknown): value is { content: string; hashes: string[] } {

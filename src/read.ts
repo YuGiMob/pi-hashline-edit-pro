@@ -13,8 +13,8 @@ import { MAX_OVERSIZED_WARNING_LINES } from "./constants";
 import { readNormFile, safeSnapId } from "./file-reader";
 import { lineHashes, fmtRegion, fmtRow, HASH_SEP, MAX_HASH_LINES } from "./hashline";
 import { toCwd } from "./paths";
-import { abortIf, makePrepareArguments, numberedRead, visLines } from "./utils";
-import { recordServedSafe } from "./served";
+import { abortIf, makePrepareArguments, numberedRead, visLines, splitLines } from "./utils";
+import { recordServedSafe, buildServedMap } from "./served";
 import { loadP, loadGuide } from "./prompts";
 import { valAccess } from "./validation";
 import { Text } from "@earendil-works/pi-tui";
@@ -236,7 +236,9 @@ export function regRead(pi: ExtensionAPI): void {
 				fileHashes,
 				resolvedPath,
 			);
-			await recordServedSafe(resolvedPath, preview.servedHashes, "read", new Set(fileHashes));
+			const fileLines = splitLines(normalized);
+			const servedMap = buildServedMap(fileHashes, fileLines, preview.servedHashes);
+			await recordServedSafe(resolvedPath, servedMap, "read", new Set(fileHashes));
 			const snapshotId = await safeSnapId(absolutePath, "read");
 			const previewText =
 				hadUtf8DecodeErrors

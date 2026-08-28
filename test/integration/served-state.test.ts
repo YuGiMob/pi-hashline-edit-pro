@@ -7,7 +7,7 @@ import { withTempFile, setupIntegrationTest, getText, extractHash } from "../sup
 import { toCwd } from "../../src/paths";
 import { resolveTarget } from "../../src/fs-write";
 
-async function servedFor(cwd: string, name: string): Promise<Set<string> | undefined> {
+async function servedFor(cwd: string, name: string): Promise<Map<string, string> | undefined> {
   const store = await loadHashStore();
   return getServed(store, await resolveTarget(toCwd(name, cwd)));
 }

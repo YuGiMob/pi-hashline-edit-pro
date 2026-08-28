@@ -8,19 +8,19 @@ import { abortIf, splitLines, isRec, normalizeFilePath } from "./utils";
 
 const HASH_ECHO_RE = new RegExp(`^(${HASH_CLASS})${HASH_SEP}`);
 
-function searchEcho(lines: string[], served: ReadonlySet<string>): { line: number; hash: string } | undefined {
+function searchEcho(lines: string[], served: ReadonlyMap<string, string> | ReadonlySet<string>): { line: number; hash: string } | undefined {
   for (let i = 0; i < lines.length; i++) {
     const match = HASH_ECHO_RE.exec(lines[i]!);
-    if (match && served.has(match[1]!)) return { line: i + 1, hash: match[1]! };
+    if (match && served.has(match[1]! as never)) return { line: i + 1, hash: match[1]! };
   }
   return undefined;
 }
 
-export function findServedHashEcho(content: string, served: ReadonlySet<string>): { line: number; hash: string } | undefined {
+export function findServedHashEcho(content: string, served: ReadonlyMap<string, string> | ReadonlySet<string>): { line: number; hash: string } | undefined {
   return searchEcho(splitLines(content), served);
 }
 
-export function findEditHashEcho(lines: string[], served: ReadonlySet<string>): { line: number; hash: string } | undefined {
+export function findEditHashEcho(lines: string[], served: ReadonlyMap<string, string> | ReadonlySet<string>): { line: number; hash: string } | undefined {
   return searchEcho(lines, served);
 }
 

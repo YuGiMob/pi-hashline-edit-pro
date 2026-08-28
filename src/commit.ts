@@ -4,8 +4,9 @@ import { buildChanged, buildNoop, type RMeta, type TResult } from "./replace-res
 import { saveUndo } from "./replace-undo";
 import { safeSnapId } from "./file-reader";
 import { writeAtomic } from "./fs-write";
-import { recordServedDiffSafe } from "./served";
+import { recordServedSafe, buildServedMap, servedHashesFromDiff } from "./served";
 import { restoreEndings } from "./normalize";
+import { splitLines } from "./utils";
 
 export interface CommitMeta {
   path: string;
@@ -102,7 +103,10 @@ export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promis
   };
   const changed = buildChanged(successInput, meta.verb);
   if (changed.details.diff) {
-    await recordServedDiffSafe(mutationTargetPath, changed.details.diff, "post-edit diff", new Set(pipe.resultHashes));
+    const diffHashes = servedHashesFromDiff(changed.details.diff);
+    const resultLines = splitLines(pipe.result);
+    const servedMap = buildServedMap(pipe.resultHashes, resultLines, diffHashes);
+    await recordServedSafe(mutationTargetPath, servedMap, "post-edit diff", new Set(pipe.resultHashes));
   }
   return changed;
 }

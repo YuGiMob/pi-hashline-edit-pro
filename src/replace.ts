@@ -119,8 +119,8 @@ function hashSpan(hashes: string[], from: string, to: string): [number, number] 
 }
 async function noteAnchorError(absolutePath: string, error: unknown, scopeHashes: string[], noPersist?: boolean): Promise<void> {
   if (noPersist === true) return;
-  if (error instanceof RangeStaleError) await recordServedSafe(absolutePath, error.rangeHashes, "range-stale feedback", new Set(scopeHashes));
-  else if (error instanceof AnchorMismatchError) await recordServedSafe(absolutePath, error.feedbackHashes, "anchor-mismatch feedback", new Set(scopeHashes));
+  if (error instanceof RangeStaleError) await recordServedSafe(absolutePath, error.rangeServedMap, "range-stale feedback", new Set(scopeHashes));
+  else if (error instanceof AnchorMismatchError) await recordServedSafe(absolutePath, error.feedbackMap, "anchor-mismatch feedback", new Set(scopeHashes));
 }
 
 function collectRemovedHashes(

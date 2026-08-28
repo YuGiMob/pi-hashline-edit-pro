@@ -79,7 +79,7 @@ describe("write-hook servedHashEchoDenial", () => {
         const filePath = join(dir, "test.txt");
         await writeFile(filePath, "hello\n", "utf-8");
         const store = await loadHashStore();
-        recordServed(store, filePath, ["aB3"]);
+        recordServed(store, filePath, new Map([["aB3", "aB3"]]));
         const result = await servedHashEchoDenial("test.txt", "clean content\n", dir);
         expect(result).toBeUndefined();
       } finally {
@@ -94,7 +94,7 @@ describe("write-hook servedHashEchoDenial", () => {
         const filePath = join(dir, "test.txt");
         await writeFile(filePath, "hello\n", "utf-8");
         const store = await loadHashStore();
-        recordServed(store, filePath, ["aB3"]);
+        recordServed(store, filePath, new Map([["aB3", "aB3"]]));
         const result = await servedHashEchoDenial("test.txt", "aB3│copied\n", dir);
         expect(result).toContain("[E_WRITE_HASH_ECHO]");
         expect(result).toContain("aB3│");
@@ -122,7 +122,7 @@ describe("write-hook servedHashEchoDenial", () => {
         const filePath = join(dir, "empty.txt");
         await writeFile(filePath, "hello\n", "utf-8");
         const store = await loadHashStore();
-        recordServed(store, filePath, []);
+        recordServed(store, filePath, new Map());
         const result = await servedHashEchoDenial("empty.txt", "aB3│hello\n", dir);
         expect(result).toBeUndefined();
       } finally {
@@ -171,7 +171,7 @@ describe("write-hook registerWriteHook", () => {
         const filePath = join(dir, "blocked.txt");
         await writeFile(filePath, "hello\n", "utf-8");
         const store = await loadHashStore();
-        recordServed(store, filePath, ["aB3"]);
+        recordServed(store, filePath, new Map([["aB3", "aB3"]]));
         const { pi, handlers } = makePi();
         registerWriteHook(pi);
         const handler = handlers.get("tool_call") as (event: unknown, ctx: unknown) => Promise<unknown>;
@@ -189,7 +189,7 @@ describe("write-hook registerWriteHook", () => {
         const filePath = join(dir, "allowed.txt");
         await writeFile(filePath, "hello\n", "utf-8");
         const store = await loadHashStore();
-        recordServed(store, filePath, ["aB3"]);
+        recordServed(store, filePath, new Map([["aB3", "aB3"]]));
         const { pi, handlers } = makePi();
         registerWriteHook(pi);
         const handler = handlers.get("tool_call") as (event: unknown, ctx: unknown) => Promise<unknown>;
@@ -207,7 +207,7 @@ describe("write-hook registerWriteHook", () => {
         const filePath = join(dir, "alias.txt");
         await writeFile(filePath, "hello\n", "utf-8");
         const store = await loadHashStore();
-        recordServed(store, filePath, ["aB3"]);
+        recordServed(store, filePath, new Map([["aB3", "aB3"]]));
         const { pi, handlers } = makePi();
         registerWriteHook(pi);
         const handler = handlers.get("tool_call") as (event: unknown, ctx: unknown) => Promise<unknown>;

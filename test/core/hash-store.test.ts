@@ -689,7 +689,7 @@ describe("hash-store - schema versioning", () => {
         hashes: ["UVW"],
         resultContent: "new",
       });
-      recordServed(store, "/s.ts", ["SER"]);
+      recordServed(store, "/s.ts", new Map([["SER", "SER"]]));
       shutdownHashStore();
 
       const db = new DatabaseSync(sqlitePath(home), { defensive: false } as any);

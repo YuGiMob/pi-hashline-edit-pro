@@ -14,13 +14,14 @@ import {
   toggleAutoRead,
 } from "./src/config";
 import { loadHashStore, pruneMissing } from "./src/hash-store";
-import { recordServedSafe, clearServed } from "./src/served";
+import { recordServedSafe, clearServed, buildServedMap } from "./src/served";
 import { clearBoundaryBypass } from "./src/boundary-bypass";
 import { registerWriteHook } from "./src/write-hook";
 import { readNormFile } from "./src/file-reader";
 import { loadFileKindAndText } from "./src/file-kind";
 import { resolveInCwd } from "./src/fs-write";
 import { valAccess } from "./src/validation";
+import { splitLines } from "./src/utils";
 
 export default function (pi: ExtensionAPI): void {
   regRead(pi);
@@ -95,7 +96,9 @@ export default function (pi: ExtensionAPI): void {
           DEFAULT_MAX_BYTES,
           DEFAULT_MAX_LINES,
         );
-        await recordServedSafe(absolutePath, preview.servedHashes, "auto-read", new Set(fileHashes));
+        const fileLines = splitLines(normalized);
+        const servedMap = buildServedMap(fileHashes, fileLines, preview.servedHashes);
+        await recordServedSafe(absolutePath, servedMap, "auto-read", new Set(fileHashes));
         return {
           content: [
             ...(event.content ?? []),

@@ -61,13 +61,13 @@ describe("hash-store - pruneMissing error handling", () => {
     const store = await loadHashStore();
     const locked = join(tmpHome, "locked.ts");
     await putSnapshot(store, locked, "locked\n", ["AAA"]);
-    recordServed(store, locked, ["AAA"]);
+    recordServed(store, locked, new Map([["AAA", "AAA"]]));
 
     state.statErrors.set(locked, statError("EACCES", "permission denied"));
     await pruneMissing(store);
 
     expect(getSnapshot(store, locked, "locked\n")).toEqual(["AAA"]);
-    expect(getServed(store, locked)).toEqual(new Set(["AAA"]));
+    expect(getServed(store, locked)).toEqual(new Map([["AAA", "AAA"]]));
   });
 
   it("keeps the snapshot when stat fails with ELOOP", async () => {

@@ -6,10 +6,13 @@ import { initHasher, contentChecksum } from "./hashline/hasher";
 import { HASH_STORE_VERSION, HASH_STORE_BUSY_TIMEOUT } from "./constants";
 import {
   isValidHashList,
+  isValidServedMap,
   parseStoredHashes,
+  parseStoredServed,
   isValidSnapshot,
   isCorruptionError,
   parseHashList,
+  parseServedMap,
 } from "./hash-store/validation";
 import {
   withBusyRetry,
@@ -22,7 +25,7 @@ import {
   SNAPSHOT_CACHE_LIMIT,
 } from "./hash-store/cache";
 
-export { isValidHashList, parseHashList, parseStoredHashes, isCorruptionError };
+export { isValidHashList, isValidServedMap, parseHashList, parseServedMap, parseStoredHashes, parseStoredServed, isCorruptionError };
 export { SNAPSHOT_CACHE_LIMIT };
 export const STORE_NOT_OPEN_MESSAGE = "Hash store is not open; transactional update aborted";
 
@@ -551,10 +554,37 @@ function matchPathsByHashes(
   return matches;
 }
 
+function matchPathsByServed(
+  rows: { path: string; hashes: string }[],
+  hashes: string[],
+): string[] {
+  const needed = new Set(hashes);
+  if (needed.size === 0) return [];
+  const matches: string[] = [];
+  for (const row of rows) {
+    try {
+      const parsed = JSON.parse(row.hashes) as unknown;
+      if (!isValidServedMap(parsed)) continue;
+      const keySet = new Set(Object.keys(parsed as Record<string, unknown>));
+      let ok = true;
+      for (const h of needed) {
+        if (!keySet.has(h)) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok) matches.push(row.path);
+    } catch {
+      continue;
+    }
+  }
+  return matches;
+}
+
 export function findSnapshotPaths(store: HashStore, hashes: string[]): string[] {
   return matchPathsByHashes(store.stmts.allHashes() as { path: string; hashes: string }[], hashes);
 }
 
 export function findServedPaths(store: HashStore, hashes: string[]): string[] {
-  return matchPathsByHashes(store.stmts.allServed() as { path: string; hashes: string }[], hashes);
+  return matchPathsByServed(store.stmts.allServed() as { path: string; hashes: string }[], hashes);
 }
