@@ -3,9 +3,27 @@ import { readFile, rename, mkdir, stat } from "fs/promises";
 import { hashStorePath, hashStoreDir, legacyHashStorePath } from "./paths";
 import { errCode, isRec, splitLines } from "./utils";
 import { initHasher, contentChecksum } from "./hashline/hasher";
-import { HASH_RE } from "./hashline/alphabet";
 import { HASH_STORE_VERSION, HASH_STORE_BUSY_TIMEOUT } from "./constants";
+import {
+  isValidHashList,
+  parseStoredHashes,
+  isValidSnapshot,
+  isCorruptionError,
+  parseHashList,
+} from "./hash-store/validation";
+import {
+  withBusyRetry,
+  retriedWrite,
+  openDbWithBusyRetryAsync,
+} from "./hash-store/retry";
+import {
+  snapshotCache,
+  cacheSnapshot,
+  SNAPSHOT_CACHE_LIMIT,
+} from "./hash-store/cache";
 
+export { isValidHashList, parseHashList, parseStoredHashes, isCorruptionError };
+export { SNAPSHOT_CACHE_LIMIT };
 export const STORE_NOT_OPEN_MESSAGE = "Hash store is not open; transactional update aborted";
 
 type SqlParams = (string | number)[];
@@ -92,133 +110,10 @@ export interface UndoRecord {
   resultContent: string;
 }
 
-interface LegacySnapshot {
-  content: string;
-  hashes: string[];
-}
-
-export function isValidHashList(value: unknown): value is string[] {
-  if (!Array.isArray(value)) return false;
-  for (const hash of value) {
-    if (typeof hash !== "string" || !HASH_RE.test(hash)) return false;
-  }
-  if (new Set(value).size !== value.length) return false;
-  return true;
-}
-
-export function parseHashList(raw: string, onInvalid: () => void, context?: string): string[] | undefined {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (error) {
-    console.error(`[parseHashList]${context ? ` ${context}:` : ""} failed to parse stored hashes JSON:`, error);
-    onInvalid();
-    return undefined;
-  }
-  if (!isValidHashList(parsed)) {
-    console.error(`[parseHashList]${context ? ` ${context}:` : ""} stored hashes did not pass validation:`, Array.isArray(parsed) ? `length=${parsed.length} sample=${JSON.stringify(parsed.slice(0, 3))}` : (() => { try { return JSON.stringify(parsed)?.slice(0, 500) ?? String(parsed).slice(0, 500); } catch { return String(parsed).slice(0, 500); } })());
-    onInvalid();
-    return undefined;
-  }
-  return parsed;
-}
-export function parseStoredHashes(
-  row: Record<string, unknown> | undefined,
-  onInvalid: () => void,
-): string[] | undefined {
-  if (!row) return undefined;
-  return parseHashList(row.hashes as string, onInvalid);
-}
-
-function isValidSnapshot(value: unknown): value is LegacySnapshot {
-  if (typeof value !== "object" || value === null) return false;
-  const v = value as Record<string, unknown>;
-  if (typeof v.content !== "string") return false;
-  return isValidHashList(v.hashes);
-}
-
-export function isCorruptionError(error: unknown): boolean {
-  if (error && typeof error === "object") {
-    const errcode = (error as { errcode?: unknown }).errcode;
-    if (typeof errcode === "number") {
-      return errcode === 11 || errcode === 24 || errcode === 26;
-    }
-    const code = (error as { code?: unknown }).code;
-    if (typeof code === "string" && /NOTADB|CORRUPT/.test(code)) return true;
-  }
-  return (
-    error instanceof Error &&
-    /corrupt|not a database|malformed|database disk image/i.test(error.message)
-  );
-}
-
-function isBusyError(error: unknown): boolean {
-  if (error && typeof error === "object") {
-    const errcode = (error as { errcode?: unknown }).errcode;
-    if (typeof errcode === "number") return errcode === 5 || errcode === 6;
-  }
-  return error instanceof Error && /busy|locked/i.test(error.message);
-}
-
-const sleepSab = new Int32Array(new SharedArrayBuffer(4));
-
-function sleepSync(ms: number): void {
-  Atomics.wait(sleepSab, 0, 0, ms);
-}
-
-const BUSY_RETRIES = 3;
-const BUSY_RETRY_DELAY_MS = 50;
-
-function withBusyRetry<T>(fn: () => T): T {
-  let lastError: unknown;
-  for (let attempt = 0; attempt <= BUSY_RETRIES; attempt++) {
-    try {
-      return fn();
-    } catch (error) {
-      lastError = error;
-      if (!isBusyError(error) || attempt === BUSY_RETRIES) throw error;
-      sleepSync(BUSY_RETRY_DELAY_MS * (1 << attempt));
-    }
-  }
-  throw lastError;
-}
-
-async function withBusyRetryAsync<T>(fn: () => T): Promise<T> {
-  let lastError: unknown;
-  for (let attempt = 0; attempt <= BUSY_RETRIES; attempt++) {
-    try {
-      return fn();
-    } catch (error) {
-      lastError = error;
-      if (!isBusyError(error) || attempt === BUSY_RETRIES) throw error;
-      await new Promise<void>((r) => setTimeout(r, BUSY_RETRY_DELAY_MS * (1 << attempt)));
-    }
-  }
-  throw lastError;
-}
-
-async function openDbWithBusyRetryAsync(storePath: string): Promise<{ db: RawDb; stmts: Prepared }> {
-  return withBusyRetryAsync(() => openDb(storePath));
-}
-
-function retriedWrite(
-  stmt: { run(...params: SqlParams): unknown },
-): (...params: SqlParams) => void {
-  return (...params) => {
-    withBusyRetry(() => { stmt.run(...params); });
-  };
-}
-
 let cachedDb: { path: string; db: RawDb; stmts: Prepared } | null = null;
 let opening: { path: string; promise: Promise<HashStore> } | null = null;
 let exitHandlerRegistered = false;
-interface SnapshotCacheEntry {
-  checksum: string;
-  lineCount: number;
-  hashes: string[];
-}
-const snapshotCache = new Map<string, SnapshotCacheEntry>();
-export const SNAPSHOT_CACHE_LIMIT = 256;
+
 function openDb(storePath: string): { db: RawDb; stmts: Prepared } {
   const db = openDbFn(storePath);
   try {
@@ -231,9 +126,7 @@ function openDb(storePath: string): { db: RawDb; stmts: Prepared } {
   }
 }
 
-function buildStore(
-  db: RawDb,
-): { db: RawDb; stmts: Prepared } {
+function buildStore(db: RawDb): { db: RawDb; stmts: Prepared } {
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA synchronous = NORMAL");
   db.exec(
@@ -359,19 +252,19 @@ async function openStore(storePath: string): Promise<HashStore> {
   let existed = existsSync(storePath);
   let opened: { db: RawDb; stmts: Prepared };
   try {
-    opened = await openDbWithBusyRetryAsync(storePath);
+    opened = await openDbWithBusyRetryAsync(() => openDb(storePath));
   } catch (error) {
     if (!isCorruptionError(error)) throw error;
     console.error("Hash store failed to open, rebuilding:", error);
     await quarantineStore(storePath);
     existed = false;
-    opened = await openDbWithBusyRetryAsync(storePath);
+    opened = await openDbWithBusyRetryAsync(() => openDb(storePath));
   }
   if (!isHealthy(opened.db)) {
     shutdownDb(opened.db);
     await quarantineStore(storePath);
     existed = false;
-    opened = await openDbWithBusyRetryAsync(storePath);
+    opened = await openDbWithBusyRetryAsync(() => openDb(storePath));
   }
   const { db, stmts } = opened;
 
@@ -500,15 +393,6 @@ async function migrateLegacy(db: RawDb): Promise<void> {
     await rename(legacyPath, `${legacyPath}.bak`);
   } catch (error) {
     console.error("Failed to rename legacy hash store after migration:", error);
-  }
-}
-
-function cacheSnapshot(path: string, checksum: string, lineCount: number, hashes: string[]): void {
-  snapshotCache.delete(path);
-  snapshotCache.set(path, { checksum, lineCount, hashes: hashes.slice() });
-  if (snapshotCache.size > SNAPSHOT_CACHE_LIMIT) {
-    const oldest = snapshotCache.keys().next().value;
-    if (oldest !== undefined) snapshotCache.delete(oldest);
   }
 }
 

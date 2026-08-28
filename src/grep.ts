@@ -138,10 +138,12 @@ async function walkFiles(
   root: string,
   state: ScanState,
   onFile: (absPath: string) => Promise<void>,
+  signal?: AbortSignal,
 ): Promise<void> {
   const queue: string[] = [root];
   let head = 0;
   while (head < queue.length && !state.stopped) {
+    abortIf(signal);
     const dir = queue[head++]!;
     let entries;
     try {
@@ -150,8 +152,10 @@ async function walkFiles(
       continue;
     }
     entries.sort((a, b) => cmp(a.name, b.name));
-    for (const entry of entries) {
+    for (let ei = 0; ei < entries.length; ei++) {
+      if ((ei & 127) === 0) abortIf(signal);
       if (state.stopped) break;
+      const entry = entries[ei]!;
       const full = join(dir, entry.name);
       if (entry.isDirectory()) {
         if (SKIP_DIRS.has(entry.name)) continue;
@@ -176,17 +180,20 @@ async function searchFile(
   globRegex: RegExp | undefined,
   context: number,
   maxMatches: number,
+  signal?: AbortSignal,
 ): Promise<FileHit | undefined> {
   const displayPath = relative(cwd, absPath).replace(/\\/g, "/");
   if (globRegex) {
     const globPath = relative(globRoot, absPath).replace(/\\/g, "/");
     if (!globRegex.test(globPath) && !globRegex.test(displayPath)) return undefined;
   }
-  const norm = await tryReadNormFile(absPath, cwd, { maxLines: MAX_HASH_LINES, noPersist: true });
+  const norm = await tryReadNormFile(absPath, cwd, { maxLines: MAX_HASH_LINES, noPersist: true, signal });
   if (!norm) return undefined;
   const lines = visLines(norm.normalized);
   const matchLines: number[] = [];
   for (let i = 0; i < lines.length; i++) {
+    if ((i & 1023) === 0) abortIf(signal);
+    if (i !== 0 && (i & 4095) === 0) await new Promise<void>((r) => setImmediate(r));
     if (regex.test(lines[i]!)) matchLines.push(i);
   }
   if (matchLines.length === 0) return undefined;
@@ -306,7 +313,7 @@ export function regGrep(pi: ExtensionAPI): void {
       } else {
         await walkFiles(base, state, async (absPath) => {
           files.push(absPath);
-        });
+        }, signal);
         files.sort(cmp);
       }
       const hits: FileHit[] = [];
@@ -324,7 +331,7 @@ export function regGrep(pi: ExtensionAPI): void {
         abortIf(signal);
         const absPath = files[f]!;
         if (countOnly) {
-          const hit = await searchFile(absPath, globRoot, ctx.cwd, regex, globRegex, context, Number.MAX_SAFE_INTEGER);
+          const hit = await searchFile(absPath, globRoot, ctx.cwd, regex, globRegex, context, Number.MAX_SAFE_INTEGER, signal);
           if (!hit) continue;
           totalRows += hit.rows.length;
           for (const row of hit.rows) totalBytes += Buffer.byteLength(row, "utf-8") + 1;
@@ -342,7 +349,7 @@ export function regGrep(pi: ExtensionAPI): void {
           limitTruncated = true;
           break;
         }
-        const hit = await searchFile(absPath, globRoot, ctx.cwd, regex, globRegex, context, remaining);
+        const hit = await searchFile(absPath, globRoot, ctx.cwd, regex, globRegex, context, remaining, signal);
         if (!hit) continue;
         const keptRows: string[] = [];
         const keptHashes: string[] = [];

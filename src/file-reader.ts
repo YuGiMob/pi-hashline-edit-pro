@@ -5,7 +5,7 @@ import { lineHashes } from "./hashline";
 import { loadFileKindAndText, type LFile } from "./file-kind";
 import { resolveTarget } from "./fs-write";
 import { toCwd } from "./paths";
-import { detectEnding, toLF, stripBOM, type LineEnding } from "./replace-diff";
+import { detectEnding, toLF, stripBOM, type LineEnding } from "./normalize";
 import { abortIf, errCode, assertLineLimit } from "./utils";
 import { valKind, valAccess } from "./validation";
 import type { HashStore } from "./hash-store";

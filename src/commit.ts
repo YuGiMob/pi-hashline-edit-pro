@@ -5,7 +5,7 @@ import { saveUndo } from "./replace-undo";
 import { safeSnapId } from "./file-reader";
 import { writeAtomic } from "./fs-write";
 import { recordServedDiffSafe } from "./served";
-import { restoreEndings } from "./replace-diff";
+import { restoreEndings } from "./normalize";
 
 export interface CommitMeta {
   path: string;
