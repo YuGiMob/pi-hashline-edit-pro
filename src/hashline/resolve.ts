@@ -2,6 +2,7 @@ import { abortIf, rejectUnknownFields, firstNonEmptyIndex, lastNonEmptyIndex, cl
 import { HASH_SEP, HASH_RUN, stripRowPrefix, canon } from "./hash";
 import { parseHashRef, parseText, type Anchor } from "./parse";
 import { NEW_CONTENT_NOT_ARRAY_MSG, MAX_RANGE_STALE_LINES } from "../constants";
+import { contentChecksum } from "./hasher";
 
 export type RAnchor = {
 	line: number;
@@ -112,7 +113,7 @@ export function fmtMismatchWithHashes(
         const h = fileHashes[ln - 1]!;
         const c = fileLines[ln - 1] ?? "";
         hashes.push(h);
-        servedMap.set(h, c);
+        servedMap.set(h, contentChecksum(c));
         rows.push(`    ${ln}: ${h}│${clipLine(c)}`);
       }
       out.push("");
@@ -134,7 +135,7 @@ export function fmtMismatchWithHashes(
         const h = fileHashes[line - 1]!;
         const c = fileLines[line - 1] ?? "";
         hashes.push(h);
-        servedMap.set(h, c);
+        servedMap.set(h, contentChecksum(c));
       }
       const lines = sample
         .map((line) => {
@@ -549,7 +550,7 @@ export function assertRangeServed(
     const hash = fileHashes[line - 1]!;
     const content = fileLines[line - 1]!;
     const servedContent = served?.get(hash);
-    if (servedContent === undefined || servedContent !== content) mismatchLines.push(line);
+    if (servedContent === undefined || servedContent !== contentChecksum(content)) mismatchLines.push(line);
   }
   if (mismatchLines.length === 0) return;
   const rangeLength = endLine - startLine + 1;
@@ -561,7 +562,7 @@ export function assertRangeServed(
     const hash = fileHashes[line - 1]!;
     const content = fileLines[line - 1]!;
     shownHashes.push(hash);
-    shownMap.set(hash, content);
+    shownMap.set(hash, contentChecksum(content));
     rows.push(fmtRow(hash, clipLine(content)));
   }
   const location = filePath ? ` in ${filePath}` : "";

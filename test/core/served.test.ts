@@ -6,6 +6,7 @@ import { loadHashStore, shutdownHashStore, pruneMissing } from "../../src/hash-s
 import { getServed, recordServed, recordServedDiff, clearServed, servedHashesFromDiff, recordServedSafe, recordServedDiffSafe } from "../../src/served";
 import * as hashStoreModule from "../../src/hash-store";
 import { initHasher } from "../../src/hashline";
+import { contentChecksum } from "../../src/hashline/hasher";
 import { getWritableTempRoot } from "../support/fixtures";
 
 beforeAll(async () => {
@@ -79,7 +80,12 @@ describe("served store", () => {
       const store = await loadHashStore();
       recordServed(store, "/a.ts", new Map([["aB3", "aB3"], ["cD4", "cD4"], ["eF5", "eF5"]]));
       recordServedDiff(store, "/a.ts", " aB3│x\n-   │y\n+cD4│z\n", new Set(["aB3", "cD4"]));
-      expect(getServed(store, "/a.ts")).toEqual(new Map([["aB3", "x"], ["cD4", "z"]]));
+      {
+      const served = getServed(store, "/a.ts")!;
+      expect(served.get("aB3")).toBe(contentChecksum("x"));
+      expect(served.get("cD4")).toBe(contentChecksum("z"));
+      expect(new Set(served.keys())).toEqual(new Set(["aB3", "cD4"]));
+    }
     });
   });
 
@@ -171,7 +177,12 @@ describe("served safe helpers", () => {
     await withTempHome(async () => {
       await recordServedDiffSafe("/safe.ts", "+aB3│x\n pQ2│y\n-cD4│z\n", "test");
       const store = await loadHashStore();
-      expect(getServed(store, "/safe.ts")).toEqual(new Map([["aB3", "x"], ["pQ2", "y"]]));
+      {
+      const served = getServed(store, "/safe.ts")!;
+      expect(served.get("aB3")).toBe(contentChecksum("x"));
+      expect(served.get("pQ2")).toBe(contentChecksum("y"));
+      expect(new Set(served.keys())).toEqual(new Set(["aB3", "pQ2"]));
+    }
     });
   });
 

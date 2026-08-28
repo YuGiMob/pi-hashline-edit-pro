@@ -1,5 +1,6 @@
 import { loadHashStore, parseStoredServed, STORE_NOT_OPEN_MESSAGE, withStore, type HashStore } from "./hash-store";
 import { HASH_CLASS } from "./hashline/alphabet";
+import { contentChecksum } from "./hashline/hasher";
 
 const SERVED_DIFF_ROW_RE = new RegExp(`^[+ ](${HASH_CLASS})│`);
 
@@ -19,7 +20,7 @@ export function servedMapFromDiff(diff: string): Map<string, string> {
     if (!match) continue;
     const hash = match[1]!;
     const content = line.slice(match[0].length);
-    map.set(hash, content);
+    map.set(hash, contentChecksum(content));
   }
   return map;
 }
@@ -30,7 +31,7 @@ export function buildServedMap(fileHashes: string[], fileLines: string[], wanted
   const map = new Map<string, string>();
   for (const h of wantedHashes) {
     const idx = index.get(h);
-    if (idx !== undefined) map.set(h, fileLines[idx]!);
+    if (idx !== undefined) map.set(h, contentChecksum(fileLines[idx]!));
   }
   return map;
 }
