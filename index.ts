@@ -38,12 +38,15 @@ export default function (pi: ExtensionAPI): void {
     const active = pi.getActiveTools();
     pi.setActiveTools(active.filter((t) => t !== "edit"));
     await initHasher();
-    try {
-      const store = await loadHashStore();
-      await pruneMissing(store);
-    } catch (err) {
-      console.error("Failed to load or prune hash store:", err);
-    }
+    loadHashStore()
+      .then(store =>
+        pruneMissing(store).catch(err => {
+          console.error("Failed to prune hash store:", err);
+        }),
+      )
+      .catch(err => {
+        console.error("Failed to load hash store:", err);
+      });
     const config = await readConfig();
     autoRead = config.autoRead;
     const debugValue = process.env.PI_HASHLINE_DEBUG;

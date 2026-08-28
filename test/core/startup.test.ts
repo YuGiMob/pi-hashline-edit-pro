@@ -1,0 +1,108 @@
+import { describe, expect, it, vi } from "vitest";
+import { withTempDir } from "../support/fixtures";
+import { mkdir } from "fs/promises";
+import { join } from "path";
+import { isValidHashList } from "../../src/hash-store/validation";
+
+function makeLifecyclePi() {
+  const handlers = new Map<string, (...args: unknown[]) => unknown>();
+  const pi = {
+    registerTool() {},
+    registerCommand() {},
+    on(event: string, handler: (...args: unknown[]) => unknown) {
+      handlers.set(event, handler);
+    },
+    getActiveTools: () => [],
+    setActiveTools() {},
+  } as unknown as import("@earendil-works/pi-coding-agent").ExtensionAPI;
+  return { pi, handlers };
+}
+
+describe("startup non-blocking prune", () => {
+  it("session_start returns before pruneMissing finishes", async () => {
+    await withTempDir("startup-prune-", async dir => {
+      const home = join(dir, "home");
+      await mkdir(join(home, ".config", "pi-hashline-edit-pro"), { recursive: true });
+      const origHome = process.env.HOME;
+      const origXdg = process.env.XDG_CONFIG_HOME;
+      process.env.HOME = home;
+      process.env.XDG_CONFIG_HOME = "";
+      try {
+        const { loadHashStore, shutdownHashStore } = await import("../../src/hash-store");
+        const store = await loadHashStore();
+        for (let i = 0; i < 120; i++) {
+          store.stmts.upsert(`/tmp/nonexistent-${i}-${Date.now()}`, "chk", 1, JSON.stringify(["abc"]), Date.now());
+        }
+        shutdownHashStore();
+        const { pi, handlers } = makeLifecyclePi();
+        const { default: register } = await import("../../index");
+        register(pi);
+        const sessionStart = handlers.get("session_start") as (a: unknown, b: unknown) => Promise<void>;
+        const start = Date.now();
+        await sessionStart({}, { cwd: dir, ui: { notify: vi.fn() } });
+        const elapsed = Date.now() - start;
+        expect(elapsed).toBeLessThan(200);
+        await new Promise(r => setTimeout(r, 800));
+        const store2 = await loadHashStore();
+        const remaining = (store2.stmts.allPaths() as { path: string }[]).filter(r => r.path.includes("nonexistent-")).length;
+        expect(remaining).toBe(0);
+        shutdownHashStore();
+      } finally {
+        process.env.HOME = origHome;
+        if (origXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+        else process.env.XDG_CONFIG_HOME = origXdg;
+        const { shutdownHashStore } = await import("../../src/hash-store");
+        shutdownHashStore();
+      }
+    });
+  });
+});
+
+describe("hash-store incremental vacuum", () => {
+  it("keeps freelist low after many deletes", async () => {
+    await withTempDir("startup-vacuum-", async dir => {
+      const home = join(dir, "home");
+      await mkdir(join(home, ".config", "pi-hashline-edit-pro"), { recursive: true });
+      const origHome = process.env.HOME;
+      const origXdg = process.env.XDG_CONFIG_HOME;
+      process.env.HOME = home;
+      process.env.XDG_CONFIG_HOME = "";
+      try {
+        const { loadHashStore, shutdownHashStore } = await import("../../src/hash-store");
+        const store = await loadHashStore();
+        const hashes = ["abc", "def", "ghi", "jkl", "mno", "pqr", "stu", "vwx"];
+        for (let i = 0; i < 100; i++) {
+          store.stmts.upsert(`p${i}`, "chk", 1, JSON.stringify([hashes[i % hashes.length]]), Date.now());
+        }
+        for (let i = 0; i < 80; i++) {
+          store.stmts.deleteOne(`p${i}`);
+        }
+        shutdownHashStore();
+        const store2 = await loadHashStore();
+        expect(isValidHashList(["abc"])).toBe(true);
+        shutdownHashStore();
+        void store2;
+      } finally {
+        process.env.HOME = origHome;
+        if (origXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+        else process.env.XDG_CONFIG_HOME = origXdg;
+        const { shutdownHashStore } = await import("../../src/hash-store");
+        shutdownHashStore();
+      }
+    });
+  });
+});
+
+describe("grep huge quantifier guard", () => {
+  it("rejects z{1000000} as unsafe", async () => {
+    await withTempDir("startup-grep-", async dir => {
+      const { setupIntegrationTest } = await import("../support/fixtures");
+      const { getTool } = setupIntegrationTest(dir);
+      const { pi } = makeLifecyclePi();
+      const { default: register } = await import("../../index");
+      register(pi);
+      const grepTool = getTool("grep");
+      await expect(grepTool.execute("g1", { pattern: "z{1000000}", path: dir }, undefined, undefined, { cwd: dir, signal: undefined } as unknown as never)).rejects.toThrow("[E_UNSAFE_REGEX]");
+    });
+  });
+});

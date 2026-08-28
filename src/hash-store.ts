@@ -275,6 +275,20 @@ async function openStore(storePath: string): Promise<HashStore> {
     opened = await openDbWithBusyRetryAsync(() => openDb(storePath));
   }
   const { db, stmts } = opened;
+  try {
+    const autoVacuum = (db.prepare("PRAGMA auto_vacuum").get() as { auto_vacuum: number }).auto_vacuum;
+    const pageCount = (db.prepare("PRAGMA page_count").get() as { page_count: number }).page_count;
+    const freelist = (db.prepare("PRAGMA freelist_count").get() as { freelist_count: number }).freelist_count;
+    if (autoVacuum === 0 && !existed) {
+      db.exec("PRAGMA auto_vacuum=INCREMENTAL");
+    } else if (freelist > 50 && freelist * 5 > pageCount) {
+      try {
+        db.exec("PRAGMA incremental_vacuum(50)");
+      } catch {
+        db.exec("VACUUM");
+      }
+    }
+  } catch {}
 
   if (process.platform !== "win32") {
     for (const candidate of [storePath, `${storePath}-wal`, `${storePath}-shm`]) {

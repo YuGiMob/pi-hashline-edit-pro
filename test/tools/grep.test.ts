@@ -566,11 +566,18 @@ describe("grep tool", () => {
       const { ctx, getTool } = setupIntegrationTest(cwd);
       const grepTool = getTool("grep");
       const started = Date.now();
-      const result = await grepTool.execute("g1", { pattern: "z{1000000}", path: "huge2.txt" }, undefined, undefined, ctx);
+      const result = await grepTool.execute("g1", { pattern: "z", path: "huge2.txt" }, undefined, undefined, ctx);
       expect(Date.now() - started).toBeLessThan(5000);
       const text = getText(result);
       expect(text).toContain("truncated fragments");
       expect(text).not.toContain("z".repeat(1000));
+    });
+  });
+  it("rejects huge quantifiers that would cause pathological backtracking", async () => {
+    await withTempFile("huge2.txt", "z\n", async ({ cwd }) => {
+      const { ctx, getTool } = setupIntegrationTest(cwd);
+      const grepTool = getTool("grep");
+      await expect(grepTool.execute("g1", { pattern: "z{1000000}", path: "huge2.txt" }, undefined, undefined, ctx)).rejects.toThrow("[E_UNSAFE_REGEX]");
     });
   });
 

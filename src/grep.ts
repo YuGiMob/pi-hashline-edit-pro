@@ -128,6 +128,11 @@ function assertSafeRegex(pattern: string): void {
     } else if (ch === "{") {
       quantifierLength = /^\{\d+(?:,\d*)?\}/.exec(pattern.slice(i))?.[0].length ?? 0;
     }
+    if (ch === "{" && quantifierLength > 0) {
+      const quant = pattern.slice(i, i + quantifierLength);
+      const m = /^\{(\d+)/.exec(quant);
+      if (m && Number(m[1]) > 1000) unsafeRegex(pattern);
+    }
     if (quantifierLength > 0 && lastAtom) {
       if (ch === "?" && lastAtom.quantified) continue;
       const variable = ch !== "{" || pattern.slice(i, i + quantifierLength).includes(",");
@@ -370,14 +375,14 @@ async function collectRgMatches(
     let timedOut = false;
     const rgTimeout = setTimeout(() => {
       timedOut = true;
-      if (!child.killed) child.kill();
+      if (!child.killed) child.kill('SIGKILL');
       reject(new Error("rg timeout"));
     }, 3000);
     child.stderr?.on("data", (chunk) => {
       stderr += chunk.toString();
     });
     const onAbort = () => {
-      if (!child.killed) child.kill();
+      if (!child.killed) child.kill('SIGKILL');
     };
     signal?.addEventListener("abort", onAbort, { once: true });
     const cleanup = () => {
