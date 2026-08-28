@@ -8,7 +8,7 @@ import { MAX_HASH_LINES, fmtRow, HASH_LEN, HASH_SEP } from "./hashline";
 import { MAX_GREP_LINE_BYTES } from "./constants";
 import { toCwd } from "./paths";
 import { loadP, loadGuide } from "./prompts";
-import { normReq } from "./replace-normalize";
+import { normReq } from "./payload-contract";
 import { recordServedSafe } from "./served";
 import { abortIf, errCode, isRec, makePrepareArguments, rejectUnknownFields, truncateToBytes, visLines } from "./utils";
 

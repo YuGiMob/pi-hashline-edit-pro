@@ -1,1 +1,1 @@
-Replace lines in a text file via bare 3-char anchors from read: anchor only, never line content; anchor exactly the lines that change; one edit per tool call
+Replace lines in a text file via bare 3-char anchors from read: HASH is bare "aB3", HASH│content is served row "aB3│content"; read → `aB3│    "site": {` vs replace → `{"remove_from":"aB3","remove_to":"AU6","replacement_lines":["    \"site\": {"]}`; anchor only, never line content; anchor exactly the lines that change; one edit per tool call

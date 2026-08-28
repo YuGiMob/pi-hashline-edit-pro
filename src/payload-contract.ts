@@ -1,0 +1,102 @@
+import { Type } from "typebox";
+import { isRec, normalizeFilePath, rejectUnknownFields } from "./utils";
+
+const replacementLinesSchema = Type.Array(
+  Type.String({
+    description:
+      "One replacement line. Each element is exactly one line; do not embed \\n inside an element: use separate elements.",
+  }),
+  {
+    description:
+      "Replacement lines as an array of strings, one element per line. Use [] to delete the range.",
+  },
+);
+
+const removeFromSchema = Type.String({
+  description:
+    "Bare 3-char anchor only (e.g. \"aB3\"): copy just the anchor from the leftmost column of a read row like `aB3│content`; never the line content. Marks the FIRST line to remove (inclusive)",
+});
+
+const removeToSchema = Type.String({
+  description:
+    "Bare 3-char anchor only (e.g. \"aB3\"): copy just the anchor from the leftmost column of a read row like `aB3│content`; never the line content. Marks the LAST line to remove (inclusive)",
+});
+
+export const editToolSchema = Type.Object(
+  {
+    path: Type.Optional(
+      Type.String({
+        description:
+          "Path to edit. Required: always provide it explicitly; it is only auto-resolved from the anchors as a fallback when omitted by mistake.",
+      }),
+    ),
+    remove_from: removeFromSchema,
+    remove_to: removeToSchema,
+    replacement_lines: replacementLinesSchema,
+  },
+  { additionalProperties: false },
+);
+
+export type ReqParams = {
+  path: string;
+  remove_from: string;
+  remove_to: string;
+  replacement_lines: string[];
+};
+
+const ROOT_KS = new Set(["path", "remove_from", "remove_to", "replacement_lines"]);
+
+export function assertReq(request: unknown): asserts request is ReqParams {
+  if (!isRec(request)) {
+    throw new Error("[E_BAD_SHAPE] Edit request must be an object.");
+  }
+  rejectUnknownFields(request, ROOT_KS, "Edit request");
+  if (typeof request.path !== "string" || request.path.length === 0) {
+    throw new Error('[E_BAD_SHAPE] Edit request requires a non-empty "path" string.');
+  }
+  if (
+    typeof request.remove_from !== "string" ||
+    typeof request.remove_to !== "string" ||
+    !Array.isArray(request.replacement_lines) ||
+    request.replacement_lines.some((line) => typeof line !== "string")
+  ) {
+    throw new Error(
+      '[E_BAD_SHAPE] Edit request requires "remove_from", "remove_to", and "replacement_lines" (array of strings, one per line; use [] to delete).',
+    );
+  }
+}
+
+export function normReq(input: unknown): unknown {
+  if (!isRec(input)) {
+    return input;
+  }
+  const record: Record<string, unknown> = { ...input };
+  normalizeFilePath(record);
+  return record;
+}
+
+export function getPreviewInput(args: unknown): ReqParams | null {
+  let normalized: unknown;
+  try {
+    normalized = normReq(args);
+  } catch {
+    return null;
+  }
+  if (!isRec(normalized) || typeof normalized.path !== "string") {
+    return null;
+  }
+  if (
+    typeof normalized.remove_from !== "string" ||
+    typeof normalized.remove_to !== "string" ||
+    !Array.isArray(normalized.replacement_lines) ||
+    normalized.replacement_lines.some((line) => typeof line !== "string")
+  ) {
+    return null;
+  }
+  return {
+    path: normalized.path,
+    remove_from: normalized.remove_from,
+    remove_to: normalized.remove_to,
+    replacement_lines: normalized.replacement_lines,
+  };
+}

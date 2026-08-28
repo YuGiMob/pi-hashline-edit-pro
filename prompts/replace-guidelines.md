@@ -1,4 +1,5 @@
-- `replace`: remove_from and remove_to take ONLY the bare 3-char anchor: read row `ve7│function hello() {` means `"remove_from": "ve7"`. Never paste the line content, a code line, a paragraph, or the whole `anchor│content` row into these fields.
+- `replace`: HASH is bare "aB3", HASH│content is served row "aB3│content" — copy only HASH for remove_from/remove_to; row `ve7│function hello() {` means `"remove_from": "ve7"`. Never paste HASH│content, line content, a code line, or paragraph.
+- `replace`: replacement_lines is bare content without HASH│, one element per line; mirror the removed lines exactly, blank lines included
 - `replace`: remove_from and remove_to mark the exact lines that are REMOVED, and replacement_lines is their complete replacement applied in order; nothing outside the range changes. Every line inside the range that is not reproduced byte-exact in replacement_lines is deleted from the file.
 - `replace`: keep the range as tight as the change: anchor only the first and last line that actually change, never a whole function, class, or import block when only part of it changes.
 - `replace`: to replace a single line, use the same anchor for both remove_from and remove_to (e.g. remove_from: "<ANCHOR>", remove_to: "<ANCHOR>").

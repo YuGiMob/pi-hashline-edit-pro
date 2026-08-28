@@ -1,8 +1,9 @@
 import { Markdown, Text } from "@earendil-works/pi-tui";
 import { keyHint, type Theme } from "@earendil-works/pi-coding-agent";
-import { normReq } from "./replace-normalize";
-import type { ReqParams, ReplaceDetails } from "./replace";
-import { isRec, withLineNumbers } from "./utils";
+import type { ReplaceDetails } from "./replace";
+import { withLineNumbers } from "./utils";
+import { getPreviewInput } from "./payload-contract";
+export { getPreviewInput };
 
 export type FgT = Pick<Theme, "fg">;
 export type CallT = Pick<Theme, "fg" | "bold">;
@@ -19,37 +20,6 @@ export type RRState = {
 	previewGeneration?: number;
 	previewTimer?: ReturnType<typeof setTimeout>;
 };
-
-export function getPreviewInput(
-	args: unknown,
-): ReqParams | null {
-	let normalized: unknown;
-	try {
-		normalized = normReq(args);
-	} catch {
-		return null;
-	}
-	if (!isRec(normalized) || typeof normalized.path !== "string") {
-		return null;
-	}
-
-	if (
-		typeof normalized.remove_from !== "string" ||
-		typeof normalized.remove_to !== "string" ||
-		!Array.isArray(normalized.replacement_lines) ||
-		normalized.replacement_lines.some((line) => typeof line !== "string")
-	) {
-		return null;
-	}
-
-	const request: ReqParams = {
-		path: normalized.path,
-		remove_from: normalized.remove_from,
-		remove_to: normalized.remove_to,
-		replacement_lines: normalized.replacement_lines,
-	};
-	return request;
-}
 
 type DiffRowKind = "added" | "removed" | "context";
 

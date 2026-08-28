@@ -9,7 +9,7 @@ import { resolveInCwd } from "./fs-write";
 import { MAX_HASH_LINES, parseHashRef, resolveAnchorLine, type Anchor } from "./hashline";
 import { stripAnchorRow } from "./hashline/resolve";
 import { loadP, loadGuide } from "./prompts";
-import { normReq } from "./replace-normalize";
+import { normReq } from "./payload-contract";
 import { genDiff } from "./replace-diff";
 import { makeRenderCall, renderEditResult, type RPreview, type RRState } from "./replace-render";
 import { abortIf, isRec, makePrepareArguments, rejectUnknownFields, splitLines } from "./utils";
