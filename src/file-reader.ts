@@ -5,7 +5,7 @@ import { loadFileKindAndText, type LFile } from "./file-kind";
 import { resolveTarget } from "./fs-write";
 import { toCwd } from "./paths";
 import { detectEnding, toLF, stripBOM, type LineEnding } from "./replace-diff";
-import { abortIf, errCode, visLines } from "./utils";
+import { abortIf, errCode, splitLines } from "./utils";
 import { valKind, valAccess } from "./validation";
 import type { HashStore } from "./hash-store";
 export interface NormFile {
@@ -91,7 +91,7 @@ export async function readNormFile(
   const normalized = toLF(rawContent);
 
   if (options?.maxLines !== undefined) {
-    const lineCount = visLines(normalized).length;
+    const lineCount = splitLines(normalized).length;
     if (lineCount > options.maxLines) {
       throw new Error(
         `[E_FILE_TOO_LARGE] ${path} has ${lineCount} lines, exceeding the ${options.maxLines}-line hashline limit. For very large files, use write.`,
