@@ -471,8 +471,8 @@ export function regGrep(pi: ExtensionAPI): void {
       }
       const globRoot = baseStat.isFile() ? dirname(base) : base;
       const globRegex = req.glob === undefined ? undefined : globToRegex(req.glob);
-      const rgPath = await resolveRgPath();
       const validatedRegex = buildRegex(req.pattern, req.literal === true, req.ignoreCase === true);
+      const rgPath = await resolveRgPath();
       const hits: FileHit[] = [];
       let matches = 0;
       let limitTruncated = false;

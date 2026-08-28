@@ -25,6 +25,14 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
 
+      - name: Install ripgrep (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Install ripgrep (Windows)
+        if: matrix.os == 'windows-latest'
+        run: choco install ripgrep -y
+
       - name: Install dependencies
         run: npm ci
 
@@ -52,6 +60,9 @@ jobs:
         with:
           node-version: 22.19.0
           cache: npm
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
 
       - name: Install dependencies
         run: npm ci
