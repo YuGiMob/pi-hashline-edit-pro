@@ -597,10 +597,10 @@ export async function pruneMissing(store: HashStore): Promise<void> {
   withStore(() => {
     for (const path of missing) {
       store.stmts.deleteOne(path);
-      snapshotCache.delete(path);
       store.stmts.servedDelete(path);
     }
   });
+  for (const path of missing) snapshotCache.delete(path);
 }
 
 function matchPathsByHashes(

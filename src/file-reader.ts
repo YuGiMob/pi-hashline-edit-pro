@@ -1,5 +1,6 @@
 import { constants } from "fs";
 import { stat } from "fs/promises";
+import { relative } from "path";
 import { lineHashes } from "./hashline";
 import { loadFileKindAndText, type LFile } from "./file-kind";
 import { resolveTarget } from "./fs-write";
@@ -108,4 +109,25 @@ export async function readNormFile(
     fileHashes,
     hadUtf8DecodeErrors: file.hadUtf8DecodeErrors === true,
   };
+}
+
+export async function tryReadNormFile(
+  absPath: string,
+  cwd: string,
+  options?: ReadNormOptions,
+): Promise<NormFile | undefined> {
+  try {
+    const displayPath = relative(cwd, absPath).replace(/\\/g, "/") || absPath;
+    const file = await loadFileKindAndText(absPath, { maxLines: options?.maxLines, displayPath });
+    if (file.kind !== "text") return undefined;
+    return await readNormFile(absPath, cwd, { ...options, preloadedFile: file });
+  } catch (error) {
+    const code = errCode(error);
+    if (code === "EACCES" || code === "EPERM" || code === "ENOENT" || code === "ELOOP") return undefined;
+    if (error instanceof Error) {
+      const msg = error.message;
+      if (msg.startsWith("[E_FILE_TOO_LARGE]") || msg.startsWith("[E_NOT_FOUND]") || msg.startsWith("[E_ACCESS]") || msg.startsWith("[E_NOT_TEXT]")) return undefined;
+    }
+    throw error;
+  }
 }

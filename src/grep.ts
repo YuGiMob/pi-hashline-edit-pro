@@ -3,8 +3,7 @@ import { formatSize, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, type TruncationResult
 import { Type } from "typebox";
 import { readdir, stat } from "fs/promises";
 import { dirname, join, relative } from "path";
-import { loadFileKindAndText } from "./file-kind";
-import { readNormFile } from "./file-reader";
+import { tryReadNormFile } from "./file-reader";
 import { MAX_HASH_LINES, fmtRow, HASH_LEN, HASH_SEP } from "./hashline";
 import { MAX_GREP_LINE_BYTES } from "./constants";
 import { toCwd } from "./paths";
@@ -82,12 +81,6 @@ function globToRegex(glob: string): RegExp {
     i += 1;
   }
   return new RegExp(`^${source}$`);
-}
-
-function isSkipableLoadError(error: unknown): boolean {
-  const code = errCode(error);
-  if (code === "EACCES" || code === "EPERM" || code === "ENOENT" || code === "ELOOP") return true;
-  return error instanceof Error && error.message.startsWith("[E_FILE_TOO_LARGE]");
 }
 
 interface FileHit {
@@ -189,21 +182,8 @@ async function searchFile(
     const globPath = relative(globRoot, absPath).replace(/\\/g, "/");
     if (!globRegex.test(globPath) && !globRegex.test(displayPath)) return undefined;
   }
-  let file;
-  try {
-    file = await loadFileKindAndText(absPath, { maxLines: MAX_HASH_LINES, displayPath });
-  } catch (error) {
-    if (isSkipableLoadError(error)) return undefined;
-    throw error;
-  }
-  if (file.kind !== "text") return undefined;
-  let norm;
-  try {
-    norm = await readNormFile(absPath, cwd, { maxLines: MAX_HASH_LINES, preloadedFile: file, noPersist: true });
-  } catch (error) {
-    if (isSkipableLoadError(error)) return undefined;
-    throw error;
-  }
+  const norm = await tryReadNormFile(absPath, cwd, { maxLines: MAX_HASH_LINES, noPersist: true });
+  if (!norm) return undefined;
   const lines = visLines(norm.normalized);
   const matchLines: number[] = [];
   for (let i = 0; i < lines.length; i++) {

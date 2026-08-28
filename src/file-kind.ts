@@ -1,6 +1,7 @@
 import { open as fsOpen, stat as fsStat } from "fs/promises";
 import { fileTypeFromBuffer } from "file-type";
 import { SNIFF_BYTES, MAX_BYTES } from "./constants";
+import { splitLines } from "./utils";
 
 const IMG_TYPES = new Set<string>([
   "image/bmp",
@@ -169,6 +170,16 @@ export async function loadFileKindAndText(
       position += chunkBytesRead;
     }
     parts.push(decodeChunk(new Uint8Array(0), false));
+    const text = parts.join("");
+    if (options?.maxLines !== undefined && text.length > 0) {
+      const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      const finalLineCount = splitLines(normalized).length;
+      if (finalLineCount > options.maxLines) {
+        throw new Error(
+          `[E_FILE_TOO_LARGE] ${options.displayPath ?? filePath} has more than ${options.maxLines} lines, exceeding the ${options.maxLines}-line hashline limit. For very large files, use write.`,
+        );
+      }
+    }
 
     if (containsNul) {
       return { kind: "binary", description: "contains NUL bytes" };
@@ -176,7 +187,7 @@ export async function loadFileKindAndText(
 
     return {
       kind: "text",
-      text: parts.join(""),
+      text,
       ...(hadUtf8DecodeErrors ? { hadUtf8DecodeErrors: true as const } : {}),
     };
   } finally {

@@ -173,21 +173,21 @@ export interface ExecPipelineOptions {
   preloadedNorm?: NormFile;
 }
 
+function hashSpan(hashes: string[], from: string, to: string): [number, number] | undefined {
+  const a = hashes.indexOf(from);
+  const b = hashes.indexOf(to);
+  if (a < 0 || b < 0) return undefined;
+  return [Math.min(a, b), Math.max(a, b)];
+}
+
 function collectRemovedHashes(
   edit: HEdit,
   originalHashes: string[],
 ): Set<string> {
+  const span = hashSpan(originalHashes, edit.hash_bounds[0].hash, edit.hash_bounds[1].hash);
   const removedHashes = new Set<string>();
-  const startHash = edit.hash_bounds[0].hash;
-  const endHash = edit.hash_bounds[1].hash;
-  const startLine = originalHashes.indexOf(startHash);
-  const endLine = originalHashes.indexOf(endHash);
-  if (startLine >= 0 && endLine >= 0) {
-    const firstLine = Math.min(startLine, endLine);
-    const lastLine = Math.max(startLine, endLine);
-    for (let i = firstLine; i <= lastLine; i++) {
-      removedHashes.add(originalHashes[i]!);
-    }
+  if (span) {
+    for (let i = span[0]; i <= span[1]; i++) removedHashes.add(originalHashes[i]!);
   }
   return removedHashes;
 }
@@ -199,12 +199,8 @@ function countLineChanges(
   removedAutoFixes: number,
 ): { totalAddedLines: number; totalRemovedLines: number } {
   if (isNoop) return { totalAddedLines: 0, totalRemovedLines: 0 };
-  let totalRemovedLines = 0;
-  const startLine = originalHashes.indexOf(edit.hash_bounds[0].hash);
-  const endLine = originalHashes.indexOf(edit.hash_bounds[1].hash);
-  if (startLine >= 0 && endLine >= 0) {
-    totalRemovedLines = Math.abs(endLine - startLine) + 1;
-  }
+  const span = hashSpan(originalHashes, edit.hash_bounds[0].hash, edit.hash_bounds[1].hash);
+  const totalRemovedLines = span ? span[1] - span[0] + 1 : 0;
   return {
     totalAddedLines: Math.max(0, edit.content_lines.length - removedAutoFixes),
     totalRemovedLines,
