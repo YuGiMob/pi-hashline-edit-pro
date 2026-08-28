@@ -1,2 +1,2 @@
 - `read`: call before `replace` when you need fresh anchors for a file.
-- `read`: call again after an edit when you need anchors you do not have. The post-edit diff after replace/insert and the anchored rows after grep already carry fresh anchors for the changed range.
+- `read`: call again after an edit when you need anchors you do not have — post-edit diff `+anchor│`/` anchor│` rows and `grep` hits are already fresh anchors for the changed range, so no new `read` needed for those lines.

@@ -1,1 +1,1 @@
-Search file contents; matching lines carry anchors usable in replace/insert without a re-read
+Search with `anchor│content` hits usable directly for `replace`/`insert`; use `literal`/`glob`/`context`

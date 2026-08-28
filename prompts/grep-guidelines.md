@@ -1,7 +1,3 @@
-- `grep`: results carry anchors recorded like read output, so you can target them with replace or insert immediately.
-- `grep`: pass `path` for a single file or directory; the default is the current working directory. Directory searches skip node_modules, .git, .tmp, and coverage.
-- `grep`: use `literal: true` when the pattern contains regex metacharacters you want matched literally.
-- `grep`: use `context` to see surrounding lines; context rows carry anchors too.
-- `grep`: use `glob` to filter files; `*` matches across directories, e.g. `*.ts` or `**/*.spec.ts`. A leading `/` is ignored; the pattern may be relative to the search root or to the current directory.
-- `grep`: results are capped at `limit` matches (default 100), 2000 rows, and 50KB; refine the pattern or raise limit to see more.
-- `grep`: a matched line longer than 500 bytes is shown as a fragment around the match with `...` marking the truncated sides; the row keeps its anchor and is editable with replace (which replaces the whole line). Use read to see the full line.
+- `grep`: every hit and `context` line comes back as `anchor│content` — use that anchor directly for `replace`/`insert` without a new `read`.
+- `grep`: use `path` for file or folder (default cwd), `glob` like `*.ts` to filter, `literal:true` for literal text, `context:N` for surrounding lines.
+- `grep`: search skips `node_modules/.git/.tmp/coverage` and skips binary/image files.

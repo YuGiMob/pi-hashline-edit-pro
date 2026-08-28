@@ -1,7 +1,3 @@
-- `insert`: anchor takes ONLY the bare 3-char anchor of the line next to which the new lines go: read row `ve7│function hello() {` means `"anchor": "ve7"`. Never paste the line content or the whole `anchor│content` row.
-- `insert`: the anchor line is preserved. Include only the new lines in `lines`, never the anchor line itself.
-- `insert`: use `direction: "after"` to add lines after the anchor line, `"before"` to add them before it.
-- `insert`: read the file first, so the anchor line was shown to you. Use a post-edit diff row or grep output for follow-up inserts.
-- `insert`: to seed an empty file, read it and insert after the `anchor│` empty-line row.
-- `insert`: lines are applied literally — never deduplicated — so restating a neighbor is safe and has no effect on the result.
-- `insert`: the post-edit diff is capped at 50KB; a row longer than 50KB is shown as a marker that keeps the row's anchor, and the diff ends with a truncation note when the cap is hit, so call read for content the diff did not show.
+- `insert`: `anchor` is bare `aB3` from `aB3│content` (never the content), direction `after` adds below, `before` adds above. Do not put the anchor line in `lines`; `[""]` is a blank line.
+- `insert`: `lines` is bare content, one element per line, kept literally even if it duplicates neighbors — nothing is removed.
+- `insert`: the anchor must have been shown by `read`, a post-edit diff (`+anchor│`/` anchor│`), or `grep`. For an empty file, `read` shows one `anchor│` empty row — insert `after` it.

@@ -1,10 +1,5 @@
-- `replace`: HASH is bare "aB3", HASH│content is served row "aB3│content" — copy only HASH for remove_from/remove_to; row `ve7│function hello() {` means `"remove_from": "ve7"`. Never paste HASH│content, line content, a code line, or paragraph.
-- `replace`: replacement_lines is bare content without HASH│, one element per line; mirror the removed lines exactly, blank lines included
-- `replace`: remove_from and remove_to mark the exact lines that are REMOVED, and replacement_lines is their complete replacement applied in order; nothing outside the range changes. Every line inside the range that is not reproduced byte-exact in replacement_lines is deleted from the file.
-- `replace`: keep the range as tight as the change: anchor only the first and last line that actually change, never a whole function, class, or import block when only part of it changes.
-- `replace`: to replace a single line, use the same anchor for both remove_from and remove_to (e.g. remove_from: "<ANCHOR>", remove_to: "<ANCHOR>").
-- `replace`: when copying a line from read output, remove its `anchor│` prefix and keep the leading whitespace exactly as shown.
-- `replace`: replacement_lines is an array of strings, one element per line. Mirror the removed lines exactly, blank lines included: use `[]` to delete the range, `[""]` for a single blank line, `["a", ""]` for a line followed by a blank line, and `["", ""]` for two blank lines. Do not embed `\n` inside an element: each element is exactly one line.
-- `replace`: when auto-read shows the post-edit diff, its rows are the fresh anchors for the new file: `+anchor│` and ` anchor│` rows carry current anchors and unchanged lines keep their previous anchors, so you can anchor follow-up edits on the diff without re-reading.
-- `replace`: do not issue multiple replace calls on the same file in one message. Issue the next edit only after verifying the previous diff.
-- `replace`: the post-edit diff is capped at 50KB; a row longer than 50KB is shown as a marker that keeps the row's anchor, and the diff ends with a truncation note when the cap is hit, so call read for content the diff did not show.
+- `replace`: `remove_from` and `remove_to` are bare anchors like `aB3` (the 3 chars before `│` in `aB3│content`), never the full row or file content. Use the same anchor for both to change one line.
+- `replace`: `replacement_lines` is bare content without `│`, one element per line. Use `[]` to delete, `[""]` for one blank line, never put `\n` inside an element and never include the `anchor│` prefix.
+- `replace`: the range from `remove_from` to `remove_to` is exactly deleted and replaced in order — make it tight, only the lines that actually change, and copy leading spaces exactly.
+- `replace`: diff markers like `+aB3│` or `-aB3│` are stripped automatically if pasted, but always try to send bare content.
+- `replace`: `+anchor│` and ` anchor│` rows in a post-edit diff are fresh anchors — you can use them for the next edit without a new `read`. Do one `replace`/`insert` per turn and check the diff before the next edit.
