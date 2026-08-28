@@ -1,4 +1,4 @@
-import { abortIf, rejectUnknownFields, firstNonEmptyIndex, lastNonEmptyIndex, clipLine } from "../utils";
+import { abortIf, rejectUnknownFields, firstNonEmptyIndex, lastNonEmptyIndex, clipLine, getCached } from "../utils";
 import { HASH_SEP, HASH_RUN, stripRowPrefix, canon } from "./hash";
 import { parseHashRef, parseText, type Anchor } from "./parse";
 import { NEW_CONTENT_NOT_ARRAY_MSG, MAX_RANGE_STALE_LINES } from "../constants";
@@ -462,7 +462,8 @@ export function valEdit(
 	}
 	const endLine = endResolved.line;
 	const rangeLines = fileLines.slice(startResolved.line - 1, endLine);
-	const canonLines = fileLines.map((line) => canon(line));
+	const canonCache = new Map<string, string>();
+	const canonLines = fileLines.map((line) => getCached(canonCache, line, canon));
 	boundaryDups.push(
 		...trailingDups(edit.content_lines, fileLines, endLine),
 		...leadingDups(edit.content_lines, fileLines, startResolved.line),

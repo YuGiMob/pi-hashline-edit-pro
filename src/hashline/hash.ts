@@ -1,4 +1,4 @@
-import { splitLines, truncateToBytes } from "../utils";
+import { splitLines, truncateToBytes, getCached } from "../utils";
 import { MAX_HASH_SOURCE_BYTES } from "../constants";
 import {
   loadHashStore,
@@ -120,9 +120,10 @@ export function _lineHashesPure(content: string): string[] {
   const hashes = new Array<string>(lines.length);
   const used = new Uint32Array(BITSET_WORDS);
   const hint = { value: 0 };
+  const hashSourceCache = new Map<string, string>();
 
   for (let i = 0; i < lines.length; i++) {
-    const c = hashSource(lines[i]!);
+    const c = getCached(hashSourceCache, lines[i]!, hashSource);
     const baseIdx = (xxh32(c) >>> 14) % HASH_SPACE;
     hashes[i] = assignHash(used, baseIdx, hint);
   }
@@ -224,6 +225,7 @@ function mapStableHashes(
   const newHashes = new Array<string>(newLines.length);
   const used = new Uint32Array(BITSET_WORDS);
   const hint = { value: 0 };
+  const hashSourceCache = new Map<string, string>();
   const removed = removedHashes ?? new Set<string>();
 
   const oldHashIndex = new Map<string, number>();
@@ -260,7 +262,7 @@ function mapStableHashes(
 
   const newByContent = new Map<string, number[]>();
   for (let i = 0; i < newLines.length; i++) {
-    const key = hashSource(newLines[i]!);
+    const key = getCached(hashSourceCache, newLines[i]!, hashSource);
     const list = newByContent.get(key);
     if (list) list.push(i);
     else newByContent.set(key, [i]);
@@ -275,7 +277,7 @@ function mapStableHashes(
   };
 
   for (const entry of survivors) {
-    const candidates = newByContent.get(hashSource(oldLines[entry.index]!));
+    const candidates = newByContent.get(getCached(hashSourceCache, oldLines[entry.index]!, hashSource));
     if (!candidates || candidates.length === 0) continue;
     const target = entry.index > spanEnd ? entry.index + shiftAfterSpan : entry.index;
     const pos = nearestNew(candidates, target);
@@ -306,7 +308,7 @@ function mapStableHashes(
 
   for (let i = 0; i < newLines.length; i++) {
     if (newHashes[i]) continue;
-    const c = hashSource(newLines[i]!);
+    const c = getCached(hashSourceCache, newLines[i]!, hashSource);
     const baseIdx = (xxh32(c) >>> 14) % HASH_SPACE;
     newHashes[i] = assignHash(used, baseIdx, hint);
   }

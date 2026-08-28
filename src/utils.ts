@@ -106,6 +106,13 @@ export function truncateToBytes(s: string, maxBytes: number): string {
 	return out;
 }
 
+export function getCached<K, V>(map: Map<K, V>, key: K, compute: (key: K) => V): V {
+	if (map.has(key)) return map.get(key)!;
+	const v = compute(key);
+	map.set(key, v);
+	return v;
+}
+
 export function isHashRow(line: string): boolean {
 	return /^[A-Za-z0-9]{3}│/.test(line);
 }
