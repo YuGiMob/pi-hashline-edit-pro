@@ -123,7 +123,8 @@ export default function (pi: ExtensionAPI): void {
     if (metrics?.classification === "noop") return;
 
     const diff = (event.details as { diff?: string } | undefined)?.diff;
-    if (!diff) return;
+    if (typeof diff !== "string") return;
+    const hasDiff = diff.length > 0;
 
     const rendered = (event.content ?? [])
       .filter(
@@ -133,11 +134,12 @@ export default function (pi: ExtensionAPI): void {
       .map((entry) => entry.text)
       .join("\n");
     const warnings = extractWarnings(rendered);
+    const hint = hasDiff ? (warnings ? `${diff}\n\n${warnings}` : diff) : warnings ? `[post-edit] applied successfully; the diff is empty (whitespace-only change).\n\n${warnings}` : "[post-edit] applied successfully; the diff is empty (whitespace-only change).";
     return {
       content: [
         {
           type: "text",
-          text: warnings ? `${diff}\n\n${warnings}` : diff,
+          text: hint,
         },
       ],
     };

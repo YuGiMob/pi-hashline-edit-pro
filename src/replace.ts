@@ -79,6 +79,7 @@ export type ReplaceDetails = {
   snapshotId?: string;
   classification?: "noop";
   metrics?: RMetrics;
+  diffLineNumbers?: (number|undefined)[];
 };
 
 export interface PipelineResult {
@@ -340,6 +341,7 @@ export function buildToolDef(): ToolDef {
     promptSnippet: E_SNIPPET,
     promptGuidelines: E_GUIDE,
     prepareArguments: makePrepareArguments(),
+    executionMode: "sequential",
     renderShell: "default",
     renderCall: makeRenderCall(compPreview),
     renderResult(result, { isPartial }, theme, context) {

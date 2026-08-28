@@ -164,6 +164,7 @@ export function buildChanged(input: SuccessInput, verb = "replaced"): TResult {
         editMeta.firstChangedLine ?? diffResult.firstChangedLine,
       snapshotId,
       metrics,
+      diffLineNumbers: diffResult.lineNumbers,
     },
   };
 }

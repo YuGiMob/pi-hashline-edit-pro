@@ -2,7 +2,7 @@ import { Markdown, Text } from "@earendil-works/pi-tui";
 import { keyHint, type Theme } from "@earendil-works/pi-coding-agent";
 import { normReq } from "./replace-normalize";
 import type { ReqParams, ReplaceDetails } from "./replace";
-import { isRec } from "./utils";
+import { isRec, withLineNumbers } from "./utils";
 
 export type FgT = Pick<Theme, "fg">;
 export type CallT = Pick<Theme, "fg" | "bold">;
@@ -54,8 +54,9 @@ export function getPreviewInput(
 type DiffRowKind = "added" | "removed" | "context";
 
 function diffRowKind(line: string): DiffRowKind {
-	if (line.startsWith("+") && !line.startsWith("+++")) return "added";
-	if (line.startsWith("-") && !line.startsWith("---")) return "removed";
+	const stripped = line.replace(/^\s*\d+\s+│\s*/, "");
+	if (stripped.startsWith("+") && !stripped.startsWith("+++")) return "added";
+	if (stripped.startsWith("-") && !stripped.startsWith("---")) return "removed";
 	return "context";
 }
 
@@ -66,6 +67,9 @@ export function colorLines(lines: string[], theme: FgT): string[] {
 		if (kind === "removed") return theme.fg("error", line);
 		return theme.fg("dim", line);
 	});
+}
+export function toNumberedDiff(diff: string, lineNumbers: (number|undefined)[]): string {
+	return withLineNumbers(diff, lineNumbers);
 }
 
 export function fmtPreview(
@@ -173,10 +177,11 @@ export function buildAppliedText(
 	const summary = extractSummary(text);
 	if (summary) sections.push(summary);
 	if (details?.diff) {
+		const rawDiff = details.diffLineNumbers ? toNumberedDiff(details.diff, details.diffLineNumbers) : details.diff;
 		const diffLines = details.diff.split("\n");
 		const diffSection = expanded
-			? fmtResult(details.diff, theme)
-			: fmtPreview(details.diff, false, theme);
+			? fmtResult(rawDiff, theme)
+			: fmtPreview(rawDiff, false, theme);
 		const hint =
 			!expanded && diffLines.length > RESULT_PREVIEW_LINES
 				? ` (${expandHint()})`

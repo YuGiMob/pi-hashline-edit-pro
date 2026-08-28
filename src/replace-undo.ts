@@ -10,6 +10,7 @@ import { toLF, stripBOM, genDiff, genPatch, restoreEndings, type LineEnding } fr
 import { cntDiff, splitLines, errCode, makePrepareArguments } from "./utils";
 import { loadP, loadGuide } from "./prompts";
 import { buildMetrics } from "./replace-response";
+import { renderEditResult } from "./replace-render";
 import { changedRange, lineHashes } from "./hashline";
 export interface UndoEntry {
   content: string;
@@ -97,7 +98,10 @@ export function regUndo(pi: ExtensionAPI): void {
         description: "Path to the file to undo",
       }),
     }),
-
+    executionMode: "sequential",
+    renderResult(result, opts, theme, context) {
+      return renderEditResult(result as never, (opts as { isPartial: boolean }).isPartial, theme as never, context as never);
+    },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const path = params.path;
       const { resolved: mutationTargetPath } = await resolveInCwd(path, ctx.cwd);
@@ -151,7 +155,8 @@ export function regUndo(pi: ExtensionAPI): void {
         const linesAddedByReplace = cntDiff(diffResult.diff, "+");
         const linesRemovedByReplace = cntDiff(diffResult.diff, "-");
         const restoredRange = changedRange(currentNormalized, undo.content);
-        const undoDiff = genDiff(currentNormalized, undo.content, 1, undo.hashes, currentHashes).diff;
+        const undoDiffResult = genDiff(currentNormalized, undo.content, 1, undo.hashes, currentHashes);
+        const undoDiff = undoDiffResult.diff;
 
         try {
           const store = await loadHashStore();
@@ -188,6 +193,7 @@ export function regUndo(pi: ExtensionAPI): void {
           ],
           details: {
             diff: undoDiff,
+            diffLineNumbers: undoDiffResult.lineNumbers,
             patch: patchResult.patch,
             ...(patchResult.truncated ? { patchTruncated: true as const } : {}),
             metrics: buildMetrics({

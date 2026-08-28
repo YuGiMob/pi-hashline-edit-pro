@@ -163,6 +163,7 @@ export function buildInsertToolDef(): InsertToolDef {
     promptSnippet: loadP("../prompts/insert-snippet.md"),
     promptGuidelines: loadGuide("../prompts/insert-guidelines.md"),
     prepareArguments: makePrepareArguments(),
+    executionMode: "sequential",
     parameters: insertToolSchema,
     renderShell: "default",
     renderCall: makeRenderCall(insertPreview, { getInput: getInsertInput, toolName: "insert" }),

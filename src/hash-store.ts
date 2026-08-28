@@ -106,21 +106,22 @@ export function isValidHashList(value: unknown): value is string[] {
   return true;
 }
 
-export function parseHashList(raw: string, onInvalid: () => void): string[] | undefined {
+export function parseHashList(raw: string, onInvalid: () => void, context?: string): string[] | undefined {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
-  } catch {
+  } catch (error) {
+    console.error(`[parseHashList]${context ? ` ${context}:` : ""} failed to parse stored hashes JSON:`, error);
     onInvalid();
     return undefined;
   }
   if (!isValidHashList(parsed)) {
+    console.error(`[parseHashList]${context ? ` ${context}:` : ""} stored hashes did not pass validation:`, Array.isArray(parsed) ? `length=${parsed.length} sample=${JSON.stringify(parsed.slice(0, 3))}` : (() => { try { return JSON.stringify(parsed)?.slice(0, 500) ?? String(parsed).slice(0, 500); } catch { return String(parsed).slice(0, 500); } })());
     onInvalid();
     return undefined;
   }
   return parsed;
 }
-
 export function parseStoredHashes(
   row: Record<string, unknown> | undefined,
   onInvalid: () => void,

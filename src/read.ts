@@ -13,10 +13,11 @@ import { MAX_OVERSIZED_WARNING_LINES } from "./constants";
 import { readNormFile, safeSnapId } from "./file-reader";
 import { lineHashes, fmtRegion, fmtRow, HASH_SEP, MAX_HASH_LINES } from "./hashline";
 import { toCwd } from "./paths";
-import { abortIf, makePrepareArguments, visLines } from "./utils";
+import { abortIf, makePrepareArguments, numberedRead, visLines } from "./utils";
 import { recordServedSafe } from "./served";
 import { loadP, loadGuide } from "./prompts";
 import { valAccess } from "./validation";
+import { Text } from "@earendil-works/pi-tui";
 
 const R_DESC = loadP("../prompts/read.md");
 
@@ -190,6 +191,16 @@ export function regRead(pi: ExtensionAPI): void {
 				}),
 			),
 		}),
+		executionMode: "sequential",
+		renderResult(result, { isPartial }, theme, context) {
+			if (isPartial) return new Text((theme as unknown as { fg: (a:string,b:string)=>string }).fg("warning", "Reading..."), 0, 0);
+			const raw = (result.content?.[0] as { text?: string } | undefined)?.text;
+			if (typeof raw !== "string") return new Text("", 0, 0);
+			if ((context as unknown as { isError?: boolean }).isError) return new Text((theme as unknown as { fg: (a:string,b:string)=>string }).fg("error", raw), 0, 0);
+			const details = (result as unknown as { details?: { offset?: number } }).details;
+			const off = details?.offset ?? (context as unknown as { args?: { offset?: number } }).args?.offset ?? 1;
+			return new Text(numberedRead(raw, off), 0, 0);
+		},
 
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			const rawPath = params.path;
@@ -235,6 +246,7 @@ export function regRead(pi: ExtensionAPI): void {
 				details: {
 					truncation: preview.truncation,
 					snapshotId,
+					offset: params.offset ?? 1,
 					...(preview.nextOffset !== undefined
 						? { nextOffset: preview.nextOffset }
 						: {}),

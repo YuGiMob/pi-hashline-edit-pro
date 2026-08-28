@@ -297,6 +297,7 @@ export function regGrep(pi: ExtensionAPI): void {
     promptGuidelines: loadGuide("../prompts/grep-guidelines.md"),
     prepareArguments: makePrepareArguments(),
     parameters: grepToolSchema,
+    executionMode: "sequential",
 
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const canonical = normReq(params);

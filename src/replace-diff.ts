@@ -69,7 +69,7 @@ export function genDiff(
   newContentHashes?: string[],
   oldContentHashes?: string[],
   limits?: DiffLimits,
-): { diff: string; firstChangedLine: number | undefined } {
+): { diff: string; firstChangedLine: number | undefined; lineNumbers: (number|undefined)[] } {
   const effectiveNewHashes = newContentHashes ?? _lineHashesPure(newContent);
   const maxLineBytes = limits?.unlimited ? Number.POSITIVE_INFINITY : (limits?.maxLineBytes ?? DEFAULT_MAX_BYTES);
   const maxBytes = limits?.unlimited ? Number.POSITIVE_INFINITY : (limits?.maxBytes ?? DEFAULT_MAX_BYTES);
@@ -83,8 +83,9 @@ export function genDiff(
   let outBytes = 0;
   let stopped = false;
   let diffTruncated = false;
+	const lineNumbers: (number|undefined)[] = [];
 
-  const emitPlain = (line: string): void => {
+	const emitPlain = (line: string, num?: number): void => {
     if (stopped) return;
     const lineBytes = Buffer.byteLength(line, "utf-8") + 1;
     if (outBytes + lineBytes > maxBytes) {
@@ -94,15 +95,16 @@ export function genDiff(
     }
     outBytes += lineBytes;
     output.push(line);
+    lineNumbers.push(num);
   };
 
-  const emitRow = (prefix: " " | "+" | "-", line: string, hash: string | undefined): void => {
+	const emitRow = (prefix: " " | "+" | "-", line: string, hash: string | undefined, num?: number): void => {
     if (stopped) return;
     const full = fmtDiffLine(prefix, line, hash);
     const rowBytes = Buffer.byteLength(full, "utf-8");
     if (rowBytes > maxLineBytes) {
       const marker = `[Row is ${formatSize(rowBytes)}, exceeds ${formatSize(maxLineBytes)}; content not shown. Use read to see the full line.]`;
-      emitPlain(fmtDiffLine(prefix, marker, hash));
+      emitPlain(fmtDiffLine(prefix, marker, hash), num);
       return;
     }
     if (outBytes + rowBytes + 1 > maxBytes) {
@@ -112,6 +114,7 @@ export function genDiff(
     }
     outBytes += rowBytes + 1;
     output.push(full);
+    lineNumbers.push(num);
   };
 
   for (let i = 0; i < parts.length; i++) {
@@ -127,11 +130,11 @@ export function genDiff(
         if (stopped) break;
         if (part.added) {
           const hash = effectiveNewHashes[newLineNum - 1];
-          emitRow("+", displayLines[k]!, hash);
+          emitRow("+", displayLines[k]!, hash, newLineNum);
           newLineNum++;
         } else {
           const hash = oldContentHashes?.[oldLineNum - 1];
-          emitRow("-", displayLines[k]!, hash);
+          emitRow("-", displayLines[k]!, hash, oldLineNum);
           oldLineNum++;
         }
       }
@@ -198,25 +201,25 @@ export function genDiff(
       }
 
       if (skipStart > 0) {
-        emitPlain(" ...");
+        emitPlain(" ...", undefined);
         newLineNum += skipStart;
         oldLineNum += skipStart;
       }
       for (const line of linesToShow) {
         if (stopped) break;
         if (isEllipsisMarker(line)) {
-          emitPlain(" ...");
+          emitPlain(" ...", undefined);
           newLineNum += skipMiddle;
           oldLineNum += skipMiddle;
           continue;
         }
         const hash = effectiveNewHashes[newLineNum - 1];
-        emitRow(" ", line, hash);
+        emitRow(" ", line, hash, newLineNum);
         newLineNum++;
         oldLineNum++;
       }
       if (skipTail > 0) {
-        emitPlain(" ...");
+        emitPlain(" ...", undefined);
       }
     } else {
       newLineNum += displayLines.length;
@@ -227,10 +230,12 @@ export function genDiff(
 
   if (diffTruncated) {
     output.push(" ...");
+    lineNumbers.push(undefined);
     output.push(`[diff truncated at ${formatSize(maxBytes)}; use read to see the rest.]`);
+    lineNumbers.push(undefined);
   }
 
-  return { diff: output.join("\n"), firstChangedLine };
+  return { diff: output.join("\n"), firstChangedLine, lineNumbers };
 }
 
 export function genPatch(
@@ -239,10 +244,10 @@ export function genPatch(
   newContent: string,
   limits?: DiffLimits,
 ): { patch: string; truncated: boolean } {
-  const full = Diff.createTwoFilesPatch(path, path, oldContent, newContent, undefined, undefined, {
-    context: 4,
-    headerOptions: Diff.FILE_HEADERS_ONLY,
-  });
+	const patchOpts: Record<string, unknown> = { context: 4 };
+	const ho = (Diff as unknown as Record<string, unknown>).FILE_HEADERS_ONLY;
+	if (ho !== undefined) patchOpts.headerOptions = ho;
+	const full = (Diff.createTwoFilesPatch(path, path, oldContent, newContent, undefined, undefined, patchOpts as never) as unknown as string) ?? "";
   const maxLineBytes = limits?.unlimited ? Number.POSITIVE_INFINITY : (limits?.maxLineBytes ?? DEFAULT_MAX_BYTES);
   const maxBytes = limits?.unlimited ? Number.POSITIVE_INFINITY : (limits?.maxBytes ?? DEFAULT_MAX_BYTES);
   const out: string[] = [];

@@ -5,9 +5,8 @@ import { loadFileKindAndText, type LFile } from "./file-kind";
 import { resolveTarget } from "./fs-write";
 import { toCwd } from "./paths";
 import { detectEnding, toLF, stripBOM, type LineEnding } from "./replace-diff";
-import { abortIf } from "./utils";
+import { abortIf, errCode, visLines } from "./utils";
 import { valKind, valAccess } from "./validation";
-import { visLines } from "./utils";
 import type { HashStore } from "./hash-store";
 export interface NormFile {
   absolutePath: string;
@@ -52,7 +51,7 @@ export async function safeSnapId(
   try {
     return (await fileSnap(absolutePath)).snapshotId;
   } catch (error) {
-    console.error(`Failed to compute snapshot (${context}):`, error);
+    console.error(`[safeSnapId] ${context}: failed to stat "${absolutePath}" (code=${errCode(error) ?? "?"}):`, error);
     return undefined;
   }
 }
