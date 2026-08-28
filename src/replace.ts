@@ -2,7 +2,6 @@ import type {
   ExtensionAPI,
   ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
-import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { constants } from "fs";
 import {
   genDiff,
@@ -10,9 +9,9 @@ import {
 } from "./replace-diff";
 import { readNormFile, type NormFile } from "./file-reader";
 import { editToolSchema, type ReqParams, assertReq, normReq } from "./payload-contract";
-import { isRec, abortIf, makePrepareArguments } from "./utils";
+import { isRec } from "./utils";
 import { loadP, loadGuide } from "./prompts";
-import { resolveInCwd, type FileIdentity } from "./fs-write";
+import { type FileIdentity } from "./fs-write";
 import { applyEdit,
   lineHashes,
   resEdit,
@@ -26,14 +25,13 @@ import { applyEdit,
 import { commitEdit } from "./commit";
 import type { RMetrics } from "./replace-response";
 import {
-  makeRenderCall,
-  renderEditResult,
   type RPreview,
   type RRState,
 } from "./replace-render";
 import { loadHashStore, findSnapshotPaths, findServedPaths, type HashStore } from "./hash-store";
 import { getServed, recordServedSafe } from "./served";
 import { noopPayloadKey, markBoundaryNoop, consumeBoundaryBypass, clearBoundaryBypass } from "./boundary-bypass";
+import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper } from "./edit-common";
 
 export { editToolSchema, type ReqParams, assertReq };
 
@@ -279,22 +277,9 @@ export function buildToolDef(): ToolDef {
     parameters,
     promptSnippet: E_SNIPPET,
     promptGuidelines: E_GUIDE,
-    prepareArguments: makePrepareArguments(),
-    executionMode: "sequential",
-    renderShell: "default",
-    renderCall: makeRenderCall(compPreview),
-    renderResult(result, { isPartial, expanded }, theme, context) {
-      return renderEditResult(
-        result as {
-          content?: Array<{ type: string; text?: string }>;
-          details?: ReplaceDetails;
-        },
-        { isPartial, expanded },
-        theme,
-        context,
-      );
-    },
-
+    ...editToolBase,
+    renderCall: editRenderCallWrapper(compPreview),
+    renderResult: editRenderResultWrapper,
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const canonical = normReq(params);
       const resolution = isRec(canonical) ? await resolveMissingPath(canonical) : undefined;
@@ -302,14 +287,11 @@ export function buildToolDef(): ToolDef {
         canonical.path = resolution.path;
       }
       assertReq(canonical);
-
       const normalizedParams = canonical;
       const path = normalizedParams.path;
-      const { absolute: absolutePath, resolved: mutationTargetPath } = await resolveInCwd(path, ctx.cwd);
-      const noopPayload = noopPayloadKey(mutationTargetPath, normalizedParams.remove_from, normalizedParams.remove_to, normalizedParams.replacement_lines);
-      const boundaryBypass = consumeBoundaryBypass(mutationTargetPath, noopPayload);
-      return withFileMutationQueue(mutationTargetPath, async () => {
-        abortIf(signal);
+      return queuedEdit(path, ctx.cwd, signal, async (absolutePath, mutationTargetPath) => {
+        const noopPayload = noopPayloadKey(mutationTargetPath, normalizedParams.remove_from, normalizedParams.remove_to, normalizedParams.replacement_lines);
+        const boundaryBypass = consumeBoundaryBypass(mutationTargetPath, noopPayload);
         const pipe = await execPipeline(
           normalizedParams,
           ctx.cwd,

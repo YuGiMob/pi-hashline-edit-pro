@@ -244,8 +244,10 @@ function shutdownDb(db: RawDb): void {
 }
 
 async function openStore(storePath: string): Promise<HashStore> {
-  shutdownHashStore();
-
+  if (cachedDb && cachedDb.path === storePath && cachedDb.db.isOpen) {
+    return { stmts: cachedDb.stmts, engine: sqliteEngine };
+  }
+  if (cachedDb) shutdownHashStore();
   await initHasher();
   await mkdir(hashStoreDir(), { recursive: true, mode: 0o700 });
   if (process.platform !== "win32") {
@@ -328,7 +330,7 @@ export function shutdownHashStore(): void {
 }
 
 export function withStore(fn: () => void): void {
-  if (!cachedDb) {
+  if (!cachedDb || !cachedDb.db.isOpen) {
     throw new Error(STORE_NOT_OPEN_MESSAGE);
   }
   withBusyRetry(() => {

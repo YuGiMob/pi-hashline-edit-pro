@@ -167,8 +167,8 @@ export async function writeAtomic(
     try {
       const openedStats = await handle.stat();
       if (!sameIdentity(openedStats, existingStats)) throw pathChanged(path);
-      await handle.truncate(0);
       await handle.writeFile(content, "utf-8");
+      await handle.truncate(Buffer.byteLength(content, "utf-8"));
       try {
         await handle.chmod(existingStats.mode & 0o7777);
       } catch {}
