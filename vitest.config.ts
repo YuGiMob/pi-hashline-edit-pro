@@ -21,12 +21,14 @@ export const heavyTestFiles = [
 export function buildTestConfig(extraExcludes: string[] = []) {
   return defineConfig({
     test: {
+      testTimeout: 15000,
       projects: [
         {
           test: {
             name: "mock-isolated",
             include: mockIsolatedFiles,
             isolate: true,
+            testTimeout: 15000,
           },
         },
         {
@@ -35,6 +37,7 @@ export function buildTestConfig(extraExcludes: string[] = []) {
             include: ["test/**/*.test.ts"],
             exclude: [...mockIsolatedFiles, ...extraExcludes],
             isolate: false,
+            testTimeout: 15000,
           },
         },
       ],

@@ -1,0 +1,210 @@
+import { describe, expect, it, beforeAll } from "vitest";
+import { isHashRow, numberedRead, withLineNumbers, clipLine, assertLineLimit, lineLimitMoreThanMessage, truncateToBytes, getCached, splitLines, visLines, isRec, normalizeFilePath } from "../../src/utils";
+import { parseHashRef } from "../../src/hashline/parse";
+import { initHasher, getH, xxh32, contentChecksum } from "../../src/hashline/hasher";
+import { isValidHashList, isValidServedMap, parseHashList, parseServedMap, parseStoredHashes, parseStoredServed, isValidSnapshot, isCorruptionError, isBusyError } from "../../src/hash-store/validation";
+import { canon, hashSource } from "../../src/hashline/hash";
+import { toCwd } from "../../src/paths";
+
+beforeAll(async () => {
+  await initHasher();
+});
+
+describe("coverage boost utils", () => {
+  it("isHashRow detects hash rows", () => {
+    expect(isHashRow("abc│hello")).toBe(true);
+    expect(isHashRow("ab│hello")).toBe(false);
+    expect(isHashRow("abcd│hello")).toBe(false);
+    expect(isHashRow("AB1│")).toBe(true);
+    expect(isHashRow("")).toBe(false);
+    expect(isHashRow("abc|hello")).toBe(false);
+  });
+  it("numberedRead adds gutters for hash rows", () => {
+    expect(numberedRead("abc│hello\ndef│world", 1)).toBe("1 │ abc│hello\n2 │ def│world");
+    expect(numberedRead("plain\nabc│hello", 5)).toBe("plain\n5 │ abc│hello");
+    expect(numberedRead("", 1)).toBe("");
+    expect(numberedRead("nohash", 10)).toBe("nohash");
+    expect(numberedRead("a1B│x\na2C│y\na3D│z", 99)).toBe(" 99 │ a1B│x\n100 │ a2C│y\n101 │ a3D│z");
+  });
+  it("withLineNumbers adds gutters", () => {
+    expect(withLineNumbers("a\nb", [1, 2])).toBe("1 │ a\n2 │ b");
+    expect(withLineNumbers("a\nb", [undefined, 5])).toBe("  │ a\n5 │ b");
+    expect(withLineNumbers("a\nb\nc", [])).toBe("  │ a\n  │ b\n  │ c");
+    expect(withLineNumbers("", [])).toBe("  │ ");
+    expect(withLineNumbers("x", [10])).toBe("10 │ x");
+  });
+  it("clipLine truncates and handles newlines", () => {
+    expect(clipLine("a".repeat(300))).toContain("...");
+    expect(clipLine("short")).toBe("short");
+    expect(clipLine("a\nb")).toBe("a\\nb");
+    expect(clipLine("x".repeat(200))).toBe("x".repeat(200));
+    expect(clipLine("y".repeat(201))).toBe("y".repeat(200) + "...");
+  });
+  it("assertLineLimit and lineLimitMoreThanMessage", () => {
+    expect(() => assertLineLimit("a\nb\nc", "f.txt", 2)).toThrow(/E_FILE_TOO_LARGE/);
+    expect(() => assertLineLimit("a\nb", "f.txt", 5)).not.toThrow();
+    expect(lineLimitMoreThanMessage("f.txt", 10)).toContain("has more than 10");
+    expect(lineLimitMoreThanMessage("f.txt", 10).length).toBeGreaterThan(0);
+    const msg = (() => {
+      try { assertLineLimit("a\nb\nc\nd", "my.txt", 2); } catch (e) { return (e as Error).message; } return "";
+    })();
+    expect(msg).toContain("my.txt");
+    expect(msg).toContain("has 4");
+  });
+  it("truncateToBytes handles multibyte", () => {
+    expect(truncateToBytes("abc", 10)).toBe("abc");
+    expect(truncateToBytes("é".repeat(10), 5)).toBe("éé");
+    expect(truncateToBytes("😀😀", 4)).toBe("😀");
+    expect(truncateToBytes("", 0)).toBe("");
+  });
+  it("getCached caches", () => {
+    const m = new Map<string, number>();
+    expect(getCached(m, "a", () => 1)).toBe(1);
+    expect(getCached(m, "a", () => 2)).toBe(1);
+    expect(m.get("a")).toBe(1);
+  });
+  it("splitLines and visLines", () => {
+    expect(splitLines("")).toEqual([""]);
+    expect(splitLines("a\nb\n")).toEqual(["a", "b"]);
+    expect(visLines("")).toEqual([]);
+    expect(visLines("a\nb")).toEqual(["a", "b"]);
+  });
+  it("isRec and normalizeFilePath", () => {
+    expect(isRec({})).toBe(true);
+    expect(isRec(null)).toBe(false);
+    const r: Record<string, unknown> = { file_path: "a.txt" };
+    normalizeFilePath(r);
+    expect(r.path).toBe("a.txt");
+    expect(r.file_path).toBeUndefined();
+  });
+  it("canon and hashSource and toCwd", () => {
+    expect(canon("  hello   ")).toBe("  hello");
+    expect(canon("a\r\nb\r")).toBe("a\nb");
+    expect(hashSource("a".repeat(1000)).length).toBeLessThanOrEqual(500);
+    expect(toCwd("a.txt", "/tmp").endsWith("a.txt")).toBe(true);
+  });
+});
+
+describe("coverage boost parse", () => {
+  it("parseHashRef valid", () => {
+    expect(parseHashRef("abc")).toEqual({ hash: "abc" });
+    expect(parseHashRef("  abc  ")).toEqual({ hash: "abc" });
+    expect(parseHashRef("A1b")).toEqual({ hash: "A1b" });
+  });
+  it("parseHashRef empty", () => {
+    expect(() => parseHashRef("")).toThrow(/E_BAD_REF.*Expected a 3-char/);
+    expect(() => parseHashRef("   ")).toThrow(/E_BAD_REF/);
+  });
+  it("parseHashRef numeric", () => {
+    expect(() => parseHashRef("123abc")).toThrow(/no line numbers/);
+    expect(() => parseHashRef("1234")).toThrow(/no line numbers/);
+  });
+  it("parseHashRef multiline block", () => {
+    expect(() => parseHashRef("abc│hello\ndef│world")).toThrow(/remove_from and remove_to must each be a single bare/);
+    expect(() => parseHashRef("abc│hello\ndef│world\n")).toThrow(/remove_from and remove_to/);
+  });
+  it("parseHashRef with pipe", () => {
+    expect(() => parseHashRef("abc│hello")).toThrow(/drop everything from/);
+    expect(() => parseHashRef("  abc│  ")).toThrow(/drop everything/);
+  });
+  it("parseHashRef invalid generic", () => {
+    expect(() => parseHashRef("ab")).toThrow(/Expected a 3-char/);
+    expect(() => parseHashRef("abcd")).toThrow(/Expected a 3-char/);
+    expect(() => parseHashRef("ab!")).toThrow(/Expected a 3-char/);
+  });
+});
+
+describe("coverage boost hasher", () => {
+  it("getH and xxh32 and checksum", () => {
+    expect(getH()).toBeDefined();
+    expect(typeof xxh32("hello")).toBe("number");
+    expect(typeof contentChecksum("hello")).toBe("string");
+    expect(contentChecksum("hello")).not.toBe(contentChecksum("world"));
+  });
+});
+
+describe("coverage boost validation", () => {
+  it("isValidHashList", () => {
+    expect(isValidHashList(["abc", "def"])).toBe(true);
+    expect(isValidHashList(["abc", "abc"])).toBe(false);
+    expect(isValidHashList(["ab"])).toBe(false);
+    expect(isValidHashList(["AB!"])).toBe(false);
+    expect(isValidHashList("abc")).toBe(false);
+    expect(isValidHashList([])).toBe(true);
+    expect(isValidHashList([123 as unknown as string])).toBe(false);
+  });
+  it("isValidServedMap", () => {
+    expect(isValidServedMap({ abc: "x" })).toBe(true);
+    expect(isValidServedMap({ ab: "x" })).toBe(false);
+    expect(isValidServedMap({ abc: 123 as unknown as string })).toBe(false);
+    expect(isValidServedMap(null)).toBe(false);
+    expect(isValidServedMap([])).toBe(false);
+    expect(isValidServedMap({ "AB!": "x" })).toBe(false);
+    expect(isValidServedMap({})).toBe(true);
+  });
+  it("parseHashList invalid json", () => {
+    let called = false;
+    expect(parseHashList("not json", () => { called = true; })).toBeUndefined();
+    expect(called).toBe(true);
+  });
+  it("parseHashList invalid hash", () => {
+    let called = false;
+    expect(parseHashList(JSON.stringify(["ZZ"]), () => { called = true; })).toBeUndefined();
+    expect(called).toBe(true);
+  });
+  it("parseHashList valid", () => {
+    let called = false;
+    expect(parseHashList(JSON.stringify(["abc", "def"]), () => { called = true; })).toEqual(["abc", "def"]);
+    expect(called).toBe(false);
+  });
+  it("parseHashList duplicate", () => {
+    let called = false;
+    expect(parseHashList(JSON.stringify(["abc", "abc"]), () => { called = true; })).toBeUndefined();
+    expect(called).toBe(true);
+  });
+  it("parseServedMap invalid json", () => {
+    let called = false;
+    expect(parseServedMap("not json", () => { called = true; })).toBeUndefined();
+    expect(called).toBe(true);
+  });
+  it("parseServedMap invalid map", () => {
+    let called = false;
+    expect(parseServedMap(JSON.stringify({ ab: "x" }), () => { called = true; })).toBeUndefined();
+    expect(called).toBe(true);
+  });
+  it("parseServedMap valid", () => {
+    let called = false;
+    const m = parseServedMap(JSON.stringify({ abc: "x", def: "y" }), () => { called = true; });
+    expect(m?.get("abc")).toBe("x");
+    expect(called).toBe(false);
+  });
+  it("parseStoredHashes and Served", () => {
+    expect(parseStoredHashes(undefined, () => {})).toBeUndefined();
+    expect(parseStoredServed(undefined, () => {})).toBeUndefined();
+    expect(parseStoredHashes({ hashes: JSON.stringify(["abc"]) } as unknown as Record<string, unknown>, () => {})).toEqual(["abc"]);
+    expect(parseStoredServed({ hashes: JSON.stringify({ abc: "x" }) } as unknown as Record<string, unknown>, () => {})?.get("abc")).toBe("x");
+  });
+  it("isValidSnapshot", () => {
+    expect(isValidSnapshot({ content: "a", hashes: ["abc"] })).toBe(true);
+    expect(isValidSnapshot({ content: 123, hashes: ["abc"] })).toBe(false);
+    expect(isValidSnapshot({ content: "a", hashes: ["ab"] })).toBe(false);
+    expect(isValidSnapshot(null)).toBe(false);
+    expect(isValidSnapshot({})).toBe(false);
+  });
+  it("isCorruptionError and isBusyError", () => {
+    expect(isCorruptionError({ errcode: 11 })).toBe(true);
+    expect(isCorruptionError({ errcode: 5 })).toBe(false);
+    expect(isCorruptionError({ errcode: 24 })).toBe(true);
+    expect(isCorruptionError({ errcode: 26 })).toBe(true);
+    expect(isCorruptionError({ code: "SQLITE_CORRUPT" })).toBe(true);
+    expect(isCorruptionError(new Error("file is not a database"))).toBe(true);
+    expect(isCorruptionError(new Error("other"))).toBe(false);
+    expect(isBusyError({ errcode: 5 })).toBe(true);
+    expect(isBusyError({ errcode: 6 })).toBe(true);
+    expect(isBusyError({ errcode: 11 })).toBe(false);
+    expect(isBusyError({ code: "SQLITE_BUSY" })).toBe(false);
+    expect(isBusyError(new Error("database is busy"))).toBe(true);
+    expect(isBusyError(new Error("database is locked"))).toBe(true);
+    expect(isBusyError(new Error("other"))).toBe(false);
+  });
+});

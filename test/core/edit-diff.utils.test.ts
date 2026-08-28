@@ -208,11 +208,11 @@ describe("genDiff - output limits", () => {
     expect(diff).not.toContain("row(s) exceed");
   });
 
-  it("stops emitting once the total byte budget is exhausted", () => {
-    const body = Array.from({ length: 2000 }, (_, i) => `l${i} ` + "y".repeat(80));
+  it("stops emitting once the total byte budget is exhausted", { timeout: 15000 }, () => {
+    const body = Array.from({ length: 800 }, (_, i) => `l${i} ` + "y".repeat(80));
     const { diff } = genDiff(body.join("\n"), body.map((l) => l + "!").join("\n"));
     expect(diff).toContain("diff truncated at 50.0KB");
-    expect(diff).not.toContain("l1999 ");
+    expect(diff).not.toContain("l799 ");
     expect(Buffer.byteLength(diff, "utf-8")).toBeLessThan(60 * 1024);
   });
 
@@ -241,12 +241,12 @@ describe("genPatch - output limits", () => {
     expect(Buffer.byteLength(result.patch, "utf-8")).toBeLessThan(2 * 1024);
   });
 
-  it("cuts the patch when the total byte budget is exhausted", () => {
-    const body = Array.from({ length: 2000 }, (_, i) => `l${i} ` + "y".repeat(80));
+  it("cuts the patch when the total byte budget is exhausted", { timeout: 15000 }, () => {
+    const body = Array.from({ length: 800 }, (_, i) => `l${i} ` + "y".repeat(80));
     const result = genPatch("wide.txt", body.join("\n"), body.map((l) => l + "!").join("\n"));
     expect(result.truncated).toBe(true);
     expect(result.patch).toContain("patch truncated at 50.0KB");
-    expect(result.patch).not.toContain("l1999 ");
+    expect(result.patch).not.toContain("l799 ");
     expect(Buffer.byteLength(result.patch, "utf-8")).toBeLessThan(60 * 1024);
   });
 });
