@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { formatSize, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, type TruncationResult } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { readdir, stat } from "fs/promises";
+import { stat } from "fs/promises";
 import { dirname, join, relative } from "path";
 import { spawn, spawnSync } from "child_process";
 import { createInterface } from "readline";
@@ -15,8 +15,6 @@ import { recordServedSafe, buildServedMap } from "./served";
 import { abortIf, errCode, isRec, makePrepareArguments, rejectUnknownFields, truncateToBytes, visLines } from "./utils";
 
 const GREP_KS = new Set(["pattern", "path", "glob", "context", "ignoreCase", "literal", "limit"]);
-const SKIP_DIRS = new Set(["node_modules", ".git", ".tmp", "coverage"]);
-const MAX_SCAN_FILES = 4000;
 
 function cmp(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
@@ -224,49 +222,6 @@ function grepHeadFragment(line: string): string {
   return head.length < line.length ? `${head}...` : head;
 }
 
-interface ScanState {
-  scanned: number;
-  stopped: boolean;
-}
-
-async function walkFiles(
-  root: string,
-  state: ScanState,
-  onFile: (absPath: string) => Promise<void>,
-  signal?: AbortSignal,
-): Promise<void> {
-  const queue: string[] = [root];
-  let head = 0;
-  while (head < queue.length && !state.stopped) {
-    abortIf(signal);
-    const dir = queue[head++]!;
-    let entries;
-    try {
-      entries = await readdir(dir, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    entries.sort((a, b) => cmp(a.name, b.name));
-    for (let ei = 0; ei < entries.length; ei++) {
-      if ((ei & 127) === 0) abortIf(signal);
-      if (state.stopped) break;
-      const entry = entries[ei]!;
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) {
-        if (SKIP_DIRS.has(entry.name)) continue;
-        queue.push(full);
-      } else if (entry.isFile()) {
-        state.scanned += 1;
-        if (state.scanned > MAX_SCAN_FILES) {
-          state.stopped = true;
-          break;
-        }
-        await onFile(full);
-      }
-    }
-  }
-}
-
 function makeHitFromIndices(
   norm: { normalized: string; fileHashes: string[]; absolutePath: string },
   displayPath: string,
@@ -319,41 +274,36 @@ function makeHitFromIndices(
   };
 }
 
-async function searchFile(
-  absPath: string,
-  globRoot: string,
-  cwd: string,
-  regex: RegExp,
-  globRegex: RegExp | undefined,
-  context: number,
-  maxMatches: number,
-  signal?: AbortSignal,
-): Promise<FileHit | undefined> {
-  const displayPath = relative(cwd, absPath).replace(/\\/g, "/");
-  if (globRegex) {
-    const globPath = relative(globRoot, absPath).replace(/\\/g, "/");
-    if (!globRegex.test(globPath) && !globRegex.test(displayPath)) return undefined;
-  }
-  const norm = await tryReadNormFile(absPath, cwd, { maxLines: MAX_HASH_LINES, noPersist: true, signal });
-  if (!norm) return undefined;
-  const lines = visLines(norm.normalized);
-  const matchLines: number[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    if ((i & 1023) === 0) abortIf(signal);
-    if (i !== 0 && (i & 4095) === 0) await new Promise<void>((r) => setImmediate(r));
-    if (regex.test(lines[i]!)) matchLines.push(i);
-  }
-  if (matchLines.length === 0) return undefined;
-  const kept = Math.min(matchLines.length, maxMatches);
-  return makeHitFromIndices(norm, displayPath, matchLines, context, regex, matchLines.length, kept);
-}
-
-async function resolveRgPath(): Promise<string | undefined> {
+async function resolveRgPath(): Promise<string> {
   try {
     const r = spawnSync("rg", ["--version"], { stdio: "pipe" });
     if (!r.error && r.status === 0) return "rg";
   } catch {}
-  return undefined;
+  try {
+    const { homedir } = await import("os");
+    const { existsSync } = await import("fs");
+    const home = process.env.HOME ?? homedir();
+    const base = process.env.PI_CODING_AGENT_DIR ?? join(home, ".pi", "agent");
+    const bin = join(base, "bin", process.platform === "win32" ? "rg.exe" : "rg");
+    if (existsSync(bin)) {
+      const r = spawnSync(bin, ["--version"], { stdio: "pipe" });
+      if (!r.error && r.status === 0) return bin;
+    }
+  } catch {}
+  try {
+    const { createRequire } = await import("module");
+    const require = createRequire(import.meta.url);
+    const pkgPath = require.resolve("@earendil-works/pi-coding-agent/package.json");
+    const { dirname } = await import("path");
+    const piDir = dirname(pkgPath);
+    const toolsManagerPath = join(piDir, "dist/utils/tools-manager.js");
+    const mod = await import("file://" + toolsManagerPath);
+    if (mod.ensureTool) {
+      const p = await mod.ensureTool("rg", true);
+      if (p) return p;
+    }
+  } catch {}
+  throw new Error("[E_ACCESS] ripgrep (rg) is required for grep but was not found. Install ripgrep or ensure pi can download it to ~/.pi/agent/bin.");
 }
 
 async function collectRgMatches(
@@ -375,14 +325,14 @@ async function collectRgMatches(
     let timedOut = false;
     const rgTimeout = setTimeout(() => {
       timedOut = true;
-      if (!child.killed) child.kill('SIGKILL');
+      if (!child.killed) child.kill("SIGKILL");
       reject(new Error("rg timeout"));
-    }, 3000);
+    }, 10000);
     child.stderr?.on("data", (chunk) => {
       stderr += chunk.toString();
     });
     const onAbort = () => {
-      if (!child.killed) child.kill('SIGKILL');
+      if (!child.killed) child.kill("SIGKILL");
     };
     signal?.addEventListener("abort", onAbort, { once: true });
     const cleanup = () => {
@@ -434,7 +384,6 @@ async function collectRgMatches(
     });
   });
 }
-
 
 function gutterWidthFor(numbers: number[]): number {
   let max = 0;
@@ -522,13 +471,8 @@ export function regGrep(pi: ExtensionAPI): void {
       }
       const globRoot = baseStat.isFile() ? dirname(base) : base;
       const globRegex = req.glob === undefined ? undefined : globToRegex(req.glob);
-      let rgPath: string | undefined;
-      try {
-        rgPath = await resolveRgPath();
-      } catch {}
+      const rgPath = await resolveRgPath();
       const validatedRegex = buildRegex(req.pattern, req.literal === true, req.ignoreCase === true);
-      let regexForFragment: RegExp = validatedRegex;
-      let regexForJs: RegExp = validatedRegex;
       const hits: FileHit[] = [];
       let matches = 0;
       let limitTruncated = false;
@@ -540,159 +484,78 @@ export function regGrep(pi: ExtensionAPI): void {
       let truncatedBy: "lines" | "bytes" | null = null;
       let linesReplaced = 0;
       let countOnly = false;
-      const state: ScanState = { scanned: 0, stopped: false };
-      const files: string[] = [];
-      let rgMatches: Map<string, number[]> | undefined;
-      if (rgPath) {
-        try {
-          rgMatches = await collectRgMatches(rgPath, req.pattern, base, req, signal);
-        } catch (e) {
-          if (signal?.aborted) throw e;
-          rgMatches = undefined;
-          rgPath = undefined;
-          regexForJs = buildRegex(req.pattern, req.literal === true, req.ignoreCase === true);
-          regexForFragment = regexForJs;
-        }
-      }
-      if (rgPath && rgMatches) {
-        const sortedFiles = [...rgMatches.keys()].sort(cmp);
-        for (let f = 0; f < sortedFiles.length; f++) {
-          abortIf(signal);
-          const absPath = sortedFiles[f]!;
-          const allNums = rgMatches.get(absPath) ?? [];
-          const totalForFile = allNums.length;
-          const sortedNums = [...allNums].sort((a, b) => a - b);
-          const indices = sortedNums.map((n) => n - 1).filter((n) => n >= 0);
-          if (countOnly) {
-            const norm = await tryReadNormFile(absPath, ctx.cwd, { maxLines: MAX_HASH_LINES, noPersist: true, signal });
-            if (!norm) continue;
-            const hit = makeHitFromIndices(norm, relative(ctx.cwd, absPath).replace(/\\/g, "/"), indices, context, regexForFragment, totalForFile, indices.length);
-            const display = displayRowsForHit(hit);
-            totalRows += display.length;
-            for (const r of display) totalBytes += Buffer.byteLength(r, "utf-8") + 1;
-            const remaining = limit - matches;
-            if (remaining > 0) {
-              const add = Math.min(hit.matchCount, remaining);
-              matches += add;
-              if (hit.matchCount > remaining) limitTruncated = true;
-            } else {
-              limitTruncated = true;
-            }
-            continue;
-          }
-          const remaining = limit - matches;
-          if (remaining <= 0) {
-            limitTruncated = true;
-            break;
-          }
+      const rgMatches = await collectRgMatches(rgPath, req.pattern, base, req, signal);
+      const sortedFiles = [...rgMatches.keys()].sort(cmp);
+      for (let f = 0; f < sortedFiles.length; f++) {
+        abortIf(signal);
+        const absPath = sortedFiles[f]!;
+        const allNums = rgMatches.get(absPath) ?? [];
+        const totalForFile = allNums.length;
+        const sortedNums = [...allNums].sort((a, b) => a - b);
+        const indices = sortedNums.map((n) => n - 1).filter((n) => n >= 0);
+        if (countOnly) {
           const norm = await tryReadNormFile(absPath, ctx.cwd, { maxLines: MAX_HASH_LINES, noPersist: true, signal });
           if (!norm) continue;
-          if (globRegex) {
-            const displayPath = relative(ctx.cwd, absPath).replace(/\\/g, "/");
-            const globPath = relative(globRoot, absPath).replace(/\\/g, "/");
-            if (!globRegex.test(globPath) && !globRegex.test(displayPath)) continue;
-          }
-          const hit = makeHitFromIndices(norm, relative(ctx.cwd, absPath).replace(/\\/g, "/"), indices, context, regexForFragment, totalForFile, Math.min(totalForFile, remaining));
-          if (!hit) continue;
+          const hit = makeHitFromIndices(norm, relative(ctx.cwd, absPath).replace(/\\/g, "/"), indices, context, validatedRegex, totalForFile, indices.length);
           const display = displayRowsForHit(hit);
-          const keptRows: string[] = [];
-          const keptHashes: string[] = [];
-          const keptLineNumbers: number[] = [];
-          const keptFragmented: boolean[] = [];
-          for (let i = 0; i < display.length; i++) {
-            const row = display[i]!;
-            const rowBytes = Buffer.byteLength(row, "utf-8") + 1;
-            if (rowCount >= DEFAULT_MAX_LINES || byteCount + rowBytes > DEFAULT_MAX_BYTES) {
-              rowTruncated = true;
-              if (truncatedBy === null) truncatedBy = byteCount + rowBytes > DEFAULT_MAX_BYTES ? "bytes" : "lines";
-              for (let j = i; j < display.length; j++) {
-                totalRows += 1;
-                totalBytes += Buffer.byteLength(display[j]!, "utf-8") + 1;
-              }
-              break;
-            }
-            keptRows.push(row);
-            keptHashes.push(hit.hashes[i]!);
-            keptLineNumbers.push(hit.lineNumbers[i]!);
-            keptFragmented.push(hit.fragmented[i]!);
-            if (hit.fragmented[i]) linesReplaced += 1;
-            rowCount += 1;
-            byteCount += rowBytes;
-            totalRows += 1;
-            totalBytes += rowBytes;
-          }
-          if (hit.totalMatchCount > hit.matchCount) limitTruncated = true;
-          matches += hit.matchCount;
-          const displayHit: FileHit = { ...hit, rows: keptRows, hashes: keptHashes, lineNumbers: keptLineNumbers, fragmented: keptFragmented };
-          hits.push(displayHit);
-          if (rowTruncated) countOnly = true;
-        }
-      } else {
-        if (baseStat.isFile()) {
-          files.push(base);
-        } else {
-          await walkFiles(base, state, async (absPath) => {
-            files.push(absPath);
-          }, signal);
-          files.sort(cmp);
-        }
-        for (let f = 0; f < files.length; f++) {
-          abortIf(signal);
-          const absPath = files[f]!;
-          if (countOnly) {
-            const hit = await searchFile(absPath, globRoot, ctx.cwd, regexForJs!, globRegex, context, Number.MAX_SAFE_INTEGER, signal);
-            if (!hit) continue;
-            const display = displayRowsForHit(hit);
-            totalRows += display.length;
-            for (const row of display) totalBytes += Buffer.byteLength(row, "utf-8") + 1;
-            const remaining = limit - matches;
-            if (remaining > 0) {
-              matches += Math.min(hit.matchCount, remaining);
-              if (hit.matchCount > remaining) limitTruncated = true;
-            } else {
-              limitTruncated = true;
-            }
-            continue;
-          }
+          totalRows += display.length;
+          for (const r of display) totalBytes += Buffer.byteLength(r, "utf-8") + 1;
           const remaining = limit - matches;
-          if (remaining <= 0) {
+          if (remaining > 0) {
+            const add = Math.min(hit.matchCount, remaining);
+            matches += add;
+            if (hit.matchCount > remaining) limitTruncated = true;
+          } else {
             limitTruncated = true;
+          }
+          continue;
+        }
+        const remaining = limit - matches;
+        if (remaining <= 0) {
+          limitTruncated = true;
+          break;
+        }
+        const norm = await tryReadNormFile(absPath, ctx.cwd, { maxLines: MAX_HASH_LINES, noPersist: true, signal });
+        if (!norm) continue;
+        if (globRegex) {
+          const displayPath = relative(ctx.cwd, absPath).replace(/\\/g, "/");
+          const globPath = relative(globRoot, absPath).replace(/\\/g, "/");
+          if (!globRegex.test(globPath) && !globRegex.test(displayPath)) continue;
+        }
+        const hit = makeHitFromIndices(norm, relative(ctx.cwd, absPath).replace(/\\/g, "/"), indices, context, validatedRegex, totalForFile, Math.min(totalForFile, remaining));
+        if (!hit) continue;
+        const display = displayRowsForHit(hit);
+        const keptRows: string[] = [];
+        const keptHashes: string[] = [];
+        const keptLineNumbers: number[] = [];
+        const keptFragmented: boolean[] = [];
+        for (let i = 0; i < display.length; i++) {
+          const row = display[i]!;
+          const rowBytes = Buffer.byteLength(row, "utf-8") + 1;
+          if (rowCount >= DEFAULT_MAX_LINES || byteCount + rowBytes > DEFAULT_MAX_BYTES) {
+            rowTruncated = true;
+            if (truncatedBy === null) truncatedBy = byteCount + rowBytes > DEFAULT_MAX_BYTES ? "bytes" : "lines";
+            for (let j = i; j < display.length; j++) {
+              totalRows += 1;
+              totalBytes += Buffer.byteLength(display[j]!, "utf-8") + 1;
+            }
             break;
           }
-          const hit = await searchFile(absPath, globRoot, ctx.cwd, regexForJs!, globRegex, context, remaining, signal);
-          if (!hit) continue;
-          const display = displayRowsForHit(hit);
-          const keptRows: string[] = [];
-          const keptHashes: string[] = [];
-          const keptLineNumbers: number[] = [];
-          const keptFragmented: boolean[] = [];
-          for (let i = 0; i < display.length; i++) {
-            const row = display[i]!;
-            const rowBytes = Buffer.byteLength(row, "utf-8") + 1;
-            if (rowCount >= DEFAULT_MAX_LINES || byteCount + rowBytes > DEFAULT_MAX_BYTES) {
-              rowTruncated = true;
-              if (truncatedBy === null) truncatedBy = byteCount + rowBytes > DEFAULT_MAX_BYTES ? "bytes" : "lines";
-              for (let j = i; j < display.length; j++) {
-                totalRows += 1;
-                totalBytes += Buffer.byteLength(display[j]!, "utf-8") + 1;
-              }
-              break;
-            }
-            keptRows.push(row);
-            keptHashes.push(hit.hashes[i]!);
-            keptLineNumbers.push(hit.lineNumbers[i]!);
-            keptFragmented.push(hit.fragmented[i]!);
-            if (hit.fragmented[i]) linesReplaced += 1;
-            rowCount += 1;
-            byteCount += rowBytes;
-            totalRows += 1;
-            totalBytes += rowBytes;
-          }
-          if (hit.totalMatchCount > hit.matchCount) limitTruncated = true;
-          matches += hit.matchCount;
-          hits.push({ ...hit, rows: keptRows, hashes: keptHashes, lineNumbers: keptLineNumbers, fragmented: keptFragmented });
-          if (rowTruncated) countOnly = true;
+          keptRows.push(row);
+          keptHashes.push(hit.hashes[i]!);
+          keptLineNumbers.push(hit.lineNumbers[i]!);
+          keptFragmented.push(hit.fragmented[i]!);
+          if (hit.fragmented[i]) linesReplaced += 1;
+          rowCount += 1;
+          byteCount += rowBytes;
+          totalRows += 1;
+          totalBytes += rowBytes;
         }
+        if (hit.totalMatchCount > hit.matchCount) limitTruncated = true;
+        matches += hit.matchCount;
+        const displayHit: FileHit = { ...hit, rows: keptRows, hashes: keptHashes, lineNumbers: keptLineNumbers, fragmented: keptFragmented };
+        hits.push(displayHit);
+        if (rowTruncated) countOnly = true;
       }
       hits.sort((a, b) => cmp(a.displayPath, b.displayPath));
       for (const hit of hits) {
@@ -705,7 +568,6 @@ export function regGrep(pi: ExtensionAPI): void {
       const notes: string[] = [];
       if (rowTruncated) notes.push(`[grep: output truncated at ${DEFAULT_MAX_LINES} rows or ${formatSize(DEFAULT_MAX_BYTES)}; refine the pattern to see more.]`);
       if (limitTruncated) notes.push(`[grep: showing first ${limit} matches; increase limit to see more.]`);
-      if (state.stopped) notes.push(`[grep: scan cap of ${MAX_SCAN_FILES} files reached; results may be incomplete.]`);
       if (linesReplaced > 0) notes.push(`[grep: ${linesReplaced} line(s) exceed ${formatSize(MAX_GREP_LINE_BYTES)} and are shown as truncated fragments; use read to see the full lines.]`);
       const truncated = limitTruncated || rowTruncated;
       const truncation: TruncationResult | undefined = rowTruncated
@@ -732,7 +594,7 @@ export function regGrep(pi: ExtensionAPI): void {
           metrics: {
             matches,
             files: hits.length,
-            truncated: truncated || state.stopped,
+            truncated,
           },
         },
       };

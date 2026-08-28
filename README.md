@@ -133,7 +133,7 @@ Notes:
 
 ## The grep tool
 
-`grep` replaces the built-in grep with an anchored search backed by ripgrep when available (JS fallback). Every matching line (and each requested context line) is returned as `lineNumber │ anchor│content` — the `anchor│content` part is served exactly like `read` output, so you can target it with `replace`/`insert` without a separate `read`, while the line-number gutter and `=== path ===` header give filename and line for navigation (press Return to jump).
+`grep` replaces the built-in grep with an anchored search backed by ripgrep. Every matching line (and each requested context line) is returned as `lineNumber │ anchor│content` — the `anchor│content` part is served exactly like `read` output, so you can target it with `replace`/`insert` without a separate `read`, while the line-number gutter and `=== path ===` header give filename and line for navigation (press Return to jump).
 
 | Field | Description |
 | --- | --- |
@@ -147,9 +147,9 @@ Notes:
 
 Notes:
 - Results are grouped per file under a `=== path ===` header; every shown row is `lineNumber │ anchor│content` where `anchor│content` is the anchor it would have in `read` output.
-- Directory searches use ripgrep when available (otherwise a JS scan), respecting `.gitignore` via ripgrep; `node_modules`, `.git`, `.tmp`, and `coverage` are always skipped. Binary, image, and oversized files are skipped silently.
+- Directory searches use ripgrep, respecting `.gitignore`; `node_modules`, `.git`, `.tmp`, and `coverage` are always skipped. Binary, image, and oversized files are skipped silently.
 - Regex patterns with backreferences, nested quantifiers, quantified alternation, or multiple variable quantifiers are rejected with `[E_UNSAFE_REGEX]` before any files are scanned; use `literal: true` when regex behavior is unnecessary.
-- Output is capped at `limit` matched lines, 2000 rows, and 50KB of text (whichever comes first), with a hint naming the cap that cut results. A matched line longer than 500 bytes is shown as a fragment around the match with `...` marking the truncated sides, so the relevant part of the hit stays visible; a context line over 500 bytes is shown as its head with a trailing `...`. Fragments keep the line's anchor (long lines are hashed from their first 500 bytes) and are served like full rows, so a fragmented match is still editable with `replace` (which always replaces the whole line). Directory scans stop after 4000 files with a hint; results may be incomplete. When ripgrep is unavailable the JS scan is used with the same caps.
+- Output is capped at `limit` matched lines, 2000 rows, and 50KB of text (whichever comes first), with a hint naming the cap that cut results. A matched line longer than 500 bytes is shown as a fragment around the match with `...` marking the truncated sides, so the relevant part of the hit stays visible; a context line over 500 bytes is shown as its head with a trailing `...`. Fragments keep the line's anchor (long lines are hashed from their first 500 bytes) and are served like full rows, so a fragmented match is still editable with `replace` (which always replaces the whole line).
 - `file_path` works as an alias for `path`.
 - Line endings and BOMs survive every edit. The file's line ending is detected from its first newline and restored on write; a file that mixes LF and CRLF (for example a WSL-edited file) is normalized to the first-seen ending.
 - Files with multiple hard links (`nlink > 1`) are rewritten in place rather than via a temp-file rename, so every link keeps seeing the same content; that write is direct rather than atomic.
