@@ -16,6 +16,7 @@ import {
 import { loadHashStore, pruneMissing } from "./src/hash-store";
 import { recordServedSafe, clearServed } from "./src/served";
 import { clearBoundaryBypass } from "./src/boundary-bypass";
+import { registerWriteHook } from "./src/write-hook";
 import { readNormFile } from "./src/file-reader";
 import { loadFileKindAndText } from "./src/file-kind";
 import { resolveInCwd } from "./src/fs-write";
@@ -28,6 +29,7 @@ export default function (pi: ExtensionAPI): void {
   regInsert(pi);
   regGrep(pi);
   regUndo(pi);
+  registerWriteHook(pi);
 
   let autoRead = true;
 

@@ -23,7 +23,7 @@ describe("extension registration", () => {
 
     expect(toolNames.sort()).toEqual(["grep", "insert", "read", "replace", "undo_last_change"]);
 
-    expect(eventNames).toEqual(["session_start", "tool_result"]);
+    expect(eventNames.sort()).toEqual(["session_start", "tool_call", "tool_result"]);
   });
 });
 
