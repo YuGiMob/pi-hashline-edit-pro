@@ -23,10 +23,8 @@ describe("startup non-blocking prune", () => {
     await withTempDir("startup-prune-", async dir => {
       const home = join(dir, "home");
       await mkdir(join(home, ".config", "pi-hashline-edit-pro"), { recursive: true });
-      const origHome = process.env.HOME;
-      const origXdg = process.env.XDG_CONFIG_HOME;
-      process.env.HOME = home;
-      process.env.XDG_CONFIG_HOME = "";
+      vi.stubEnv("HOME", home);
+      vi.stubEnv("XDG_CONFIG_HOME", "");
       try {
         const { loadHashStore, shutdownHashStore } = await import("../../src/hash-store");
         const store = await loadHashStore();
@@ -48,9 +46,7 @@ describe("startup non-blocking prune", () => {
         expect(remaining).toBe(0);
         shutdownHashStore();
       } finally {
-        process.env.HOME = origHome;
-        if (origXdg === undefined) delete process.env.XDG_CONFIG_HOME;
-        else process.env.XDG_CONFIG_HOME = origXdg;
+        vi.unstubAllEnvs();
         const { shutdownHashStore } = await import("../../src/hash-store");
         shutdownHashStore();
       }
@@ -63,10 +59,8 @@ describe("hash-store incremental vacuum", () => {
     await withTempDir("startup-vacuum-", async dir => {
       const home = join(dir, "home");
       await mkdir(join(home, ".config", "pi-hashline-edit-pro"), { recursive: true });
-      const origHome = process.env.HOME;
-      const origXdg = process.env.XDG_CONFIG_HOME;
-      process.env.HOME = home;
-      process.env.XDG_CONFIG_HOME = "";
+      vi.stubEnv("HOME", home);
+      vi.stubEnv("XDG_CONFIG_HOME", "");
       try {
         const { loadHashStore, shutdownHashStore } = await import("../../src/hash-store");
         const store = await loadHashStore();
@@ -83,9 +77,7 @@ describe("hash-store incremental vacuum", () => {
         shutdownHashStore();
         void store2;
       } finally {
-        process.env.HOME = origHome;
-        if (origXdg === undefined) delete process.env.XDG_CONFIG_HOME;
-        else process.env.XDG_CONFIG_HOME = origXdg;
+        vi.unstubAllEnvs();
         const { shutdownHashStore } = await import("../../src/hash-store");
         shutdownHashStore();
       }
