@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normReq } from "../../src/replace-normalize";
+import { normReq } from "../../src/payload-contract";
 
 describe("normReq", () => {
 	it("returns non-record input as-is", () => {

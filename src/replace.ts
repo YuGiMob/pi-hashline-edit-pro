@@ -118,6 +118,11 @@ function hashSpan(hashes: string[], from: string, to: string): [number, number] 
   if (a < 0 || b < 0) return undefined;
   return [Math.min(a, b), Math.max(a, b)];
 }
+async function noteAnchorError(absolutePath: string, error: unknown, scopeHashes: string[], noPersist?: boolean): Promise<void> {
+  if (noPersist === true) return;
+  if (error instanceof RangeStaleError) await recordServedSafe(absolutePath, error.rangeHashes, "range-stale feedback", new Set(scopeHashes));
+  else if (error instanceof AnchorMismatchError) await recordServedSafe(absolutePath, error.feedbackHashes, "anchor-mismatch feedback", new Set(scopeHashes));
+}
 
 function collectRemovedHashes(
   edit: HEdit,
@@ -182,13 +187,7 @@ export async function execPipeline(
       options?.skipBoundaryDedup,
     );
   } catch (error) {
-    if (options?.noPersist !== true) {
-      if (error instanceof RangeStaleError) {
-        await recordServedSafe(absolutePath, error.rangeHashes, "range-stale feedback", new Set(originalHashes));
-      } else if (error instanceof AnchorMismatchError) {
-        await recordServedSafe(absolutePath, error.feedbackHashes, "anchor-mismatch feedback", new Set(originalHashes));
-      }
-    }
+    await noteAnchorError(absolutePath, error, originalHashes, options?.noPersist);
     throw error;
   }
 
@@ -231,6 +230,17 @@ export async function execPipeline(
   };
 }
 
+export function previewFromPipe(pipe: PipelineResult): RPreview {
+  if (pipe.originalNormalized === pipe.result) {
+    return {
+      error: `No changes made to ${pipe.path}. The edit produced identical content.`,
+    };
+  }
+  return { diff: genDiff(pipe.originalNormalized, pipe.result, 4, pipe.resultHashes, pipe.originalHashes).diff };
+}
+export function previewError(error: unknown): RPreview {
+  return { error: error instanceof Error ? error.message : String(error) };
+}
 export async function compPreview(
   request: unknown,
   cwd: string,
@@ -238,20 +248,14 @@ export async function compPreview(
   try {
     const normalized = normReq(request);
     assertReq(normalized);
-    const { path, originalNormalized, result, resultHashes, originalHashes } = await execPipeline(
+    const pipe = await execPipeline(
       normalized,
       cwd,
       { accessMode: constants.R_OK, noPersist: true },
     );
-    if (originalNormalized === result) {
-      return {
-        error: `No changes made to ${path}. The edit produced identical content.`,
-      };
-    }
-
-    return { diff: genDiff(originalNormalized, result, 4, resultHashes, originalHashes).diff };
+    return previewFromPipe(pipe);
   } catch (error: unknown) {
-    return { error: error instanceof Error ? error.message : String(error) };
+    return previewError(error);
   }
 }
 

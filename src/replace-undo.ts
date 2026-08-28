@@ -2,12 +2,11 @@ import { readFile } from "fs/promises";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { loadHashStore, upsertSnapshot, upsertUndo, getUndoEntry, deleteUndo, type UndoRecord } from "./hash-store";
+import { loadHashStore, persistSnapshot, upsertUndo, getUndoEntry, deleteUndo, type UndoRecord } from "./hash-store";
 import { recordServedDiff } from "./served";
-import { contentChecksum } from "./hashline/hasher";
 import { resolveInCwd, writeAtomic } from "./fs-write";
 import { toLF, stripBOM, genDiff, genPatch, restoreEndings, type LineEnding } from "./replace-diff";
-import { cntDiff, splitLines, errCode, makePrepareArguments } from "./utils";
+import { cntDiff, errCode, makePrepareArguments } from "./utils";
 import { loadP, loadGuide } from "./prompts";
 import { buildMetrics } from "./replace-response";
 import { renderEditResult } from "./replace-render";
@@ -160,7 +159,7 @@ export function regUndo(pi: ExtensionAPI): void {
 
         try {
           const store = await loadHashStore();
-          upsertSnapshot(store, mutationTargetPath, contentChecksum(undo.content), splitLines(undo.content).length, undo.hashes);
+          persistSnapshot(store, mutationTargetPath, undo.content, undo.hashes);
           recordServedDiff(store, mutationTargetPath, undoDiff, new Set(undo.hashes));
         } catch (error) {
           console.error("Failed to restore hash store snapshot after undo:", error);

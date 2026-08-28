@@ -2,7 +2,7 @@ import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-age
 import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { constants } from "fs";
-import { execPipeline, type ReqParams, type ReplaceDetails } from "./replace";
+import { execPipeline, type ReqParams, type ReplaceDetails, previewFromPipe, previewError } from "./replace";
 import { commitEdit } from "./commit";
 import { readNormFile, type NormFile } from "./file-reader";
 import { resolveInCwd } from "./fs-write";
@@ -10,7 +10,6 @@ import { MAX_HASH_LINES, parseHashRef, resolveAnchorLine, type Anchor } from "./
 import { stripAnchorRow } from "./hashline/resolve";
 import { loadP, loadGuide } from "./prompts";
 import { normReq } from "./payload-contract";
-import { genDiff } from "./replace-diff";
 import { makeRenderCall, renderEditResult, type RPreview, type RRState } from "./replace-render";
 import { abortIf, isRec, makePrepareArguments, rejectUnknownFields, splitLines } from "./utils";
 import { clearBoundaryBypass } from "./boundary-bypass";
@@ -120,12 +119,9 @@ export async function insertPreview(request: unknown, cwd: string): Promise<RPre
       preloadedNorm: preload,
       skipBoundaryDedup: true,
     });
-    if (pipe.originalNormalized === pipe.result) {
-      return { error: `No changes made to ${normalized.path}. The edit produced identical content.` };
-    }
-    return { diff: genDiff(pipe.originalNormalized, pipe.result, 4, pipe.resultHashes, pipe.originalHashes).diff };
+    return previewFromPipe(pipe);
   } catch (error: unknown) {
-    return { error: error instanceof Error ? error.message : String(error) };
+    return previewError(error);
   }
 }
 

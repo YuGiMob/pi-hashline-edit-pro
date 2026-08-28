@@ -4,9 +4,9 @@ import {
   loadHashStore,
   type HashStore,
   getSnapshot,
-  upsertSnapshot,
+  persistSnapshot,
 } from "../hash-store";
-import { xxh32, contentChecksum, initHasher } from "./hasher";
+import { xxh32, initHasher } from "./hasher";
 import { HASH_LEN, ALPH, ALPH_RE, HASH_CLASS, HASH_RUN } from "./alphabet";
 export { initHasher, HASH_LEN, ALPH_RE, HASH_CLASS, HASH_RUN };
 
@@ -152,7 +152,7 @@ export async function lineHashes(
     );
     if (persist !== false) {
       try {
-        upsertSnapshot(hashStore, path, contentChecksum(content), splitLines(content).length, newHashes);
+        persistSnapshot(hashStore, path, content, newHashes);
       } catch (error) {
         console.error("Failed to persist hash snapshot:", error);
       }
@@ -173,7 +173,7 @@ export async function lineHashes(
   const newHashes = _lineHashesPure(content);
   if (persist !== false) {
     try {
-      upsertSnapshot(hashStore, path, contentChecksum(content), splitLines(content).length, newHashes);
+      persistSnapshot(hashStore, path, content, newHashes);
     } catch (error) {
       console.error("Failed to persist hash snapshot:", error);
     }

@@ -183,8 +183,22 @@ function withBusyRetry<T>(fn: () => T): T {
   throw lastError;
 }
 
-function openDbWithBusyRetry(storePath: string): { db: RawDb; stmts: Prepared } {
-  return withBusyRetry(() => openDb(storePath));
+async function withBusyRetryAsync<T>(fn: () => T): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= BUSY_RETRIES; attempt++) {
+    try {
+      return fn();
+    } catch (error) {
+      lastError = error;
+      if (!isBusyError(error) || attempt === BUSY_RETRIES) throw error;
+      await new Promise<void>((r) => setTimeout(r, BUSY_RETRY_DELAY_MS * (1 << attempt)));
+    }
+  }
+  throw lastError;
+}
+
+async function openDbWithBusyRetryAsync(storePath: string): Promise<{ db: RawDb; stmts: Prepared }> {
+  return withBusyRetryAsync(() => openDb(storePath));
 }
 
 function retriedWrite(
@@ -345,19 +359,19 @@ async function openStore(storePath: string): Promise<HashStore> {
   let existed = existsSync(storePath);
   let opened: { db: RawDb; stmts: Prepared };
   try {
-    opened = openDbWithBusyRetry(storePath);
+    opened = await openDbWithBusyRetryAsync(storePath);
   } catch (error) {
     if (!isCorruptionError(error)) throw error;
     console.error("Hash store failed to open, rebuilding:", error);
     await quarantineStore(storePath);
     existed = false;
-    opened = openDbWithBusyRetry(storePath);
+    opened = await openDbWithBusyRetryAsync(storePath);
   }
   if (!isHealthy(opened.db)) {
     shutdownDb(opened.db);
     await quarantineStore(storePath);
     existed = false;
-    opened = openDbWithBusyRetry(storePath);
+    opened = await openDbWithBusyRetryAsync(storePath);
   }
   const { db, stmts } = opened;
 
@@ -531,6 +545,14 @@ export function upsertSnapshot(
 ): void {
   store.stmts.upsert(path, checksum, lineCount, JSON.stringify(hashes), Date.now());
   cacheSnapshot(path, checksum, lineCount, hashes);
+}
+export function persistSnapshot(
+  store: HashStore,
+  path: string,
+  content: string,
+  hashes: string[],
+): void {
+  upsertSnapshot(store, path, contentChecksum(content), splitLines(content).length, hashes);
 }
 
 export function upsertUndo(store: HashStore, path: string, entry: UndoRecord): void {
