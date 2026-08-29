@@ -147,7 +147,7 @@ Notes:
 
 Notes:
 - Results are grouped per file under a `=== path ===` header; every shown row is `lineNumber │ anchor│content` where `anchor│content` is the anchor it would have in `read` output.
-- Directory searches use ripgrep, respecting `.gitignore`; `node_modules`, `.git`, `.tmp`, and `coverage` are always skipped. Binary, image, and oversized files are skipped silently.
+- Directory searches use ripgrep, respecting `.gitignore` (including parent directories); `.git` is always skipped, and hidden files are searched, so `node_modules`, `.tmp`, and `coverage` are skipped only when a `.gitignore` lists them. Binary, image, and oversized files are skipped silently.
 - Regex patterns with backreferences, nested quantifiers, quantified alternation, or multiple variable quantifiers are rejected with `[E_UNSAFE_REGEX]` before any files are scanned; use `literal: true` when regex behavior is unnecessary.
 - Output is capped at `limit` matched lines, 2000 rows, and 50KB of text (whichever comes first), with a hint naming the cap that cut results. A matched line longer than 500 bytes is shown as a fragment around the match with `...` marking the truncated sides, so the relevant part of the hit stays visible; a context line over 500 bytes is shown as its head with a trailing `...`. Fragments keep the line's anchor (long lines are hashed from their first 500 bytes) and are served like full rows, so a fragmented match is still editable with `replace` (which always replaces the whole line).
 - `file_path` works as an alias for `path`.

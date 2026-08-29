@@ -313,7 +313,7 @@ async function collectRgMatches(
   req: GrepReq,
   signal?: AbortSignal,
 ): Promise<Map<string, number[]>> {
-  const args = ["--json", "--line-number", "--color=never", "--hidden"];
+  const args = ["--json", "--line-number", "--color=never", "--hidden", "--glob", "!.git"];
   if (req.ignoreCase) args.push("--ignore-case");
   if (req.literal) args.push("--fixed-strings");
   args.push("--", pattern, searchPath);

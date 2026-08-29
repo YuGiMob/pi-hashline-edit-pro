@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { mkdir, writeFile, readFile } from "fs/promises";
+import { mkdir, writeFile, readFile, mkdtemp, rm } from "fs/promises";
 import { join } from "path";
-import { loadHashStore, getSnapshot } from "../../src/hash-store";
+import { tmpdir } from "os";
+import { loadHashStore, getSnapshot, shutdownHashStore } from "../../src/hash-store";
 import { getServed } from "../../src/served";
 import { resolveTarget } from "../../src/fs-write";
 import { toCwd } from "../../src/paths";
-import { withTempFile, withTempDir, makeFakePiRegistry, setupIntegrationTest, getText, extractHash } from "../support/fixtures";
+import { withTempFile, withTempDir, withHome, makeFakePiRegistry, setupIntegrationTest, getText, extractHash } from "../support/fixtures";
 import register from "../../index";
 
 describe("grep tool", () => {
@@ -201,6 +202,56 @@ describe("grep tool", () => {
       expect(text).toContain("=== src/a.ts ===");
       expect(text).toContain("│needle in src");
       expect(text).not.toContain("node_modules");
+    });
+  });
+
+async function withSystemTempDir(prefix: string, run: (dir: string) => Promise<void>): Promise<void> {
+  const dir = await mkdtemp(join(tmpdir(), prefix));
+  const restoreHome = withHome(dir);
+  try {
+    await run(dir);
+  } finally {
+    shutdownHashStore();
+    await rm(dir, { recursive: true, force: true });
+    restoreHome();
+  }
+}
+
+  it("never searches .git", async () => {
+    await withTempDir("grep-git-", async (dir) => {
+      await mkdir(join(dir, ".git"), { recursive: true });
+      await writeFile(join(dir, ".git", "config"), "needle in git\n", "utf-8");
+      await writeFile(join(dir, "ok.ts"), "needle in root\n", "utf-8");
+
+      const { ctx, getTool } = setupIntegrationTest(dir);
+      const grepTool = getTool("anchor_grep");
+      const result = await grepTool.execute(
+        "g1",
+        { pattern: "needle" },
+        undefined, undefined, ctx,
+      );
+      const text = getText(result);
+      expect(text).toContain("=== ok.ts ===");
+      expect(text).not.toContain(".git");
+    });
+  });
+
+  it("searches node_modules when no .gitignore lists it", async () => {
+    await withSystemTempDir("grep-nogitignore-", async (dir) => {
+      await mkdir(join(dir, "node_modules", "pkg"), { recursive: true });
+      await writeFile(join(dir, "node_modules", "pkg", "b.ts"), "needle in node_modules\n", "utf-8");
+      await writeFile(join(dir, "ok.ts"), "needle in root\n", "utf-8");
+
+      const { ctx, getTool } = setupIntegrationTest(dir);
+      const grepTool = getTool("anchor_grep");
+      const result = await grepTool.execute(
+        "g1",
+        { pattern: "needle" },
+        undefined, undefined, ctx,
+      );
+      const text = getText(result);
+      expect(text).toContain("=== node_modules/pkg/b.ts ===");
+      expect(text).toContain("│needle in node_modules");
     });
   });
 
