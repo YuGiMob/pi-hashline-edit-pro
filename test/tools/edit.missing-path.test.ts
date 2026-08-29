@@ -28,7 +28,7 @@ describe("replace - missing path resolution", () => {
   it("resolves a missing path from served records after a grep", async () => {
     await withTempFile("sample.ts", "aaa\nbbb\n", async ({ cwd, path }) => {
       const { ctx, getTool } = setupIntegrationTest(cwd);
-      const grepTool = getTool("grep");
+      const grepTool = getTool("anchor_grep");
       const editTool = getTool("replace");
 
       const grepResult = await grepTool.execute(

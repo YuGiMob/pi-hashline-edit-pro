@@ -9,7 +9,7 @@ describe("insert and grep loop", () => {
   it("read → grep → insert → undo", async () => {
     await withTempFile("sample.ts", "alpha\nbeta\ngamma\n", async ({ cwd, path }) => {
       const { ctx, readTool, getTool } = setupIntegrationTest(cwd);
-      const grepTool = getTool("grep");
+      const grepTool = getTool("anchor_grep");
       const insertTool = getTool("insert");
       const undo = getTool("undo_last_change");
 
@@ -44,7 +44,7 @@ describe("insert and grep loop", () => {
       await writeFile(join(dir, "lib", "b.ts"), "beta\n", "utf-8");
 
       const { ctx, getTool } = setupIntegrationTest(dir);
-      const grepTool = getTool("grep");
+      const grepTool = getTool("anchor_grep");
       const insertTool = getTool("insert");
 
       const result = await grepTool.execute(

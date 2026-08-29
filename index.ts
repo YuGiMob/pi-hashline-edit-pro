@@ -12,6 +12,7 @@ import { MAX_HASH_LINES } from "./src/hashline";
 import {
   readConfig,
   toggleAutoRead,
+  toggleAnchorGrep,
 } from "./src/config";
 import { loadHashStore, pruneMissing } from "./src/hash-store";
 import { recordServedSafe, clearServed, buildServedMap } from "./src/served";
@@ -49,6 +50,11 @@ export default function (pi: ExtensionAPI): void {
       });
     const config = await readConfig();
     autoRead = config.autoRead;
+    pi.setActiveTools(
+      pi.getActiveTools().filter((t) =>
+        config.anchorGrepEnabled ? t !== "grep" : t !== "anchor_grep",
+      ),
+    );
     const debugValue = process.env.PI_HASHLINE_DEBUG;
     if (debugValue === "1" || debugValue === "true") {
       ctx.ui.notify(`Hashline Edit mode active`, "info");
@@ -61,6 +67,21 @@ export default function (pi: ExtensionAPI): void {
       autoRead = await toggleAutoRead();
       const state = autoRead ? "enabled" : "disabled";
       ctx.ui.notify(`Auto-read anchors after write and post-edit diffs after replace/undo: ${state}`, "info");
+    },
+  });
+
+  pi.registerCommand("toggle-anchor-grep", {
+    description: "Enable or disable the anchor_grep tool (the built-in grep is disabled while anchor_grep is on)",
+    handler: async (_args, ctx) => {
+      const enabled = await toggleAnchorGrep();
+      const active = pi.getActiveTools();
+      pi.setActiveTools(
+        enabled
+          ? [...new Set([...active.filter((t) => t !== "grep"), "anchor_grep"])]
+          : [...new Set([...active.filter((t) => t !== "anchor_grep"), "grep"])],
+      );
+      const state = enabled ? "enabled" : "disabled";
+      ctx.ui.notify(`anchor_grep tool ${state}`, "info");
     },
   });
 

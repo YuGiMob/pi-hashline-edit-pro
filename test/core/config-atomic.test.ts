@@ -64,7 +64,7 @@ describe("writeConfig - windows EPERM fallback", () => {
 
     const { writeConfig } = await import("../../src/config");
 
-    await writeConfig({ autoRead: true });
+    await writeConfig({ autoRead: true, anchorGrepEnabled: true });
 
     expect(renameMock).toHaveBeenCalledTimes(1);
     expect(writeFileMock).toHaveBeenCalledTimes(1);
@@ -88,7 +88,7 @@ describe("writeConfig - windows EPERM fallback", () => {
     const { writeConfig } = await import("../../src/config");
 
     await expect(
-      writeConfig({ autoRead: false }),
+      writeConfig({ autoRead: false, anchorGrepEnabled: true }),
     ).rejects.toThrow("EACCES");
     expect(writeFileMock).not.toHaveBeenCalled();
   });
@@ -102,7 +102,7 @@ describe("writeConfig - windows EPERM fallback", () => {
     const { writeConfig } = await import("../../src/config");
 
     await expect(
-      writeConfig({ autoRead: false }),
+      writeConfig({ autoRead: false, anchorGrepEnabled: true }),
     ).rejects.toThrow("EPERM");
     expect(writeFileMock).not.toHaveBeenCalled();
   });

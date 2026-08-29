@@ -443,8 +443,8 @@ const grepToolSchema = Type.Object(
 
 export function regGrep(pi: ExtensionAPI): void {
   pi.registerTool({
-    name: "grep",
-    label: "Grep",
+    name: "anchor_grep",
+    label: "Anchor Grep",
     description: loadP("../prompts/grep.md"),
     promptSnippet: loadP("../prompts/grep-snippet.md"),
     promptGuidelines: loadGuide("../prompts/grep-guidelines.md"),
@@ -560,7 +560,7 @@ export function regGrep(pi: ExtensionAPI): void {
       hits.sort((a, b) => cmp(a.displayPath, b.displayPath));
       for (const hit of hits) {
         const servedMap = buildServedMap(hit.fileHashes, hit.fileLines, hit.hashes);
-        await recordServedSafe(hit.path, servedMap, "grep", new Set(hit.fileHashes));
+        await recordServedSafe(hit.path, servedMap, "anchor_grep", new Set(hit.fileHashes));
       }
       const blocks = hits
         .map((hit) => `=== ${hit.displayPath} ===\n${hit.rows.join("\n")}`)

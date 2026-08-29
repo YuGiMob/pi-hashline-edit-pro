@@ -216,7 +216,7 @@ describe("coverage boost grep", () => {
   it("rejects huge quantifier and other unsafe patterns", async () => {
     await withTempFile("a.txt", "hello\n", async ({ cwd }) => {
       const { ctx, getTool } = setupIntegrationTest(cwd);
-      const grep = getTool("grep");
+      const grep = getTool("anchor_grep");
       await expect(grep.execute("g1", { pattern: "a".repeat(5000), path: "a.txt" }, undefined, undefined, ctx)).rejects.toThrow("[E_UNSAFE_REGEX]");
       await expect(grep.execute("g1", { pattern: "(a+)+", path: "a.txt" }, undefined, undefined, ctx)).rejects.toThrow("[E_UNSAFE_REGEX]");
       await expect(grep.execute("g1", { pattern: "a{1001}", path: "a.txt" }, undefined, undefined, ctx)).rejects.toThrow("[E_UNSAFE_REGEX]");
@@ -230,7 +230,7 @@ describe("coverage boost grep", () => {
       await mkdir(join(dir, "sub"), { recursive: true });
       await writeFile(join(dir, "sub", "c.ts"), "Hello\n", "utf-8");
       const { ctx, getTool } = setupIntegrationTest(dir);
-      const grep = getTool("grep");
+      const grep = getTool("anchor_grep");
       const r1 = await grep.execute("g1", { pattern: "Hello", glob: "*.ts" }, undefined, undefined, ctx);
       expect(r1.content[0].text).toContain("a.ts");
       const r2 = await grep.execute("g1", { pattern: "hello", ignoreCase: true }, undefined, undefined, ctx);
@@ -247,7 +247,7 @@ describe("coverage boost grep", () => {
       await writeFile(join(dir, "node_modules", "x.ts"), "needle\n", "utf-8");
       await writeFile(join(dir, "ok.ts"), "needle\n", "utf-8");
       const { ctx, getTool } = setupIntegrationTest(dir);
-      const grep = getTool("grep");
+      const grep = getTool("anchor_grep");
       const r = await grep.execute("g1", { pattern: "needle" }, undefined, undefined, ctx);
       expect(r.content[0].text).toContain("ok.ts");
       expect(r.content[0].text).not.toContain("node_modules");
