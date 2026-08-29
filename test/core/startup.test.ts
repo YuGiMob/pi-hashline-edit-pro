@@ -119,18 +119,21 @@ function makeTrackingPi(initialTools: string[]) {
 function makeCommandPi(initialTools: string[]) {
   let active = [...initialTools];
   const commands = new Map<string, { description: string; handler: (...args: unknown[]) => unknown }>();
+  const handlers = new Map<string, (...args: unknown[]) => unknown>();
   const pi = {
     registerTool() {},
     registerCommand(name: string, def: { description: string; handler: (...args: unknown[]) => unknown }) {
       commands.set(name, def);
     },
-    on() {},
+    on(event: string, handler: (...args: unknown[]) => unknown) {
+      handlers.set(event, handler);
+    },
     getActiveTools: () => [...active],
     setActiveTools(names: string[]) {
       active = [...names];
     },
   } as unknown as import("@earendil-works/pi-coding-agent").ExtensionAPI;
-  return { pi, commands, getActive: () => [...active] };
+  return { pi, commands, handlers, getActive: () => [...active] };
 }
 
 describe("anchor_grep opt-out", () => {
@@ -193,9 +196,13 @@ describe("anchor_grep opt-out", () => {
       vi.stubEnv("HOME", home);
       vi.stubEnv("XDG_CONFIG_HOME", "");
       try {
-        const { pi, commands, getActive } = makeCommandPi(["read", "replace", "insert", "grep", "anchor_grep", "undo_last_change"]);
+        const { pi, commands, handlers, getActive } = makeCommandPi(["read", "replace", "insert", "grep", "anchor_grep", "undo_last_change"]);
         const { default: register } = await import("../../index");
         register(pi);
+        const sessionStart = handlers.get("session_start") as (a: unknown, b: unknown) => Promise<void>;
+        await sessionStart({}, { cwd: dir, ui: { notify: vi.fn() } });
+        expect(getActive()).not.toContain("grep");
+        expect(getActive()).toContain("anchor_grep");
         const toggle = commands.get("toggle-anchor-grep")!;
         const ctx = { ui: { notify: vi.fn() } };
         await toggle.handler({}, ctx);
@@ -207,6 +214,34 @@ describe("anchor_grep opt-out", () => {
         expect(getActive()).toContain("anchor_grep");
         expect(getActive()).not.toContain("grep");
         expect((await readConfig()).anchorGrepEnabled).toBe(true);
+      } finally {
+        vi.unstubAllEnvs();
+        const { shutdownHashStore } = await import("../../src/hash-store");
+        shutdownHashStore();
+      }
+    });
+  });
+
+  it("toggle-anchor-grep does not enable the built-in grep when it was not active", async () => {
+    await withTempDir("toggle-anchor-grep-off-", async dir => {
+      const home = join(dir, "home");
+      await mkdir(join(home, ".config", "pi-hashline-edit-pro"), { recursive: true });
+      vi.stubEnv("HOME", home);
+      vi.stubEnv("XDG_CONFIG_HOME", "");
+      try {
+        const { pi, commands, handlers, getActive } = makeCommandPi(["read", "replace", "insert", "anchor_grep", "undo_last_change"]);
+        const { default: register } = await import("../../index");
+        register(pi);
+        const sessionStart = handlers.get("session_start") as (a: unknown, b: unknown) => Promise<void>;
+        await sessionStart({}, { cwd: dir, ui: { notify: vi.fn() } });
+        expect(getActive()).not.toContain("grep");
+        const toggle = commands.get("toggle-anchor-grep")!;
+        const ctx = { ui: { notify: vi.fn() } };
+        await toggle.handler({}, ctx);
+        expect(getActive()).not.toContain("anchor_grep");
+        expect(getActive()).not.toContain("grep");
+        const { readConfig } = await import("../../src/config");
+        expect((await readConfig()).anchorGrepEnabled).toBe(false);
       } finally {
         vi.unstubAllEnvs();
         const { shutdownHashStore } = await import("../../src/hash-store");

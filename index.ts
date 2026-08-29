@@ -34,9 +34,11 @@ export default function (pi: ExtensionAPI): void {
   registerWriteHook(pi);
 
   let autoRead = true;
+  let grepWasActive = false;
 
   pi.on("session_start", async (_event, ctx) => {
     const active = pi.getActiveTools();
+    grepWasActive = active.includes("grep");
     pi.setActiveTools(active.filter((t) => t !== "edit"));
     await initHasher();
     loadHashStore()
@@ -78,7 +80,7 @@ export default function (pi: ExtensionAPI): void {
       pi.setActiveTools(
         enabled
           ? [...new Set([...active.filter((t) => t !== "grep"), "anchor_grep"])]
-          : [...new Set([...active.filter((t) => t !== "anchor_grep"), "grep"])],
+          : [...new Set([...active.filter((t) => t !== "anchor_grep"), ...(grepWasActive ? ["grep"] : [])])],
       );
       const state = enabled ? "enabled" : "disabled";
       ctx.ui.notify(`anchor_grep tool ${state}`, "info");

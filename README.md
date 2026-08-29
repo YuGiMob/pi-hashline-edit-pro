@@ -133,7 +133,7 @@ Notes:
 
 ## The anchor_grep tool
 
-`anchor_grep` replaces the built-in grep with an anchored search backed by ripgrep. While `anchor_grep` is enabled, the built-in grep is disabled; disabling `anchor_grep` restores it. Every matching line (and each requested context line) is returned as `lineNumber │ anchor│content` — the `anchor│content` part is served exactly like `read` output, so you can target it with `replace`/`insert` without a separate `read`, while the line-number gutter and `=== path ===` header give filename and line for navigation (press Return to jump).
+`anchor_grep` replaces the built-in grep with an anchored search backed by ripgrep. While `anchor_grep` is enabled, the built-in grep is disabled; disabling `anchor_grep` restores it if it was active before the extension loaded. Every matching line (and each requested context line) is returned as `lineNumber │ anchor│content` — the `anchor│content` part is served exactly like `read` output, so you can target it with `replace`/`insert` without a separate `read`, while the line-number gutter and `=== path ===` header give filename and line for navigation (press Return to jump).
 
 | Field | Description |
 | --- | --- |
@@ -153,7 +153,7 @@ Notes:
 - `file_path` works as an alias for `path`.
 - Line endings and BOMs survive every edit. The file's line ending is detected from its first newline and restored on write; a file that mixes LF and CRLF (for example a WSL-edited file) is normalized to the first-seen ending.
 - Files with multiple hard links (`nlink > 1`) are rewritten in place rather than via a temp-file rename, so every link keeps seeing the same content; that write is direct rather than atomic.
-- The anchor_grep tool is enabled by default. Disable it with `/toggle-anchor-grep` (or set `anchorGrepEnabled` to `false` in the config file); the setting persists across sessions. When disabled, the built-in grep is restored and anchor_grep is removed from the model's toolset.
+- The anchor_grep tool is enabled by default. Disable it with `/toggle-anchor-grep` (or set `anchorGrepEnabled` to `false` in the config file); the setting persists across sessions. When disabled, anchor_grep is removed from the model's toolset and the built-in grep is restored only if it was active before the extension loaded — a grep tool that was never enabled stays off.
 
 ## Undo
 
