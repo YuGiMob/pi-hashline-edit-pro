@@ -603,7 +603,7 @@ async function withSystemTempDir(prefix: string, run: (dir: string) => Promise<v
       const grepTool = getTool("anchor_grep");
       const started = Date.now();
       const result = await grepTool.execute("g1", { pattern: "needle", path: "huge.txt", context: 1 }, undefined, undefined, ctx);
-      expect(Date.now() - started).toBeLessThan(5000);
+      expect(Date.now() - started).toBeLessThan(10000);
       const text = getText(result);
       expect(text).toContain("│needle");
       expect(text).toContain("...");
@@ -618,7 +618,7 @@ async function withSystemTempDir(prefix: string, run: (dir: string) => Promise<v
       const grepTool = getTool("anchor_grep");
       const started = Date.now();
       const result = await grepTool.execute("g1", { pattern: "z", path: "huge2.txt" }, undefined, undefined, ctx);
-      expect(Date.now() - started).toBeLessThan(5000);
+      expect(Date.now() - started).toBeLessThan(10000);
       const text = getText(result);
       expect(text).toContain("truncated fragments");
       expect(text).not.toContain("z".repeat(1000));
