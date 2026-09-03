@@ -9,7 +9,7 @@ import {
 } from "./replace-diff";
 import { readNormFile, type NormFile } from "./file-reader";
 import { editToolSchema, type ReqParams, assertReq, normReq } from "./payload-contract";
-import { isRec } from "./utils";
+import { decodeStringArray, isRec } from "./utils";
 import { loadP, loadGuide } from "./prompts";
 import { type FileIdentity } from "./fs-write";
 import { applyEdit,
@@ -160,11 +160,17 @@ export async function execPipeline(
   const path = params.path;
 
   const editWarnings: string[] = [];
+  let replacementLines = params.replacement_lines;
+  const expandedReplacement = decodeStringArray(replacementLines);
+  if (expandedReplacement) {
+    editWarnings.push('[E_BAD_SHAPE] Unwrapped JSON array syntax from a replacement_lines element.');
+    replacementLines = expandedReplacement;
+  }
   const edit = resEdit(
     {
       remove_from: params.remove_from,
       remove_to: params.remove_to,
-      replacement_lines: params.replacement_lines,
+      replacement_lines: replacementLines,
     },
     editWarnings,
   );

@@ -9,6 +9,7 @@ import {
   firstNonEmpty,
   makePrepareArguments,
   truncateToBytes,
+  decodeStringArray,
 } from "../../src/utils";
 
 describe("isRec", () => {
@@ -320,5 +321,40 @@ describe("truncateToBytes", () => {
     expect(cut.isWellFormed()).toBe(true);
     expect(Buffer.byteLength(cut, "utf-8")).toBeLessThanOrEqual(7);
     expect(cut).toBe("😀");
+  });
+});
+
+describe("decodeStringArray", () => {
+  it("decodes a bare string holding a JSON array", () => {
+    expect(decodeStringArray('["alpha", "beta"]')).toEqual(["alpha", "beta"]);
+  });
+
+  it("decodes a single-element array holding a JSON array", () => {
+    expect(decodeStringArray(['["alpha", "beta"]'])).toEqual(["alpha", "beta"]);
+    expect(decodeStringArray(['["solo"]'])).toEqual(["solo"]);
+  });
+
+  it("decodes escapes and raw control characters", () => {
+    const tab = String.fromCharCode(9);
+    const newline = String.fromCharCode(10);
+    const backslash = String.fromCharCode(92);
+    expect(decodeStringArray('["tab' + tab + 'here", "plain"]')).toEqual(["tab" + tab + "here", "plain"]);
+    expect(decodeStringArray('["a' + backslash + 'nb", "caf' + backslash + 'u00e9"]')).toEqual(["a" + newline + "b", "café"]);
+    expect(decodeStringArray('["alpha",' + newline + '"beta"]')).toEqual(["alpha", "beta"]);
+  });
+
+  it("returns undefined for values that are not stringified string arrays", () => {
+    expect(decodeStringArray("hello")).toBeUndefined();
+    expect(decodeStringArray("[]")).toBeUndefined();
+    expect(decodeStringArray("[1, 2]")).toBeUndefined();
+    expect(decodeStringArray('["ok", 7]')).toBeUndefined();
+    expect(decodeStringArray("[bare]")).toBeUndefined();
+    expect(decodeStringArray('["trailing",]')).toBeUndefined();
+    expect(decodeStringArray('["open"')).toBeUndefined();
+    expect(decodeStringArray("   ")).toBeUndefined();
+    expect(decodeStringArray(42)).toBeUndefined();
+    expect(decodeStringArray(null)).toBeUndefined();
+    expect(decodeStringArray(["alpha", "beta"])).toBeUndefined();
+    expect(decodeStringArray([])).toBeUndefined();
   });
 });

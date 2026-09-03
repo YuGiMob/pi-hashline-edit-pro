@@ -168,3 +168,84 @@ function formatLineLimit(displayPath: string, limit: number, count: number | und
 	const detail = count === undefined ? `has more than ${limit}` : `has ${count}`;
 	return `[E_FILE_TOO_LARGE] ${displayPath} ${detail} lines, exceeding the ${limit}-line hashline limit. For very large files, use write.`;
 }
+
+function escapeRawControl(value: string): string {
+	if (value === "\b") return "\\b";
+	if (value === "\t") return "\\t";
+	if (value === "\n") return "\\n";
+	if (value === "\f") return "\\f";
+	if (value === "\r") return "\\r";
+	const hex = value.charCodeAt(0).toString(16).padStart(4, "0");
+	return `\\u${hex}`;
+}
+
+function escapeControls(value: string): string {
+	let out = "";
+	for (const char of value) {
+		out += char.charCodeAt(0) < 32 ? escapeRawControl(char) : char;
+	}
+	return out;
+}
+
+function decodeArraySegment(segment: string): string | undefined {
+	const trimmed = segment.trim();
+	if (trimmed.length < 2 || !trimmed.startsWith('"') || !trimmed.endsWith('"')) return undefined;
+	try {
+		const cleaned = escapeControls(trimmed);
+		const parsed: unknown = JSON.parse(cleaned);
+		return typeof parsed === "string" ? parsed : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function splitArraySegments(inner: string): string[] | undefined {
+	const segments: string[] = [];
+	let current = "";
+	let inQuotes = false;
+	let escaped = false;
+	for (const char of inner) {
+		if (inQuotes) {
+			current += char;
+			if (escaped) escaped = false;
+			else if (char === "\\") escaped = true;
+			else if (char === '"') inQuotes = false;
+			continue;
+		}
+		if (char === '"') {
+			inQuotes = true;
+			current += char;
+			continue;
+		}
+		if (char === ",") {
+			segments.push(current);
+			current = "";
+			continue;
+		}
+		current += char;
+	}
+	if (inQuotes || escaped) return undefined;
+	segments.push(current);
+	return segments;
+}
+
+function decodeArrayText(value: unknown): string[] | undefined {
+	if (typeof value !== "string") return undefined;
+	const trimmed = value.trim();
+	if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) return undefined;
+	const segments = splitArraySegments(trimmed.slice(1, -1));
+	if (!segments) return undefined;
+	const decoded: string[] = [];
+	for (const segment of segments) {
+		const part = decodeArraySegment(segment);
+		if (part === undefined) return undefined;
+		decoded.push(part);
+	}
+	return decoded.length > 0 ? decoded : undefined;
+}
+
+export function decodeStringArray(value: unknown): string[] | undefined {
+	if (typeof value === "string") return decodeArrayText(value);
+	if (Array.isArray(value) && value.length === 1) return decodeArrayText(value[0]);
+	return undefined;
+}

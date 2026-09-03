@@ -8,7 +8,7 @@ import { MAX_HASH_LINES, parseHashRef, resolveAnchorLine, type Anchor } from "./
 import { stripAnchorRow } from "./hashline/resolve";
 import { loadP, loadGuide } from "./prompts";
 import { normReq } from "./payload-contract";
-import { isRec, rejectUnknownFields, splitLines } from "./utils";
+import { decodeStringArray, isRec, rejectUnknownFields, splitLines } from "./utils";
 import { clearBoundaryBypass } from "./boundary-bypass";
 import type { RPreview, RRState } from "./replace-render";
 import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper } from "./edit-common";
@@ -104,6 +104,10 @@ function buildInsertEdit(
 export async function insertPreview(request: unknown, cwd: string, signal?: AbortSignal): Promise<RPreview> {
   try {
     const normalized = normReq(request);
+    if (isRec(normalized)) {
+      const expanded = decodeStringArray(normalized.lines);
+      if (expanded) normalized.lines = expanded;
+    }
     assertInsertReq(normalized);
     const { ref } = parseInsertAnchor(normalized.anchor);
     const preload = await readNormFile(normalized.path, cwd, {
@@ -166,6 +170,14 @@ export function buildInsertToolDef(): InsertToolDef {
     renderResult: editRenderResultWrapper,
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const canonical = normReq(params);
+      const insertWarnings: string[] = [];
+      if (isRec(canonical)) {
+        const expanded = decodeStringArray(canonical.lines);
+        if (expanded) {
+          insertWarnings.push('[E_BAD_SHAPE] Unwrapped JSON array syntax from a lines element.');
+          canonical.lines = expanded;
+        }
+      }
       assertInsertReq(canonical);
       const req = canonical;
       const path = req.path;
@@ -191,7 +203,7 @@ export function buildInsertToolDef(): InsertToolDef {
           verb: "inserted",
           noopNoun: "Insertion",
           foldedAnchorLines: anchorLine === undefined ? 0 : 1,
-          prefixWarnings: anchorWarnings,
+          prefixWarnings: [...anchorWarnings, ...insertWarnings],
           onApplied: () => clearBoundaryBypass(mutationTargetPath),
         });
       });
