@@ -49,23 +49,23 @@ const insertToolSchema = Type.Object(
     }),
     anchor: Type.String({
       description:
-        'Bare 4-char anchor only (e.g. "Hasu"): copy just the anchor from the leftmost column of a read row like `Hasu│content`; never the line content. A pasted diff row like `+Hasu│x` or an `anchor│` prefix is stripped automatically with a warning. The anchored line is preserved; the new lines go after or before it.',
+        'Bare 4-char anchor from a read row like `Hasu│content`, never the content. A pasted `+Hasu│x` diff row or `anchor│` prefix is stripped with a warning. The anchor line is preserved; lines go after or before it.',
     }),
     direction: Type.Union(
       [
-        Type.Literal("after", { description: "Insert the lines after the anchor line" }),
-        Type.Literal("before", { description: "Insert the lines before the anchor line" }),
+        Type.Literal("after"),
+        Type.Literal("before"),
       ],
       { description: '"after" or "before"' },
     ),
     lines: Type.Array(
       Type.String({
         description:
-          "One line to insert. Each element is exactly one line; do not embed \\n inside an element: use separate elements.",
+          "One line to insert; never embed \\n inside an element.",
       }),
       {
         description:
-          'Lines to insert as an array of strings, one element per line. Use [""] for a blank line. The anchor line is preserved; never include it in lines.',
+          'One string per line; [""] is a blank line; never include the anchor line.',
       }
     ),
   },

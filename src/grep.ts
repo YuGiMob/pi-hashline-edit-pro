@@ -412,29 +412,29 @@ const grepToolSchema = Type.Object(
     ),
     glob: Type.Optional(
       Type.String({
-        description: "Filter files by glob pattern; * matches across directories, e.g. '*.ts' or '**/*.spec.ts'. A leading / is ignored; the pattern may be relative to the search root or to the current directory.",
+        description: "Filter files by glob; `*` crosses directories, e.g. `*.ts`. A leading `/` is ignored; relative to the search root or cwd.",
       }),
     ),
     ignoreCase: Type.Optional(
       Type.Boolean({
-        description: "Case-insensitive search (default: false)",
+        description: "Case-insensitive search",
       }),
     ),
     literal: Type.Optional(
       Type.Boolean({
-        description: "Treat pattern as literal string instead of regex (default: false)",
+        description: "Treat pattern as literal text instead of regex",
       }),
     ),
     context: Type.Optional(
       Type.Integer({
         minimum: 0,
-        description: "Number of lines to show before and after each match (default: 0)",
+        description: "Lines of context before and after each match",
       }),
     ),
     limit: Type.Optional(
       Type.Integer({
         minimum: 1,
-        description: "Maximum number of matches to return (default: 100)",
+        description: "Maximum number of matched lines to return",
       }),
     ),
   },

@@ -1,3 +1,3 @@
-- `anchor_grep`: every hit and `context` line comes back as `lineNumber │ anchor│content` — the `anchor│content` part is usable directly for `replace`/`insert` without a new `read`, while `lineNumber` enables jump-to-line.
-- `anchor_grep`: uses ripgrep, respects `.gitignore`; use `path` for file or folder (default cwd), `glob` like `*.ts` to filter, `literal:true` for literal text, `context:N` for surrounding lines.
-- `anchor_grep`: `.git` is always skipped; `node_modules`/`.tmp`/`coverage` are skipped only when a `.gitignore` lists them; binary/image files are skipped.
+- `anchor_grep`: hits and `context` rows come back as `lineNumber │ anchor│content` — target them with `replace`/`insert` directly; `lineNumber` enables jump-to-line.
+- `anchor_grep`: `path` takes a file or folder (default cwd), `glob` like `*.ts` filters, `literal:true` for literal text, `context:N` for surrounding lines.
+- `anchor_grep`: binary/image files are skipped silently.

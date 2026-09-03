@@ -136,8 +136,8 @@ function makeCommandPi(initialTools: string[]) {
   return { pi, commands, handlers, getActive: () => [...active] };
 }
 
-describe("anchor_grep opt-out", () => {
-  it("session_start disables the built-in grep and keeps anchor_grep by default", async () => {
+describe("anchor_grep opt-in", () => {
+  it("session_start removes anchor_grep by default and keeps the built-in grep", async () => {
     await withTempDir("startup-grep-on-", async dir => {
       const home = join(dir, "home");
       await mkdir(join(home, ".config", "pi-hashline-edit-pro"), { recursive: true });
@@ -149,8 +149,8 @@ describe("anchor_grep opt-out", () => {
         register(pi);
         const sessionStart = handlers.get("session_start") as (a: unknown, b: unknown) => Promise<void>;
         await sessionStart({}, { cwd: dir, ui: { notify: vi.fn() } });
-        expect(getActive()).not.toContain("grep");
-        expect(getActive()).toContain("anchor_grep");
+        expect(getActive()).toContain("grep");
+        expect(getActive()).not.toContain("anchor_grep");
         expect(getActive()).not.toContain("edit");
         expect(getActive()).toContain("read");
       } finally {
@@ -161,7 +161,7 @@ describe("anchor_grep opt-out", () => {
     });
   });
 
-  it("session_start keeps the built-in grep and removes anchor_grep when anchorGrepEnabled is false", async () => {
+  it("session_start keeps anchor_grep and disables the built-in grep when anchorGrepEnabled is true", async () => {
     await withTempDir("startup-grep-off-", async dir => {
       const home = join(dir, "home");
       await mkdir(join(home, ".config", "pi-hashline-edit-pro"), { recursive: true });
@@ -171,15 +171,15 @@ describe("anchor_grep opt-out", () => {
         const { writeFile } = await import("fs/promises");
         await writeFile(
           join(home, ".config", "pi-hashline-edit-pro", "config.json"),
-          JSON.stringify({ autoRead: true, anchorGrepEnabled: false }),
+          JSON.stringify({ autoRead: true, anchorGrepEnabled: true }),
         );
         const { pi, handlers, getActive } = makeTrackingPi(["read", "replace", "insert", "grep", "anchor_grep", "undo_last_change", "edit"]);
         const { default: register } = await import("../../index");
         register(pi);
         const sessionStart = handlers.get("session_start") as (a: unknown, b: unknown) => Promise<void>;
         await sessionStart({}, { cwd: dir, ui: { notify: vi.fn() } });
-        expect(getActive()).toContain("grep");
-        expect(getActive()).not.toContain("anchor_grep");
+        expect(getActive()).not.toContain("grep");
+        expect(getActive()).toContain("anchor_grep");
         expect(getActive()).not.toContain("edit");
       } finally {
         vi.unstubAllEnvs();
@@ -201,19 +201,19 @@ describe("anchor_grep opt-out", () => {
         register(pi);
         const sessionStart = handlers.get("session_start") as (a: unknown, b: unknown) => Promise<void>;
         await sessionStart({}, { cwd: dir, ui: { notify: vi.fn() } });
-        expect(getActive()).not.toContain("grep");
-        expect(getActive()).toContain("anchor_grep");
+        expect(getActive()).toContain("grep");
+        expect(getActive()).not.toContain("anchor_grep");
         const toggle = commands.get("toggle-anchor-grep")!;
         const ctx = { ui: { notify: vi.fn() } };
         await toggle.handler({}, ctx);
-        expect(getActive()).not.toContain("anchor_grep");
-        expect(getActive()).toContain("grep");
-        const { readConfig } = await import("../../src/config");
-        expect((await readConfig()).anchorGrepEnabled).toBe(false);
-        await toggle.handler({}, ctx);
         expect(getActive()).toContain("anchor_grep");
         expect(getActive()).not.toContain("grep");
+        const { readConfig } = await import("../../src/config");
         expect((await readConfig()).anchorGrepEnabled).toBe(true);
+        await toggle.handler({}, ctx);
+        expect(getActive()).not.toContain("anchor_grep");
+        expect(getActive()).toContain("grep");
+        expect((await readConfig()).anchorGrepEnabled).toBe(false);
       } finally {
         vi.unstubAllEnvs();
         const { shutdownHashStore } = await import("../../src/hash-store");
@@ -235,12 +235,16 @@ describe("anchor_grep opt-out", () => {
         const sessionStart = handlers.get("session_start") as (a: unknown, b: unknown) => Promise<void>;
         await sessionStart({}, { cwd: dir, ui: { notify: vi.fn() } });
         expect(getActive()).not.toContain("grep");
+        expect(getActive()).not.toContain("anchor_grep");
         const toggle = commands.get("toggle-anchor-grep")!;
         const ctx = { ui: { notify: vi.fn() } };
         await toggle.handler({}, ctx);
+        expect(getActive()).toContain("anchor_grep");
+        const { readConfig } = await import("../../src/config");
+        expect((await readConfig()).anchorGrepEnabled).toBe(true);
+        await toggle.handler({}, ctx);
         expect(getActive()).not.toContain("anchor_grep");
         expect(getActive()).not.toContain("grep");
-        const { readConfig } = await import("../../src/config");
         expect((await readConfig()).anchorGrepEnabled).toBe(false);
       } finally {
         vi.unstubAllEnvs();

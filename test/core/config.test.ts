@@ -49,10 +49,10 @@ describe("config - toggleAutoRead", () => {
 });
 
 describe("config - toggleAnchorGrep", () => {
-  it("toggles from default true to false", async () => {
+  it("toggles from default false to true", async () => {
     await withTempHome(async () => {
-      expect(await toggleAnchorGrep()).toBe(false);
-      expect((await readConfig()).anchorGrepEnabled).toBe(false);
+      expect(await toggleAnchorGrep()).toBe(true);
+      expect((await readConfig()).anchorGrepEnabled).toBe(true);
     });
   });
 
@@ -66,10 +66,10 @@ describe("config - toggleAnchorGrep", () => {
 
   it("round-trips correctly through multiple toggles", async () => {
     await withTempHome(async () => {
-      expect(await toggleAnchorGrep()).toBe(false);
       expect(await toggleAnchorGrep()).toBe(true);
       expect(await toggleAnchorGrep()).toBe(false);
-      expect((await readConfig()).anchorGrepEnabled).toBe(false);
+      expect(await toggleAnchorGrep()).toBe(true);
+      expect((await readConfig()).anchorGrepEnabled).toBe(true);
     });
   });
 
@@ -134,13 +134,13 @@ describe("config - readConfig defaults", () => {
     });
   });
 
-  it("defaults anchorGrepEnabled to true when no config file exists", async () => {
+  it("defaults anchorGrepEnabled to false when no config file exists", async () => {
     await withTempHome(async () => {
-      expect((await readConfig()).anchorGrepEnabled).toBe(true);
+      expect((await readConfig()).anchorGrepEnabled).toBe(false);
     });
   });
 
-  it("defaults anchorGrepEnabled to true when absent from an existing config file", async () => {
+  it("defaults anchorGrepEnabled to false when absent from an existing config file", async () => {
     await withTempHome(async () => {
       const { writeFile, mkdir } = await import("fs/promises");
       const { join: pathJoin } = await import("path");
@@ -149,7 +149,7 @@ describe("config - readConfig defaults", () => {
       await writeFile(pathJoin(configDir, "config.json"), JSON.stringify({ autoRead: false }));
       const config = await readConfig();
       expect(config.autoRead).toBe(false);
-      expect(config.anchorGrepEnabled).toBe(true);
+      expect(config.anchorGrepEnabled).toBe(false);
     });
   });
 

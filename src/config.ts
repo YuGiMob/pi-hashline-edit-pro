@@ -10,7 +10,7 @@ export interface Config {
 
 const DEFAULT_CONFIG: Config = {
   autoRead: true,
-  anchorGrepEnabled: true
+  anchorGrepEnabled: false
 };
 
 function parseConfig(content: string): Config {

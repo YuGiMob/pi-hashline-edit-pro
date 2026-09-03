@@ -153,7 +153,7 @@ Notes:
 - `file_path` works as an alias for `path`.
 - Line endings and BOMs survive every edit. The file's line ending is detected from its first newline and restored on write; a file that mixes LF and CRLF (for example a WSL-edited file) is normalized to the first-seen ending.
 - Files with multiple hard links (`nlink > 1`) are rewritten in place rather than via a temp-file rename, so every link keeps seeing the same content; that write is direct rather than atomic.
-- The anchor_grep tool is enabled by default. Disable it with `/toggle-anchor-grep` (or set `anchorGrepEnabled` to `false` in the config file); the setting persists across sessions. When disabled, anchor_grep is removed from the model's toolset and the built-in grep is restored only if it was active before the extension loaded — a grep tool that was never enabled stays off.
+- The anchor_grep tool is disabled by default. Enable it with `/toggle-anchor-grep` (or set `anchorGrepEnabled` to `true` in the config file); the setting persists across sessions. While enabled, the built-in grep is disabled; disabling anchor_grep removes it from the model's toolset and restores the built-in grep only if it was active before the extension loaded — a grep tool that was never enabled stays off.
 
 ## Undo
 
@@ -196,7 +196,7 @@ Settings live in `~/.config/pi-hashline-edit-pro/config.json`, created automatic
 ```json
 {
   "autoRead": true,
-  "anchorGrepEnabled": true
+  "anchorGrepEnabled": false
 }
 ```
 
