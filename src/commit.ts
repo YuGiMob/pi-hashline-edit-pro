@@ -54,6 +54,11 @@ export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promis
       "Non-UTF-8 bytes were shown as U+FFFD; this edit rewrote the file as UTF-8.",
     );
   }
+  if (pipe.hadBoundaryDedup) {
+    warnings.push(
+      `Boundary dedup removed ${pipe.boundaryRemovedLines} re-included adjacent line(s) from the replacement; the current content is the intended result. Do not re-insert them; use insert to keep the duplicates.`,
+    );
+  }
 
   abortIf(signal);
   const undo = await saveUndo(mutationTargetPath, {

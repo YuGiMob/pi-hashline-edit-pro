@@ -617,7 +617,9 @@ describe("undo_last_change", () => {
       const undoResult = await undo.execute("u1", { path: "sample.ts" }, undefined, undefined, ctx);
       expect(undoResult.isError).toBe(true);
       expect(getText(undoResult)).toMatch(/E_UNDO_STALE/);
-      expect(getText(undoResult)).toMatch(/changed after the edit/i);
+      expect(getText(undoResult)).toMatch(/modified after the edit/i);
+      expect(getText(undoResult)).toMatch(/do not modify the file/i);
+      expect(getText(undoResult)).toMatch(/do not revert your own edit/i);
 
       const content = await readFile(join(cwd, "sample.ts"), "utf-8");
       expect(content).toBe("aaa\nEXTERNAL\nccc\n");

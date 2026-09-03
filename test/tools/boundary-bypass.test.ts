@@ -226,4 +226,29 @@ describe("boundary dedup noop bypass", () => {
       expect(await readFile(path, "utf-8")).toBe("aaa\nbbb\nccc\n");
     });
   });
+
+  it("an applied edit with boundary dedup reports the stripped lines and does not re-insert them", async () => {
+    await withTempFile("sample.ts", "aaa\nbbb\nccc\n", async ({ cwd, path }) => {
+      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const hashes = await readSample(ctx, readTool);
+
+      const result = await editTool.execute(
+        "e1",
+        {
+          path: "sample.ts",
+          remove_from: hashes[1]!,
+          remove_to: hashes[1]!,
+          replacement_lines: ["aaa", "BBB"],
+        },
+        undefined,
+        undefined,
+        ctx,
+      );
+      expect(getText(result)).toContain("Successfully replaced");
+      expect(getText(result)).toContain("Boundary dedup removed 1 re-included adjacent line(s)");
+      expect(getText(result)).toContain("Do not re-insert them");
+      expect(getText(result)).toContain("use insert to keep the duplicates");
+      expect(await readFile(path, "utf-8")).toBe("aaa\nBBB\nccc\n");
+    });
+  });
 });
