@@ -1,5 +1,4 @@
-- `replace`: `remove_from`/`remove_to` are bare anchors like `Hasu` (the 4 chars before `│` in `Hasu│content`), never the row or file content; same anchor for both edits one line.
-- `replace`: `replacement_lines` is bare content without `│`, one element per line: `[]` deletes, `[""]` is one blank line, never embed `\n`, never include the `anchor│` prefix.
-- `replace`: the `remove_from`..`remove_to` range is exactly deleted and replaced in order — keep it tight (only lines that change) and copy leading spaces exactly.
-- `replace`: pasted diff markers (`+Hasu│`, `-Hasu│`) are stripped automatically, but send bare content.
+- `replace`: use the same anchor for `remove_from` and `remove_to` to change one line.
+- `replace`: `replacement_lines` takes bare lines without `│`; `[""]` is one blank line; pasted `anchor│` prefixes are stripped automatically.
+- `replace`: keep the range tight — only lines that actually change — and copy leading spaces exactly.
 - `replace`: post-edit diff `+anchor│`/` anchor│` rows are fresh anchors for the next edit — no new `read` needed. One edit per turn; check the diff before the next edit on that file.

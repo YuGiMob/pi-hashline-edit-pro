@@ -1,3 +1,1 @@
-- `insert`: `anchor` is bare `Hasu` from `Hasu│content`, never the content; `after` adds below, `before` above. The anchor line never goes in `lines`; `[""]` is a blank line.
-- `insert`: `lines` is bare content, one element per line, applied literally even when duplicating neighbors — nothing is removed.
-- `insert`: the anchor must have been shown by `read`, a post-edit diff (`+anchor│`/` anchor│`), or `anchor_grep`. Empty file: `read` shows one `anchor│` row — insert `after` it.
+- `insert`: the anchor must have been shown by `read`, a post-edit diff (`+anchor│`/` anchor│`), or any served `anchor│content` row. Empty file: `read` shows one `anchor│` row — insert `after` it.
