@@ -149,4 +149,17 @@ describe("parseText json-envelope autocorrect", () => {
 		expect(parseText(['["a", "b"].'], warnings)).toEqual(['["a", "b"].']);
 		expect(warnings).toHaveLength(0);
 	});
+
+	it("unwraps a single-string wrapper with a trailing dot and decodes escapes", () => {
+		const warnings: string[] = [];
+		expect(parseText(['["tab\\tend"].'], warnings)).toEqual(["tab\tend"]);
+		expect(warnings).toHaveLength(1);
+		expect(warnings[0]).toMatch(/JSON array syntax/);
+	});
+
+	it("unwraps a single-string wrapper without escapes", () => {
+		const warnings: string[] = [];
+		expect(parseText(['["hello"].'], warnings)).toEqual(["hello"]);
+		expect(warnings).toHaveLength(1);
+	});
 });

@@ -60,7 +60,13 @@ function unwrapJsonEnvelope(line: string, warnings?: string[]): string {
   if (!match) return line;
   const withoutDot = line.trim().slice(0, -1);
   try {
-    JSON.parse(withoutDot);
+    const parsed: unknown = JSON.parse(withoutDot);
+    if (Array.isArray(parsed) && parsed.length === 1 && typeof parsed[0] === "string") {
+      warnings?.push(
+        '[E_BAD_SHAPE] Unwrapped JSON array syntax from a replacement_lines element.',
+      );
+      return parsed[0];
+    }
     return line;
   } catch {
     warnings?.push(
