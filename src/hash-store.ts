@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { existsSync } from "fs";
 import { chmod, readFile, rename, mkdir, stat } from "fs/promises";
 import { hashStorePath, hashStoreDir, legacyHashStorePath } from "./paths";
@@ -226,7 +227,7 @@ function isHealthy(db: RawDb): boolean {
 }
 
 async function quarantineStore(storePath: string): Promise<void> {
-  const suffix = `.corrupt-${Date.now()}`;
+  const suffix = `.corrupt-${Date.now()}-${process.pid}-${randomUUID()}`;
   for (const candidate of [storePath, `${storePath}-wal`, `${storePath}-shm`]) {
     try {
       await rename(candidate, `${candidate}${suffix}`);

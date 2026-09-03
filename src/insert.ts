@@ -101,7 +101,7 @@ function buildInsertEdit(
   return { editParams, anchorLine };
 }
 
-export async function insertPreview(request: unknown, cwd: string): Promise<RPreview> {
+export async function insertPreview(request: unknown, cwd: string, signal?: AbortSignal): Promise<RPreview> {
   try {
     const normalized = normReq(request);
     assertInsertReq(normalized);
@@ -110,6 +110,7 @@ export async function insertPreview(request: unknown, cwd: string): Promise<RPre
       accessMode: constants.R_OK,
       maxLines: MAX_HASH_LINES,
       noPersist: true,
+      signal,
     });
     const { editParams } = buildInsertEdit(normalized, preload, ref);
     const pipe = await execPipeline(editParams, cwd, {
@@ -117,9 +118,11 @@ export async function insertPreview(request: unknown, cwd: string): Promise<RPre
       noPersist: true,
       preloadedNorm: preload,
       skipBoundaryDedup: true,
+      signal,
     });
     return previewFromPipe(pipe);
   } catch (error: unknown) {
+    if (signal?.aborted) throw error;
     return previewError(error);
   }
 }

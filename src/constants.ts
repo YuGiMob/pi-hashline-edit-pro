@@ -6,6 +6,8 @@ export const MAX_OVERSIZED_WARNING_LINES = 100;
 export const MAX_HASH_SOURCE_BYTES = 500;
 export const MAX_GREP_LINE_BYTES = 500;
 
+export const MAX_DIFF_INPUT_BYTES = 1024 * 1024;
+
 export const HASH_STORE_BUSY_TIMEOUT = 1000;
 export const HASH_STORE_VERSION = 7;
 export const NEW_CONTENT_NOT_ARRAY_MSG =

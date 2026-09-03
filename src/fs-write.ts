@@ -100,20 +100,21 @@ export async function resolveTarget(path: string): Promise<string> {
 const TEMP_PREFIX = ".tmp-";
 const TEMP_UUID_RE = /^\.tmp-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const STALE_TEMP_MS = 60 * 60 * 1000;
-const sweptDirs = new Set<string>();
+const sweptDirs = new Map<string, number>();
 
 async function sweepStaleTemps(dir: string): Promise<void> {
-  if (sweptDirs.has(dir)) return;
-  sweptDirs.add(dir);
+  const sweepNow = Date.now();
+  const lastSweep = sweptDirs.get(dir);
+  if (lastSweep !== undefined && sweepNow - lastSweep < STALE_TEMP_MS) return;
+  sweptDirs.set(dir, sweepNow);
   try {
     const entries = await readdir(dir, { withFileTypes: true });
-    const now = Date.now();
     for (const entry of entries) {
       if (!entry.isFile() || !TEMP_UUID_RE.test(entry.name)) continue;
       const tempPath = join(dir, entry.name);
       try {
         const stats = await stat(tempPath);
-        if (now - stats.mtimeMs > STALE_TEMP_MS) {
+        if (sweepNow - stats.mtimeMs > STALE_TEMP_MS) {
           await rm(tempPath, { force: true });
         }
       } catch {

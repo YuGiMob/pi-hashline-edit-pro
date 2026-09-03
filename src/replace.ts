@@ -246,6 +246,7 @@ export function previewError(error: unknown): RPreview {
 export async function compPreview(
   request: unknown,
   cwd: string,
+  signal?: AbortSignal,
 ): Promise<RPreview> {
   try {
     const normalized = normReq(request);
@@ -253,10 +254,11 @@ export async function compPreview(
     const pipe = await execPipeline(
       normalized,
       cwd,
-      { accessMode: constants.R_OK, noPersist: true },
+      { accessMode: constants.R_OK, noPersist: true, signal },
     );
     return previewFromPipe(pipe);
   } catch (error: unknown) {
+    if (signal?.aborted) throw error;
     return previewError(error);
   }
 }

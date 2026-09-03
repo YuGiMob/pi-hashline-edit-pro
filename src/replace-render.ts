@@ -19,6 +19,7 @@ export type RRState = {
 	preview?: RPreview;
 	previewGeneration?: number;
 	previewTimer?: ReturnType<typeof setTimeout>;
+	previewAbort?: AbortController;
 };
 
 type DiffRowKind = "added" | "removed" | "context";
@@ -232,7 +233,7 @@ export function reuseMarkdown(context: any, content: string, theme: any): Markdo
 }
 
 export function makeRenderCall(
-	preview: (args: unknown, cwd: string) => Promise<RPreview>,
+	preview: (args: unknown, cwd: string, signal?: AbortSignal) => Promise<RPreview>,
 	options: { getInput?: (args: unknown) => { path?: string } | null; toolName?: string } = {},
 ) {
 	const getInput = options.getInput ?? getPreviewInput;
@@ -243,6 +244,10 @@ export function makeRenderCall(
 			if (context.state.previewTimer) {
 				clearTimeout(context.state.previewTimer);
 				context.state.previewTimer = undefined;
+			}
+			if (context.state.previewAbort) {
+				context.state.previewAbort.abort();
+				context.state.previewAbort = undefined;
 			}
 		};
 		if (context.executionStarted) {
@@ -265,8 +270,12 @@ export function makeRenderCall(
 				context.state.previewGeneration = previewGeneration;
 				context.state.previewTimer = setTimeout(() => {
 					context.state.previewTimer = undefined;
-					preview(args, context.cwd)
+					const controller = new AbortController();
+					context.state.previewAbort = controller;
+					preview(args, context.cwd, controller.signal)
 						.then((result) => {
+							if (controller.signal.aborted) return;
+							if (context.state.previewAbort === controller) context.state.previewAbort = undefined;
 							if (
 								context.state.argsKey === argsKey &&
 								context.state.previewGeneration === previewGeneration
@@ -276,6 +285,8 @@ export function makeRenderCall(
 							}
 						})
 						.catch((err: unknown) => {
+							if (controller.signal.aborted) return;
+							if (context.state.previewAbort === controller) context.state.previewAbort = undefined;
 							if (
 								context.state.argsKey === argsKey &&
 								context.state.previewGeneration === previewGeneration
@@ -310,6 +321,10 @@ export function renderEditResult(
 		if (renderState.previewTimer) {
 			clearTimeout(renderState.previewTimer);
 			renderState.previewTimer = undefined;
+		}
+		if (renderState.previewAbort) {
+			renderState.previewAbort.abort();
+			renderState.previewAbort = undefined;
 		}
 		renderState.preview = undefined;
 		renderState.previewGeneration = (renderState.previewGeneration ?? 0) + 1;

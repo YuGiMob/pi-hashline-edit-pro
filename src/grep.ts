@@ -274,10 +274,16 @@ function makeHitFromIndices(
   };
 }
 
+let cachedRgPath: string | undefined;
+export function clearRgPathCache(): void {
+  cachedRgPath = undefined;
+}
+
 async function resolveRgPath(): Promise<string> {
+  if (cachedRgPath !== undefined) return cachedRgPath;
   try {
     const r = spawnSync("rg", ["--version"], { stdio: "pipe" });
-    if (!r.error && r.status === 0) return "rg";
+    if (!r.error && r.status === 0) { cachedRgPath = "rg"; return "rg"; }
   } catch {}
   try {
     const { homedir } = await import("os");
@@ -287,7 +293,7 @@ async function resolveRgPath(): Promise<string> {
     const bin = join(base, "bin", process.platform === "win32" ? "rg.exe" : "rg");
     if (existsSync(bin)) {
       const r = spawnSync(bin, ["--version"], { stdio: "pipe" });
-      if (!r.error && r.status === 0) return bin;
+      if (!r.error && r.status === 0) { cachedRgPath = bin; return bin; }
     }
   } catch {}
   try {
@@ -300,7 +306,7 @@ async function resolveRgPath(): Promise<string> {
     const mod = await import("file://" + toolsManagerPath);
     if (mod.ensureTool) {
       const p = await mod.ensureTool("rg", true);
-      if (p) return p;
+      if (p) { cachedRgPath = p; return p; }
     }
   } catch {}
   throw new Error("[E_ACCESS] ripgrep (rg) is required for grep but was not found. Install ripgrep or ensure pi can download it to ~/.pi/agent/bin.");
@@ -366,6 +372,7 @@ async function collectRgMatches(
     });
     child.on("error", (error) => {
       cleanup();
+      if (rgPath === cachedRgPath) cachedRgPath = undefined;
       reject(error);
     });
     child.on("close", (code) => {
@@ -505,11 +512,11 @@ export function regGrep(pi: ExtensionAPI): void {
           const display = displayRowsForHit(hit);
           totalRows += display.length;
           for (const r of display) totalBytes += Buffer.byteLength(r, "utf-8") + 1;
-          const remaining = limit - matches;
-          if (remaining > 0) {
-            const add = Math.min(hit.matchCount, remaining);
+          const remainingCountOnly = limit - matches;
+          if (remainingCountOnly > 0) {
+            const add = Math.min(hit.matchCount, remainingCountOnly);
             matches += add;
-            if (hit.matchCount > remaining) limitTruncated = true;
+            if (hit.matchCount > remainingCountOnly) limitTruncated = true;
           } else {
             limitTruncated = true;
           }

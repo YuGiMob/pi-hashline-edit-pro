@@ -16,7 +16,7 @@ export function editRenderResultWrapper(
 }
 
 export function editRenderCallWrapper(
-  preview: (args: unknown, cwd: string) => Promise<RPreview>,
+  preview: (args: unknown, cwd: string, signal?: AbortSignal) => Promise<RPreview>,
   getInput?: (args: unknown) => { path?: string } | null,
   toolName?: string,
 ) {

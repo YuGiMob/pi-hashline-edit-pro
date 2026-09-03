@@ -4,7 +4,10 @@ import {
   _lineHashesPure,
   ANCHOR_LEN,
   HASH_SEP,
+  changedRange,
 } from "./hashline";
+import { MAX_DIFF_INPUT_BYTES } from "./constants";
+import { splitLines } from "./utils";
 import {
   detectEnding,
   toLF,
@@ -48,9 +51,63 @@ export function genDiff(
   oldContentHashes?: string[],
   limits?: DiffLimits,
 ): { diff: string; firstChangedLine: number | undefined; lineNumbers: (number|undefined)[] } {
-  const effectiveNewHashes = newContentHashes ?? _lineHashesPure(newContent);
   const maxLineBytes = limits?.unlimited ? Number.POSITIVE_INFINITY : (limits?.maxLineBytes ?? DEFAULT_MAX_BYTES);
   const maxBytes = limits?.unlimited ? Number.POSITIVE_INFINITY : (limits?.maxBytes ?? DEFAULT_MAX_BYTES);
+  if (!limits?.unlimited && Buffer.byteLength(oldContent, "utf-8") + Buffer.byteLength(newContent, "utf-8") > MAX_DIFF_INPUT_BYTES) {
+    const guardedRange = changedRange(oldContent, newContent);
+    const guardNote = `[diff truncated at ${formatSize(maxBytes)}; use read to see the rest.]`;
+    if (!guardedRange || !newContentHashes) {
+      return { diff: ` ...\n${guardNote}`, firstChangedLine: guardedRange?.firstChangedLine, lineNumbers: [undefined, undefined] };
+    }
+    const newLines = splitLines(newContent);
+    const oldLines = splitLines(oldContent);
+    const first = guardedRange.firstChangedLine;
+    const last = guardedRange.lastChangedLine;
+    const suffixLen = newLines.length - last;
+    const oldLast = oldLines.length - suffixLen;
+    const beforeStart = Math.max(1, first - contextLines);
+    const afterEnd = Math.min(newLines.length, last + contextLines);
+    const guarded: string[] = [];
+    const guardedNumbers: (number|undefined)[] = [];
+    let guardedBytes = 0;
+    const pushGuarded = (text: string, num?: number): boolean => {
+      const size = Buffer.byteLength(text, "utf-8") + 1;
+      if (guardedBytes + size > maxBytes) return false;
+      guardedBytes += size;
+      guarded.push(text);
+      guardedNumbers.push(num);
+      return true;
+    };
+    const pushGuardedRow = (prefix: " " | "+" | "-", line: string, hash: string | undefined, num?: number): boolean => {
+      const full = fmtDiffLine(prefix, line, hash);
+      if (Buffer.byteLength(full, "utf-8") > maxLineBytes) {
+        const marker = `[Row is ${formatSize(Buffer.byteLength(full, "utf-8"))}, exceeds ${formatSize(maxLineBytes)}; content not shown. Use read to see the full line.]`;
+        return pushGuarded(fmtDiffLine(prefix, marker, hash), num);
+      }
+      return pushGuarded(full, num);
+    };
+    if (beforeStart > 1) pushGuarded(" ...", undefined);
+    for (let n = beforeStart; n < first; n++) {
+      if (!pushGuardedRow(" ", newLines[n - 1]!, newContentHashes[n - 1], n)) break;
+    }
+    if (oldContent.length > 0) {
+      for (let n = first; n <= Math.min(oldLast, oldLines.length); n++) {
+        if (!pushGuardedRow("-", oldLines[n - 1]!, oldContentHashes?.[n - 1], n)) break;
+      }
+    }
+    for (let n = first; n <= last; n++) {
+      if (!pushGuardedRow("+", newLines[n - 1]!, newContentHashes[n - 1], n)) break;
+    }
+    for (let n = last + 1; n <= afterEnd; n++) {
+      if (!pushGuardedRow(" ", newLines[n - 1]!, newContentHashes[n - 1], n)) break;
+    }
+    guarded.push(" ...");
+    guardedNumbers.push(undefined);
+    guarded.push(guardNote);
+    guardedNumbers.push(undefined);
+    return { diff: guarded.join("\n"), firstChangedLine: first, lineNumbers: guardedNumbers };
+  }
+  const effectiveNewHashes = newContentHashes ?? _lineHashesPure(newContent);
 
   const parts = Diff.diffLines(oldContent, newContent);
   const output: string[] = [];
