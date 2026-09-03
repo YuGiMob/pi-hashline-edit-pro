@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFile } from "fs/promises";
 import { lineHashes } from "../../src/hashline";
-import { editToolSchema, regReplace } from "../../src/replace";
+import { compPreview, editToolSchema, regReplace } from "../../src/replace";
 import { makeFakePiRegistry, withTempFile, useTestHome } from "../support/fixtures";
 const home = useTestHome();
 
@@ -280,5 +280,22 @@ describe("regReplace", () => {
       expect(result.content[0].text).toContain("Unwrapped JSON array syntax");
       expect(await readFile(path, "utf-8")).toBe("aaa\nB1\nB2\nccc\n");
     });
+  });
+
+  it("rejects a missing path with unresolvable anchors", async () => {
+    const { pi, getTool } = makeFakePiRegistry();
+    regReplace(pi);
+    const tool = getTool("replace");
+    await expect(tool.execute(
+      "e1",
+      { remove_from: "!!!!", remove_to: "!!!!", replacement_lines: ["x"] },
+      undefined, undefined, { cwd: "/tmp" } as any,
+    )).rejects.toThrow(/requires a non-empty "path"/);
+  });
+
+  it("rethrows aborts from preview computation", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(compPreview({ path: "x", remove_from: "!!!!", remove_to: "!!!!", replacement_lines: ["x"] }, "/tmp", controller.signal)).rejects.toThrow();
   });
 });

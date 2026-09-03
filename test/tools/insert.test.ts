@@ -337,6 +337,24 @@ describe("insert tool", () => {
       expect(await readFile(path, "utf-8")).toBe("alpha\nbeta\nbeta1\nbeta2\ngamma\n");
     });
   });
+
+  it("previews expanded lines for a stringified array", async () => {
+    await withTempFile("sample.ts", "alpha\nbeta\ngamma\n", async ({ cwd }) => {
+      const { ctx, readTool } = setupIntegrationTest(cwd);
+      const readResult = await readTool.execute("r1", { path: "sample.ts" }, undefined, undefined, ctx);
+      const betaHash = extractHash(getText(readResult).split("\n").find((l) => l.includes("beta"))!);
+      const preview = await insertPreview({ path: "sample.ts", anchor: betaHash, direction: "after", lines: ['["beta1", "beta2"]'] }, cwd);
+      expect(preview).toHaveProperty("diff");
+      expect((preview as { diff: string }).diff).toContain("beta1");
+    });
+  });
+
+  it("returns an error preview for an unknown anchor", async () => {
+    await withTempFile("sample.ts", "alpha\nbeta\ngamma\n", async ({ cwd }) => {
+      const preview = await insertPreview({ path: "sample.ts", anchor: "!!!!", direction: "after", lines: ["x"] }, cwd);
+      expect(preview).toHaveProperty("error");
+    });
+  });
 });
 
 describe("insert tool rendering", () => {

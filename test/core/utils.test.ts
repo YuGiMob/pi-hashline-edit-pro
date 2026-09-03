@@ -358,3 +358,20 @@ describe("decodeStringArray", () => {
     expect(decodeStringArray([])).toBeUndefined();
   });
 });
+
+describe("decodeStringArray control bytes", () => {
+  it("decodes raw control bytes inside segments", () => {
+    const bs = String.fromCharCode(8);
+    const lf = String.fromCharCode(10);
+    const ff = String.fromCharCode(12);
+    const cr = String.fromCharCode(13);
+    const nul = String.fromCharCode(0);
+    const backslash = String.fromCharCode(92);
+    expect(decodeStringArray('["a' + bs + 'b"]')).toEqual(["a" + bs + "b"]);
+    expect(decodeStringArray('["a' + lf + 'b"]')).toEqual(["a" + lf + "b"]);
+    expect(decodeStringArray('["a' + ff + 'b"]')).toEqual(["a" + ff + "b"]);
+    expect(decodeStringArray('["a' + cr + 'b"]')).toEqual(["a" + cr + "b"]);
+    expect(decodeStringArray('["a' + nul + 'b"]')).toEqual(["a" + nul + "b"]);
+    expect(decodeStringArray('["a' + backslash + 'qb"]')).toBeUndefined();
+  });
+});

@@ -190,3 +190,18 @@ describe("fmtReadPreview - maxTruncLines budget", () => {
     expect(result.nextOffset).toBe(3);
   });
 });
+
+describe("fmtReadPreview - empty offsets and byte budget", () => {
+  it("reports beyond-end offsets for empty files", async () => {
+    const result = await fmtReadPreview("", { offset: 5 }, undefined, home.testPath);
+    expect(result.text).toContain("beyond end of file");
+    expect(result.servedHashes).toEqual([]);
+  });
+
+  it("caps total bytes with a byte-limited hint", async () => {
+    const lines = Array.from({ length: 2000 }, (_, i) => "l" + i + " " + "y".repeat(24));
+    const result = await fmtReadPreview(lines.join("\n") + "\n", {}, undefined, home.testPath);
+    expect(result.text).toContain("50.0KB limit");
+    expect(result.nextOffset).toBeDefined();
+  });
+});

@@ -250,3 +250,22 @@ describe("genPatch - output limits", () => {
     expect(Buffer.byteLength(result.patch, "utf-8")).toBeLessThan(60 * 1024);
   });
 });
+
+describe("genDiff - oversized input guard", () => {
+  it("returns a truncation note without hashes for huge inputs", () => {
+    const oldContent = "a".repeat(600 * 1024);
+    const newContent = "b".repeat(600 * 1024);
+    const result = genDiff(oldContent, newContent, 2);
+    expect(result.diff).toContain("diff truncated at");
+    expect(result.firstChangedLine).toBe(1);
+  });
+
+  it("renders a bounded guarded diff with hashes for huge inputs", () => {
+    const oldContent = "a".repeat(600 * 1024);
+    const newContent = "b".repeat(600 * 1024);
+    const result = genDiff(oldContent, newContent, 2, ["hhhh"], ["gggg"]);
+    expect(result.diff).toContain("diff truncated at");
+    expect(result.diff).toContain("hhhh");
+    expect(result.firstChangedLine).toBe(1);
+  });
+});
