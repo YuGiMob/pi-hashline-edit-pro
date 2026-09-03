@@ -133,7 +133,7 @@ Notes:
 
 ## The anchor_grep tool
 
-`anchor_grep` replaces the built-in grep with an anchored search backed by ripgrep. While `anchor_grep` is enabled, the built-in grep is disabled; disabling `anchor_grep` restores it if it was active before the extension loaded. Every matching line (and each requested context line) is returned as `lineNumber │ anchor│content` — the `anchor│content` part is served exactly like `read` output, so you can target it with `replace`/`insert` without a separate `read`, while the line-number gutter and `=== path ===` header give filename and line for navigation (press Return to jump).
+When enabled, `anchor_grep` replaces the built-in grep with an anchored search backed by ripgrep; it is disabled by default (see below). While `anchor_grep` is enabled, the built-in grep is disabled; disabling `anchor_grep` restores it if it was active before the extension loaded. Every matching line (and each requested context line) is returned as `lineNumber │ anchor│content` — the `anchor│content` part is served exactly like `read` output, so you can target it with `replace`/`insert` without a separate `read`, while the line-number gutter and `=== path ===` header give filename and line for navigation (press Return to jump).
 
 | Field | Description |
 | --- | --- |
