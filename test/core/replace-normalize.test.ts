@@ -12,7 +12,7 @@ describe("normReq", () => {
 	it("returns object input unchanged when no normalization needed", () => {
 		const input = {
 			path: "src/main.ts",
-			remove_from: "aB3", remove_to: "aB3",
+			remove_from: "ATIm", remove_to: "ATIm",
 			replacement_lines: ["new"],
 		};
 		const result = normReq(input);
@@ -20,14 +20,14 @@ describe("normReq", () => {
 	});
 
 	it("normalizes file_path to path", () => {
-		const input = { file_path: "test.txt", remove_from: "AAA", remove_to: "BBB", replacement_lines: ["new"] };
+		const input = { file_path: "test.txt", remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"] };
 		const result = normReq(input) as Record<string, unknown>;
 		expect(result.path).toBe("test.txt");
 		expect(result.file_path).toBeUndefined();
 	});
 
 	it("does not overwrite existing path with file_path", () => {
-		const input = { path: "original.txt", file_path: "alias.txt", remove_from: "AAA", remove_to: "BBB", replacement_lines: ["new"] };
+		const input = { path: "original.txt", file_path: "alias.txt", remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"] };
 		const result = normReq(input) as Record<string, unknown>;
 		expect(result.path).toBe("original.txt");
 	});
@@ -43,7 +43,7 @@ describe("normReq", () => {
 	});
 
 	it("preserves other fields", () => {
-		const input = { path: "test.txt", remove_from: "AAA", remove_to: "BBB", replacement_lines: ["new"], custom: "value" };
+		const input = { path: "test.txt", remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"], custom: "value" };
 		const result = normReq(input) as Record<string, unknown>;
 		expect(result.custom).toBe("value");
 	});
@@ -51,7 +51,7 @@ describe("normReq", () => {
 	it("does not mutate the original input", () => {
 		const input = {
 			file_path: "src/main.ts",
-			remove_from: "AAA", remove_to: "BBB",
+			remove_from: "ATIm", remove_to: "BeSR",
 			replacement_lines: ["x"],
 		};
 		const originalFilePath = input.file_path;
@@ -66,31 +66,31 @@ describe("normReq - top-level shape", () => {
 	it("keeps remove_from/remove_to and replacement_lines at top level", () => {
 		const input = {
 			path: "test.txt",
-			remove_from: "AAA", remove_to: "BBB",
+			remove_from: "ATIm", remove_to: "BeSR",
 			replacement_lines: ["new line"],
 		};
 		const result = normReq(input) as Record<string, unknown>;
-		expect(result.remove_from).toEqual("AAA");
-		expect(result.remove_to).toEqual("BBB");
+		expect(result.remove_from).toEqual("ATIm");
+		expect(result.remove_to).toEqual("BeSR");
 		expect(result.replacement_lines).toEqual(["new line"]);
 	});
 
 	it("handles flat format with file_path alias", () => {
 		const input = {
 			file_path: "src/main.ts",
-			remove_from: "AAA", remove_to: "BBB",
+			remove_from: "ATIm", remove_to: "BeSR",
 			replacement_lines: ["new"],
 		};
 		const result = normReq(input) as Record<string, unknown>;
 		expect(result.path).toBe("src/main.ts");
-		expect(result.remove_from).toEqual("AAA");
-		expect(result.remove_to).toEqual("BBB");
+		expect(result.remove_from).toEqual("ATIm");
+		expect(result.remove_to).toEqual("BeSR");
 	});
 
 	it("does not mutate the original flat-format input", () => {
 		const input = {
 			path: "test.txt",
-			remove_from: "AAA", remove_to: "BBB",
+			remove_from: "ATIm", remove_to: "BeSR",
 			replacement_lines: ["new"],
 		};
 		const origFrom = input.remove_from;

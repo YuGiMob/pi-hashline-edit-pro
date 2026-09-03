@@ -37,10 +37,10 @@ describe("served store", () => {
   it("round-trips served hashes and unions repeated records", async () => {
     await withTempHome(async () => {
       const store = await loadHashStore();
-      recordServed(store, "/a.ts", new Map([["aB3", "aB3"], ["cD4", "cD4"]]));
-      recordServed(store, "/a.ts", new Map([["cD4", "cD4"], ["eF5", "eF5"]]));
+      recordServed(store, "/a.ts", new Map([["ATIm", "ATIm"], ["ioor", "ioor"]]));
+      recordServed(store, "/a.ts", new Map([["ioor", "ioor"], ["laSH", "laSH"]]));
       const served = getServed(store, "/a.ts");
-      expect(served).toEqual(new Map([["aB3", "aB3"], ["cD4", "cD4"], ["eF5", "eF5"]]));
+      expect(served).toEqual(new Map([["ATIm", "ATIm"], ["ioor", "ioor"], ["laSH", "laSH"]]));
     });
   });
 
@@ -49,7 +49,7 @@ describe("served store", () => {
       const store = await loadHashStore();
       recordServed(store, "/a.ts", new Map());
       expect(getServed(store, "/a.ts")).toBeUndefined();
-      recordServed(store, "/a.ts", new Map([["aB3", "aB3"]]));
+      recordServed(store, "/a.ts", new Map([["ATIm", "ATIm"]]));
       clearServed(store, "/a.ts");
       expect(getServed(store, "/a.ts")).toBeUndefined();
     });
@@ -58,33 +58,33 @@ describe("served store", () => {
   it("prunes hashes outside the scope of the current file", async () => {
     await withTempHome(async () => {
       const store = await loadHashStore();
-      recordServed(store, "/a.ts", new Map([["aB3", "aB3"], ["cD4", "cD4"], ["eF5", "eF5"]]));
-      recordServed(store, "/a.ts", new Map([["gH6", "gH6"]]), new Set(["cD4", "eF5", "gH6"]));
+      recordServed(store, "/a.ts", new Map([["ATIm", "ATIm"], ["ioor", "ioor"], ["laSH", "laSH"]]));
+      recordServed(store, "/a.ts", new Map([["niTw", "niTw"]]), new Set(["ioor", "laSH", "niTw"]));
       const served = getServed(store, "/a.ts");
-      expect(served).toEqual(new Map([["cD4", "cD4"], ["eF5", "eF5"], ["gH6", "gH6"]]));
+      expect(served).toEqual(new Map([["ioor", "ioor"], ["laSH", "laSH"], ["niTw", "niTw"]]));
     });
   });
 
   it("prunes stale hashes even when no new hashes are recorded", async () => {
     await withTempHome(async () => {
       const store = await loadHashStore();
-      recordServed(store, "/a.ts", new Map([["aB3", "aB3"], ["cD4", "cD4"]]));
-      recordServed(store, "/a.ts", new Map(), new Set(["cD4"]));
+      recordServed(store, "/a.ts", new Map([["ATIm", "ATIm"], ["ioor", "ioor"]]));
+      recordServed(store, "/a.ts", new Map(), new Set(["ioor"]));
       const served = getServed(store, "/a.ts");
-      expect(served).toEqual(new Map([["cD4", "cD4"]]));
+      expect(served).toEqual(new Map([["ioor", "ioor"]]));
     });
   });
 
   it("scopes diff recording to the current file hashes", async () => {
     await withTempHome(async () => {
       const store = await loadHashStore();
-      recordServed(store, "/a.ts", new Map([["aB3", "aB3"], ["cD4", "cD4"], ["eF5", "eF5"]]));
-      recordServedDiff(store, "/a.ts", " aB3│x\n-   │y\n+cD4│z\n", new Set(["aB3", "cD4"]));
+      recordServed(store, "/a.ts", new Map([["ATIm", "ATIm"], ["ioor", "ioor"], ["laSH", "laSH"]]));
+      recordServedDiff(store, "/a.ts", " ATIm│x\n-    │y\n+ioor│z\n", new Set(["ATIm", "ioor"]));
       {
       const served = getServed(store, "/a.ts")!;
-      expect(served.get("aB3")).toBe(contentChecksum("x"));
-      expect(served.get("cD4")).toBe(contentChecksum("z"));
-      expect(new Set(served.keys())).toEqual(new Set(["aB3", "cD4"]));
+      expect(served.get("ATIm")).toBe(contentChecksum("x"));
+      expect(served.get("ioor")).toBe(contentChecksum("z"));
+      expect(new Set(served.keys())).toEqual(new Set(["ATIm", "ioor"]));
     }
     });
   });
@@ -92,7 +92,7 @@ describe("served store", () => {
   it("treats a row with unparseable hashes as a miss and deletes it", async () => {
     await withTempHome(async (home) => {
       const store = await loadHashStore();
-      recordServed(store, "/a.ts", new Map([["aB3", "aB3"]]));
+      recordServed(store, "/a.ts", new Map([["ATIm", "ATIm"]]));
       const db = new DatabaseSync(join(home, ".config", "pi-hashline-edit-pro", "hash-store.sqlite"), { defensive: false } as any);
       db.prepare("UPDATE served SET hashes = ? WHERE path = ?").run("{not json", "/a.ts");
       db.close();
@@ -107,7 +107,7 @@ describe("served store", () => {
   it("treats a row with malformed hash strings as a miss and deletes it", async () => {
     await withTempHome(async (home) => {
       const store = await loadHashStore();
-      recordServed(store, "/a.ts", new Map([["aB3", "aB3"]]));
+      recordServed(store, "/a.ts", new Map([["ATIm", "ATIm"]]));
       const db = new DatabaseSync(join(home, ".config", "pi-hashline-edit-pro", "hash-store.sqlite"), { defensive: false } as any);
       db.prepare("UPDATE served SET hashes = ? WHERE path = ?").run('["ZZ", "ZZZZ"]', "/a.ts");
       db.close();
@@ -122,17 +122,17 @@ describe("served store", () => {
   it("keeps the served record after a store reopen", async () => {
     await withTempHome(async () => {
       const store = await loadHashStore();
-      recordServed(store, "/a.ts", new Map([["aB3", "aB3"], ["cD4", "cD4"]]));
+      recordServed(store, "/a.ts", new Map([["ATIm", "ATIm"], ["ioor", "ioor"]]));
       shutdownHashStore();
       const reopened = await loadHashStore();
-      expect(getServed(reopened, "/a.ts")).toEqual(new Map([["aB3", "aB3"], ["cD4", "cD4"]]));
+      expect(getServed(reopened, "/a.ts")).toEqual(new Map([["ATIm", "ATIm"], ["ioor", "ioor"]]));
     });
   });
 
   it("prunes served records for deleted files", async () => {
     await withTempHome(async () => {
       const store = await loadHashStore();
-      recordServed(store, "/deleted.ts", new Map([["aB3", "aB3"]]));
+      recordServed(store, "/deleted.ts", new Map([["ATIm", "ATIm"]]));
       await pruneMissing(store);
       expect(getServed(store, "/deleted.ts")).toBeUndefined();
     });
@@ -141,8 +141,8 @@ describe("served store", () => {
 
 describe("servedHashesFromDiff", () => {
   it("extracts + and context rows but not removed rows", () => {
-    const diff = " aaa│aaa\n-   │bbb\n-OLD│old\n+XYZ│BBB\n ccc│ccc\n";
-    expect(servedHashesFromDiff(diff)).toEqual(["aaa", "XYZ", "ccc"]);
+    const diff = " Hasu│aaa\n-    │bbb\n-arvm│old\n+ATIm│BBB\n niTw│ccc\n";
+    expect(servedHashesFromDiff(diff)).toEqual(["Hasu", "ATIm", "niTw"]);
   });
 
   it("returns nothing for empty or row-less text", () => {
@@ -151,17 +151,17 @@ describe("servedHashesFromDiff", () => {
   });
 
   it("extracts the hash of every + and context row in order", () => {
-    const diff = "+AAA│x\n BBB│y\n+CCC│z\n DDD│w\n";
-    expect(servedHashesFromDiff(diff)).toEqual(["AAA", "BBB", "CCC", "DDD"]);
+    const diff = "+Hasu│x\n ATIm│y\n+arvm│z\n Emno│w\n";
+    expect(servedHashesFromDiff(diff)).toEqual(["Hasu", "ATIm", "arvm", "Emno"]);
   });
 });
 
 describe("served safe helpers", () => {
   it("recordServedSafe records hashes without throwing", async () => {
     await withTempHome(async () => {
-      await recordServedSafe("/safe.ts", new Map([["aB3", "aB3"], ["cD4", "cD4"]]), "test");
+      await recordServedSafe("/safe.ts", new Map([["ATIm", "ATIm"], ["ioor", "ioor"]]), "test");
       const store = await loadHashStore();
-      expect(getServed(store, "/safe.ts")).toEqual(new Map([["aB3", "aB3"], ["cD4", "cD4"]]));
+      expect(getServed(store, "/safe.ts")).toEqual(new Map([["ATIm", "ATIm"], ["ioor", "ioor"]]));
     });
   });
 
@@ -175,13 +175,13 @@ describe("served safe helpers", () => {
 
   it("recordServedDiffSafe records diff rows", async () => {
     await withTempHome(async () => {
-      await recordServedDiffSafe("/safe.ts", "+aB3│x\n pQ2│y\n-cD4│z\n", "test");
+      await recordServedDiffSafe("/safe.ts", "+ATIm│x\n laSH│y\n-ioor│z\n", "test");
       const store = await loadHashStore();
       {
       const served = getServed(store, "/safe.ts")!;
-      expect(served.get("aB3")).toBe(contentChecksum("x"));
-      expect(served.get("pQ2")).toBe(contentChecksum("y"));
-      expect(new Set(served.keys())).toEqual(new Set(["aB3", "pQ2"]));
+      expect(served.get("ATIm")).toBe(contentChecksum("x"));
+      expect(served.get("laSH")).toBe(contentChecksum("y"));
+      expect(new Set(served.keys())).toEqual(new Set(["ATIm", "laSH"]));
     }
     });
   });
@@ -191,7 +191,7 @@ describe("served safe helpers", () => {
       .spyOn(hashStoreModule, "loadHashStore")
       .mockRejectedValue(new Error("store down"));
     try {
-      await expect(recordServedSafe("/safe.ts", new Map([["aB3", "aB3"]]), "test")).resolves.toBeUndefined();
+      await expect(recordServedSafe("/safe.ts", new Map([["ATIm", "ATIm"]]), "test")).resolves.toBeUndefined();
     } finally {
       spy.mockRestore();
     }

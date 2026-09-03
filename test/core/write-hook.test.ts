@@ -26,37 +26,37 @@ async function withTempHome(run: (home: string) => Promise<void>): Promise<void>
 
 describe("write-hook findServedHashEcho", () => {
   it("returns undefined when served set is empty", () => {
-    expect(findServedHashEcho("aB3│hello\n", new Set())).toBeUndefined();
+    expect(findServedHashEcho("ATIm│hello\n", new Set())).toBeUndefined();
   });
   it("returns undefined when no line matches served hash", () => {
-    expect(findServedHashEcho("aB3│hello\n", new Set(["xY9"]))).toBeUndefined();
+    expect(findServedHashEcho("ATIm│hello\n", new Set(["xY9"]))).toBeUndefined();
   });
   it("returns first matching line and hash", () => {
-    const served = new Set(["aB3", "cD4"]);
-    const content = "zzz\ncD4│second\naB3│third\n";
+    const served = new Set(["ATIm", "ioor"]);
+    const content = "zzz\nioor│second\nHasu│third\n";
     const result = findServedHashEcho(content, served);
-    expect(result).toEqual({ line: 2, hash: "cD4" });
+    expect(result).toEqual({ line: 2, hash: "ioor" });
   });
   it("matches hash at start of line only", () => {
-    const served = new Set(["aB3"]);
-    expect(findServedHashEcho(" xx aB3│hello\n", served)).toBeUndefined();
-    expect(findServedHashEcho("aB3│hello\n", served)).toEqual({ line: 1, hash: "aB3" });
+    const served = new Set(["ATIm"]);
+    expect(findServedHashEcho(" xx ATIm│hello\n", served)).toBeUndefined();
+    expect(findServedHashEcho("ATIm│hello\n", served)).toEqual({ line: 1, hash: "ATIm" });
   });
   it("handles empty content", () => {
-    expect(findServedHashEcho("", new Set(["aB3"]))).toBeUndefined();
+    expect(findServedHashEcho("", new Set(["ATIm"]))).toBeUndefined();
   });
 });
 
 describe("write-hook findEditHashEcho", () => {
   it("returns undefined for empty served", () => {
-    expect(findEditHashEcho(["aB3│hello"], new Set())).toBeUndefined();
+    expect(findEditHashEcho(["ATIm│hello"], new Set())).toBeUndefined();
   });
   it("returns matching entry from lines array", () => {
-    const served = new Set(["kQm"]);
-    expect(findEditHashEcho(["zzz", "kQm│hi", "aB3│bye"], served)).toEqual({ line: 2, hash: "kQm" });
+    const served = new Set(["BeSR"]);
+    expect(findEditHashEcho(["zzz", "BeSR│hi", "ATIm│bye"], served)).toEqual({ line: 2, hash: "BeSR" });
   });
   it("returns undefined when no match", () => {
-    expect(findEditHashEcho(["aB3│hello"], new Set(["xY9"]))).toBeUndefined();
+    expect(findEditHashEcho(["ATIm│hello"], new Set(["xY9"]))).toBeUndefined();
   });
 });
 
@@ -65,7 +65,7 @@ describe("write-hook servedHashEchoDenial", () => {
     await withTempHome(async () => {
       const dir = await mkdtemp(join(await getWritableTempRoot(), "writehook-no-served-"));
       try {
-        const result = await servedHashEchoDenial("test.txt", "aB3│hello\n", dir);
+        const result = await servedHashEchoDenial("test.txt", "ATIm│hello\n", dir);
         expect(result).toBeUndefined();
       } finally {
         await rm(dir, { recursive: true, force: true });
@@ -79,7 +79,7 @@ describe("write-hook servedHashEchoDenial", () => {
         const filePath = join(dir, "test.txt");
         await writeFile(filePath, "hello\n", "utf-8");
         const store = await loadHashStore();
-        recordServed(store, filePath, new Map([["aB3", "aB3"]]));
+        recordServed(store, filePath, new Map([["ATIm", "ATIm"]]));
         const result = await servedHashEchoDenial("test.txt", "clean content\n", dir);
         expect(result).toBeUndefined();
       } finally {
@@ -94,10 +94,10 @@ describe("write-hook servedHashEchoDenial", () => {
         const filePath = join(dir, "test.txt");
         await writeFile(filePath, "hello\n", "utf-8");
         const store = await loadHashStore();
-        recordServed(store, filePath, new Map([["aB3", "aB3"]]));
-        const result = await servedHashEchoDenial("test.txt", "aB3│copied\n", dir);
+        recordServed(store, filePath, new Map([["ATIm", "ATIm"]]));
+        const result = await servedHashEchoDenial("test.txt", "ATIm│copied\n", dir);
         expect(result).toContain("[E_WRITE_HASH_ECHO]");
-        expect(result).toContain("aB3│");
+        expect(result).toContain("ATIm│");
       } finally {
         await rm(dir, { recursive: true, force: true });
       }
@@ -109,7 +109,7 @@ describe("write-hook servedHashEchoDenial", () => {
       try {
         const controller = new AbortController();
         controller.abort();
-        await expect(servedHashEchoDenial("test.txt", "aB3│hello\n", dir, controller.signal)).rejects.toThrow("Operation aborted");
+        await expect(servedHashEchoDenial("test.txt", "ATIm│hello\n", dir, controller.signal)).rejects.toThrow("Operation aborted");
       } finally {
         await rm(dir, { recursive: true, force: true });
       }
@@ -123,7 +123,7 @@ describe("write-hook servedHashEchoDenial", () => {
         await writeFile(filePath, "hello\n", "utf-8");
         const store = await loadHashStore();
         recordServed(store, filePath, new Map());
-        const result = await servedHashEchoDenial("empty.txt", "aB3│hello\n", dir);
+        const result = await servedHashEchoDenial("empty.txt", "ATIm│hello\n", dir);
         expect(result).toBeUndefined();
       } finally {
         await rm(dir, { recursive: true, force: true });
@@ -171,11 +171,11 @@ describe("write-hook registerWriteHook", () => {
         const filePath = join(dir, "blocked.txt");
         await writeFile(filePath, "hello\n", "utf-8");
         const store = await loadHashStore();
-        recordServed(store, filePath, new Map([["aB3", "aB3"]]));
+        recordServed(store, filePath, new Map([["ATIm", "ATIm"]]));
         const { pi, handlers } = makePi();
         registerWriteHook(pi);
         const handler = handlers.get("tool_call") as (event: unknown, ctx: unknown) => Promise<unknown>;
-        const result = await handler({ toolName: "write", input: { path: "blocked.txt", content: "aB3│echo\n" } }, { cwd: dir, signal: undefined });
+        const result = await handler({ toolName: "write", input: { path: "blocked.txt", content: "ATIm│echo\n" } }, { cwd: dir, signal: undefined });
         expect(result).toEqual(expect.objectContaining({ block: true, reason: expect.stringContaining("[E_WRITE_HASH_ECHO]") }));
       } finally {
         await rm(dir, { recursive: true, force: true });
@@ -189,7 +189,7 @@ describe("write-hook registerWriteHook", () => {
         const filePath = join(dir, "allowed.txt");
         await writeFile(filePath, "hello\n", "utf-8");
         const store = await loadHashStore();
-        recordServed(store, filePath, new Map([["aB3", "aB3"]]));
+        recordServed(store, filePath, new Map([["ATIm", "ATIm"]]));
         const { pi, handlers } = makePi();
         registerWriteHook(pi);
         const handler = handlers.get("tool_call") as (event: unknown, ctx: unknown) => Promise<unknown>;
@@ -207,11 +207,11 @@ describe("write-hook registerWriteHook", () => {
         const filePath = join(dir, "alias.txt");
         await writeFile(filePath, "hello\n", "utf-8");
         const store = await loadHashStore();
-        recordServed(store, filePath, new Map([["aB3", "aB3"]]));
+        recordServed(store, filePath, new Map([["ATIm", "ATIm"]]));
         const { pi, handlers } = makePi();
         registerWriteHook(pi);
         const handler = handlers.get("tool_call") as (event: unknown, ctx: unknown) => Promise<unknown>;
-        const result = await handler({ toolName: "write", input: { file_path: "alias.txt", content: "aB3│echo\n" } }, { cwd: dir, signal: undefined });
+        const result = await handler({ toolName: "write", input: { file_path: "alias.txt", content: "ATIm│echo\n" } }, { cwd: dir, signal: undefined });
         expect(result).toEqual(expect.objectContaining({ block: true }));
       } finally {
         await rm(dir, { recursive: true, force: true });
@@ -222,7 +222,7 @@ describe("write-hook registerWriteHook", () => {
     const { pi, handlers } = makePi();
     registerWriteHook(pi);
     const handler = handlers.get("tool_call") as (event: unknown, ctx: unknown) => Promise<unknown>;
-    const result = await handler({ toolName: "write", input: { path: "missing.txt", content: "aB3│hello\n" } }, { cwd: "/nonexistent_xyz", signal: undefined });
+    const result = await handler({ toolName: "write", input: { path: "missing.txt", content: "ATIm│hello\n" } }, { cwd: "/nonexistent_xyz", signal: undefined });
     expect(result).toBeUndefined();
   });
   it("rethrows abort errors", async () => {

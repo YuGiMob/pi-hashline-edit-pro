@@ -114,7 +114,7 @@ export function getCached<K, V>(map: Map<K, V>, key: K, compute: (key: K) => V):
 }
 
 export function isHashRow(line: string): boolean {
-	return /^[A-Za-z0-9]{3}│/.test(line);
+	return /^[A-Za-z0-9]{4}│/.test(line);
 }
 
 function gutterWidth(max: number, fallback: number): number {

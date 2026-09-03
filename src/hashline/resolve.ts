@@ -159,12 +159,12 @@ function assertItem(edit: Record<string, unknown>): void {
 
   if ("remove_from" in edit && typeof edit.remove_from !== "string") {
     throw new Error(
-      `[E_BAD_SHAPE] Field "remove_from" must be an anchor string (3-char anchor).`,
+      `[E_BAD_SHAPE] Field "remove_from" must be an anchor string (4-char anchor).`,
     );
   }
   if ("remove_to" in edit && typeof edit.remove_to !== "string") {
     throw new Error(
-      `[E_BAD_SHAPE] Field "remove_to" must be an anchor string (3-char anchor).`,
+      `[E_BAD_SHAPE] Field "remove_to" must be an anchor string (4-char anchor).`,
     );
   }
   if (!("replacement_lines" in edit)) {
@@ -175,7 +175,7 @@ function assertItem(edit: Record<string, unknown>): void {
   }
   if (typeof edit.remove_from !== "string" || typeof edit.remove_to !== "string") {
     throw new Error(
-      `[E_BAD_SHAPE] The edit requires "remove_from" and "remove_to" anchor strings (3-char anchors from read output).`,
+      `[E_BAD_SHAPE] The edit requires "remove_from" and "remove_to" anchor strings (4-char anchors from read output).`,
     );
   }
 }

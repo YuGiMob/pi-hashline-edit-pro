@@ -36,7 +36,7 @@ describe("hash-store - undo entries", () => {
         content: "old",
         bom: "\uFEFF",
         ending: "\r\n",
-        hashes: ["abc", "def"],
+        hashes: ["ATIm", "BeSR"],
         resultContent: "new",
       });
       const entry = getUndoEntry(store, "/a.ts");
@@ -44,7 +44,7 @@ describe("hash-store - undo entries", () => {
         content: "old",
         bom: "\uFEFF",
         ending: "\r\n",
-        hashes: ["abc", "def"],
+        hashes: ["ATIm", "BeSR"],
         resultContent: "new",
       });
     });
@@ -64,20 +64,20 @@ describe("hash-store - undo entries", () => {
         content: "first",
         bom: "",
         ending: "\n",
-        hashes: ["aB3"],
+        hashes: ["ATIm"],
         resultContent: "first!",
       });
       upsertUndo(store, "/a.ts", {
         content: "second",
         bom: "",
         ending: "\r",
-        hashes: ["bC4"],
+        hashes: ["DAfo"],
         resultContent: "second!",
       });
       const entry = getUndoEntry(store, "/a.ts");
       expect(entry!.content).toBe("second");
       expect(entry!.ending).toBe("\r");
-      expect(entry!.hashes).toEqual(["bC4"]);
+      expect(entry!.hashes).toEqual(["DAfo"]);
     });
   });
 
@@ -88,7 +88,7 @@ describe("hash-store - undo entries", () => {
         content: "old",
         bom: "",
         ending: "\n",
-        hashes: ["xY7"],
+        hashes: ["Emno"],
         resultContent: "new",
       });
       deleteUndo(store, "/a.ts");
@@ -103,7 +103,7 @@ describe("hash-store - undo entries", () => {
         content: "old",
         bom: "",
         ending: "\n",
-        hashes: ["xY7"],
+        hashes: ["Emno"],
         resultContent: "new",
       });
       const db = new DatabaseSync(sqlitePath(home), { defensive: false } as any);
@@ -124,7 +124,7 @@ describe("hash-store - undo entries", () => {
         content: "old",
         bom: "",
         ending: "\n",
-        hashes: ["xY7"],
+        hashes: ["Emno"],
         resultContent: "new",
       });
       const db = new DatabaseSync(sqlitePath(home), { defensive: false } as any);
@@ -208,7 +208,7 @@ describe("hash-store - loadHashStore", () => {
         content: "old secret",
         bom: "",
         ending: "\n",
-        hashes: ["aB3"],
+        hashes: ["ATIm"],
         resultContent: "new secret",
       });
 
@@ -225,7 +225,7 @@ describe("hash-store - snapshot get / upsert / delete", () => {
     await withTempHome(async () => {
       const store = await loadHashStore();
       const content = "hello\nworld\n";
-      const hashes = ["aB3", "xY7"];
+      const hashes = ["ATIm", "Emno"];
       await put(store, "/path/to/file.ts", content, hashes);
 
       expect(getSnapshot(store, "/path/to/file.ts", content)).toEqual(hashes);
@@ -235,9 +235,9 @@ describe("hash-store - snapshot get / upsert / delete", () => {
   it("returns undefined when content changed (checksum mismatch)", async () => {
     await withTempHome(async () => {
       const store = await loadHashStore();
-      await put(store, "/p.ts", "aaa\nbbb\n", ["aB3", "xY7"]);
+      await put(store, "/p.ts", "aaa\nbbb\n", ["ATIm", "Emno"]);
 
-      expect(getSnapshot(store, "/p.ts", "aaa\nbbb\n")).toEqual(["aB3", "xY7"]);
+      expect(getSnapshot(store, "/p.ts", "aaa\nbbb\n")).toEqual(["ATIm", "Emno"]);
       expect(getSnapshot(store, "/p.ts", "aaa\nBBB\n")).toBeUndefined();
     });
   });
@@ -259,10 +259,10 @@ describe("hash-store - snapshot get / upsert / delete", () => {
       const aContent = "a\nb\nc\nd\ne\n".repeat(50);
       const aHashes = aContent.split("\n").map((_, i) => i.toString(16).padStart(3, "0"));
       await put(store, "/big.ts", aContent, aHashes);
-      await put(store, "/small.ts", "x\n", ["XYZ"]);
+      await put(store, "/small.ts", "x\n", ["HDtm"]);
 
       expect(getSnapshot(store, "/big.ts", aContent)).toEqual(aHashes);
-      expect(getSnapshot(store, "/small.ts", "x\n")).toEqual(["XYZ"]);
+      expect(getSnapshot(store, "/small.ts", "x\n")).toEqual(["HDtm"]);
     });
   });
 });
@@ -277,20 +277,20 @@ describe("hash-store - corrupt row handling", () => {
   it("treats a row with unparseable hashes as a cache miss", async () => {
     await withTempHome(async (home) => {
       const store = await loadHashStore();
-      await put(store, "/p.ts", "x\n", ["AAA"]);
+      await put(store, "/p.ts", "x\n", ["ATIm"]);
       await corruptHashes(home, "/p.ts", "not json");
       shutdownHashStore();
       const reloaded = await loadHashStore();
       expect(getSnapshot(reloaded, "/p.ts", "x\n")).toBeUndefined();
-      upsertSnapshot(reloaded, "/p.ts", contentChecksum("x\n"), 1, ["BBB"]);
-      expect(getSnapshot(reloaded, "/p.ts", "x\n")).toEqual(["BBB"]);
+      upsertSnapshot(reloaded, "/p.ts", contentChecksum("x\n"), 1, ["BeSR"]);
+      expect(getSnapshot(reloaded, "/p.ts", "x\n")).toEqual(["BeSR"]);
     });
   });
 
   it("treats a row with non-string hashes as a cache miss", async () => {
     await withTempHome(async (home) => {
       const store = await loadHashStore();
-      await put(store, "/p.ts", "x\n", ["AAA"]);
+      await put(store, "/p.ts", "x\n", ["ATIm"]);
       await corruptHashes(home, "/p.ts", "[1,2]");
       shutdownHashStore();
       const reloaded = await loadHashStore();
@@ -301,7 +301,7 @@ describe("hash-store - corrupt row handling", () => {
   it("treats a row with malformed hash strings as a cache miss and deletes it", async () => {
     await withTempHome(async (home) => {
       const store = await loadHashStore();
-      await put(store, "/p.ts", "x\n", ["AAA"]);
+      await put(store, "/p.ts", "x\n", ["ATIm"]);
       await corruptHashes(home, "/p.ts", '["ZZ", "ZZZZ", "a!b"]');
       shutdownHashStore();
       const reloaded = await loadHashStore();
@@ -318,14 +318,14 @@ describe("hash-store - migration from legacy hash-store.json", () => {
   it("imports valid legacy snapshots and renames the file to .bak", async () => {
     await withTempHome(async (home) => {
       await writeLegacyStore(home, {
-        "/valid.ts": { content: "ok\n", hashes: ["ABC"] },
-        "/also.ts": { content: "good\nmore\n", hashes: ["XYZ", "QWE"] },
+        "/valid.ts": { content: "ok\n", hashes: ["Ifms"] },
+        "/also.ts": { content: "good\nmore\n", hashes: ["HDtm", "MEyo"] },
       });
 
       const store = await loadHashStore();
 
-      expect(getSnapshot(store, "/valid.ts", "ok\n")).toEqual(["ABC"]);
-      expect(getSnapshot(store, "/also.ts", "good\nmore\n")).toEqual(["XYZ", "QWE"]);
+      expect(getSnapshot(store, "/valid.ts", "ok\n")).toEqual(["Ifms"]);
+      expect(getSnapshot(store, "/also.ts", "good\nmore\n")).toEqual(["HDtm", "MEyo"]);
       expect(existsSync(legacyPath(home))).toBe(false);
       expect(existsSync(`${legacyPath(home)}.bak`)).toBe(true);
     });
@@ -334,18 +334,18 @@ describe("hash-store - migration from legacy hash-store.json", () => {
   it("drops structurally invalid legacy entries, keeps valid ones", async () => {
     await withTempHome(async (home) => {
       await writeLegacyStore(home, {
-        "/valid.ts": { content: "ok\n", hashes: ["ABC"] },
+        "/valid.ts": { content: "ok\n", hashes: ["Ifms"] },
         "/missing-hashes.ts": { content: "x\n" },
-        "/null-content.ts": { content: null, hashes: ["DEF"] },
+        "/null-content.ts": { content: null, hashes: ["ORcy"] },
         "/hashes-not-array.ts": { content: "y\n", hashes: "not-an-array" },
         "/hash-not-string.ts": { content: "z\n", hashes: [42] },
-        "/also-valid.ts": { content: "good\n", hashes: ["XYZ"] },
+        "/also-valid.ts": { content: "good\n", hashes: ["HDtm"] },
       });
 
       const store = await loadHashStore();
 
-      expect(getSnapshot(store, "/valid.ts", "ok\n")).toEqual(["ABC"]);
-      expect(getSnapshot(store, "/also-valid.ts", "good\n")).toEqual(["XYZ"]);
+      expect(getSnapshot(store, "/valid.ts", "ok\n")).toEqual(["Ifms"]);
+      expect(getSnapshot(store, "/also-valid.ts", "good\n")).toEqual(["HDtm"]);
       expect(getSnapshot(store, "/missing-hashes.ts", "x\n")).toBeUndefined();
       expect(getSnapshot(store, "/null-content.ts", "")).toBeUndefined();
       expect(getSnapshot(store, "/hashes-not-array.ts", "y\n")).toBeUndefined();
@@ -356,14 +356,14 @@ describe("hash-store - migration from legacy hash-store.json", () => {
   it("skips legacy snapshots with duplicate hashes so they re-hash on next read", async () => {
     await withTempHome(async (home) => {
       await writeLegacyStore(home, {
-        "/dup.ts": { content: "a\nb\n", hashes: ["AAA", "AAA"] },
-        "/valid.ts": { content: "ok\n", hashes: ["ABC"] },
+        "/dup.ts": { content: "a\nb\n", hashes: ["ATIm", "ATIm"] },
+        "/valid.ts": { content: "ok\n", hashes: ["Ifms"] },
       });
 
       const store = await loadHashStore();
 
       expect(getSnapshot(store, "/dup.ts", "a\nb\n")).toBeUndefined();
-      expect(getSnapshot(store, "/valid.ts", "ok\n")).toEqual(["ABC"]);
+      expect(getSnapshot(store, "/valid.ts", "ok\n")).toEqual(["Ifms"]);
     });
   });
 
@@ -372,8 +372,8 @@ describe("hash-store - migration from legacy hash-store.json", () => {
     try {
       await withTempHome(async (home) => {
         await writeLegacyStore(home, {
-          "/dup.ts": { content: "a\nb\n", hashes: ["AAA", "AAA"] },
-          "/valid.ts": { content: "ok\n", hashes: ["ABC"] },
+          "/dup.ts": { content: "a\nb\n", hashes: ["ATIm", "ATIm"] },
+          "/valid.ts": { content: "ok\n", hashes: ["Ifms"] },
         });
 
         const store = await loadHashStore();
@@ -382,7 +382,7 @@ describe("hash-store - migration from legacy hash-store.json", () => {
           "Skipped legacy snapshot with duplicate hashes for /dup.ts; it will be re-hashed on next read.",
         );
         expect(getSnapshot(store, "/dup.ts", "a\nb\n")).toBeUndefined();
-        expect(getSnapshot(store, "/valid.ts", "ok\n")).toEqual(["ABC"]);
+        expect(getSnapshot(store, "/valid.ts", "ok\n")).toEqual(["Ifms"]);
       });
     } finally {
       warnSpy.mockRestore();
@@ -392,14 +392,14 @@ describe("hash-store - migration from legacy hash-store.json", () => {
   it("skips legacy snapshots with malformed hashes so they re-hash on next read", async () => {
     await withTempHome(async (home) => {
       await writeLegacyStore(home, {
-        "/bad.ts": { content: "x\n", hashes: ["ZZ", "ZZZZ"] },
-        "/valid.ts": { content: "ok\n", hashes: ["ABC"] },
+        "/bad.ts": { content: "x\n", hashes: ["Ha", "Hasu"] },
+        "/valid.ts": { content: "ok\n", hashes: ["Ifms"] },
       });
 
       const store = await loadHashStore();
 
       expect(getSnapshot(store, "/bad.ts", "x\n")).toBeUndefined();
-      expect(getSnapshot(store, "/valid.ts", "ok\n")).toEqual(["ABC"]);
+      expect(getSnapshot(store, "/valid.ts", "ok\n")).toEqual(["Ifms"]);
     });
   });
 
@@ -424,20 +424,20 @@ describe("hash-store - migration from legacy hash-store.json", () => {
   it("migrates only once even if legacy file reappears", async () => {
     await withTempHome(async (home) => {
       await writeLegacyStore(home, {
-        "/one.ts": { content: "1\n", hashes: ["AAA"] },
+        "/one.ts": { content: "1\n", hashes: ["ATIm"] },
       });
       const first = await loadHashStore();
-      expect(getSnapshot(first, "/one.ts", "1\n")).toEqual(["AAA"]);
+      expect(getSnapshot(first, "/one.ts", "1\n")).toEqual(["ATIm"]);
       expect(existsSync(`${legacyPath(home)}.bak`)).toBe(true);
 
       await writeFile(legacyPath(home), JSON.stringify({
         version: 1,
-        snapshots: { "/two.ts": { content: "2\n", hashes: ["BBB"] } },
+        snapshots: { "/two.ts": { content: "2\n", hashes: ["BeSR"] } },
       }), "utf-8");
 
       const second = await loadHashStore();
       expect(getSnapshot(second, "/two.ts", "2\n")).toBeUndefined();
-      expect(getSnapshot(second, "/one.ts", "1\n")).toEqual(["AAA"]);
+      expect(getSnapshot(second, "/one.ts", "1\n")).toEqual(["ATIm"]);
     });
   });
 });
@@ -446,7 +446,7 @@ describe("hash-store - pruneMissing", () => {
   it("removes snapshots for files that no longer exist", async () => {
     await withTempHome(async () => {
       const store = await loadHashStore();
-      await put(store, "/gone.ts", "old\n", ["ZZZ"]);
+      await put(store, "/gone.ts", "old\n", ["PyBY"]);
       await pruneMissing(store);
       expect(getSnapshot(store, "/gone.ts", "old\n")).toBeUndefined();
     });
@@ -459,7 +459,7 @@ describe("hash-store - pruneMissing", () => {
         content: "old",
         bom: "",
         ending: "\n",
-        hashes: ["ZZZ"],
+        hashes: ["PyBY"],
         resultContent: "new",
       });
       await pruneMissing(store);
@@ -477,7 +477,7 @@ describe("hash-store - pruneMissing", () => {
         content: "old",
         bom: "",
         ending: "\n",
-        hashes: ["KEP"],
+        hashes: ["SYDB"],
         resultContent: "new",
       });
       await pruneMissing(store);
@@ -491,11 +491,11 @@ describe("hash-store - pruneMissing", () => {
       await writeFile(existing, "keep\n", "utf-8");
 
       const store = await loadHashStore();
-      await put(store, existing, "keep\n", ["KEP"]);
+      await put(store, existing, "keep\n", ["SYDB"]);
       await put(store, "/gone.ts", "gone\n", ["GON"]);
       await pruneMissing(store);
 
-      expect(getSnapshot(store, existing, "keep\n")).toEqual(["KEP"]);
+      expect(getSnapshot(store, existing, "keep\n")).toEqual(["SYDB"]);
       expect(getSnapshot(store, "/gone.ts", "gone\n")).toBeUndefined();
     });
   });
@@ -508,12 +508,12 @@ describe("hash-store - pruneMissing", () => {
       await writeFile(grown, "grow\n", "utf-8");
 
       const store = await loadHashStore();
-      await put(store, keep, "keep\n", ["KEP"]);
+      await put(store, keep, "keep\n", ["SYDB"]);
       await put(store, "/gone.ts", "gone\n", ["GON"]);
       await put(store, grown, "grow\n", ["GRW"]);
       await pruneMissing(store);
 
-      expect(getSnapshot(store, keep, "keep\n")).toEqual(["KEP"]);
+      expect(getSnapshot(store, keep, "keep\n")).toEqual(["SYDB"]);
       expect(getSnapshot(store, grown, "grow\n")).toEqual(["GRW"]);
       expect(getSnapshot(store, "/gone.ts", "gone\n")).toBeUndefined();
     });
@@ -548,36 +548,36 @@ describe("hash-store - concurrency (issue #10)", () => {
   it("preserves snapshots written by a separately-opened connection", async () => {
     await withTempHome(async (home) => {
       const store = await loadHashStore();
-      await put(store, "/a.ts", "alpha\n", ["AAB"]);
+      await put(store, "/a.ts", "alpha\n", ["TrTV"]);
 
       const second = new DatabaseSync(sqlitePath(home), { defensive: false } as any);
       const ins = second.prepare(
         "INSERT INTO snapshots (path, checksum, line_count, hashes, updated_at) VALUES (?, ?, ?, ?, ?)",
       );
       second.exec("BEGIN IMMEDIATE");
-      ins.run("/b.ts", contentChecksum("beta\n"), splitLines("beta\n").length, JSON.stringify(["BBC"]), Date.now());
+      ins.run("/b.ts", contentChecksum("beta\n"), splitLines("beta\n").length, JSON.stringify(["bgMO"]), Date.now());
       second.exec("COMMIT");
       second.close();
       shutdownHashStore();
       const reloaded = await loadHashStore();
-      expect(getSnapshot(reloaded, "/a.ts", "alpha\n")).toEqual(["AAB"]);
-      expect(getSnapshot(reloaded, "/b.ts", "beta\n")).toEqual(["BBC"]);
+      expect(getSnapshot(reloaded, "/a.ts", "alpha\n")).toEqual(["TrTV"]);
+      expect(getSnapshot(reloaded, "/b.ts", "beta\n")).toEqual(["bgMO"]);
     });
   });
 
   it("a fresh reopen sees snapshots written by a prior session", async () => {
     await withTempHome(async () => {
       const a = await loadHashStore();
-      await put(a, "/first.ts", "one\n", ["111"]);
+      await put(a, "/first.ts", "one\n", ["agWh"]);
       shutdownHashStore();
 
       const b = await loadHashStore();
-      await put(b, "/second.ts", "two\n", ["222"]);
+      await put(b, "/second.ts", "two\n", ["cyUE"]);
       shutdownHashStore();
 
       const c = await loadHashStore();
-      expect(getSnapshot(c, "/first.ts", "one\n")).toEqual(["111"]);
-      expect(getSnapshot(c, "/second.ts", "two\n")).toEqual(["222"]);
+      expect(getSnapshot(c, "/first.ts", "one\n")).toEqual(["agWh"]);
+      expect(getSnapshot(c, "/second.ts", "two\n")).toEqual(["cyUE"]);
     });
   });
 });
@@ -602,7 +602,7 @@ describe("hash-store - WAL checkpoint on shutdown", () => {
   it("truncates the WAL file after shutdownHashStore", async () => {
     await withTempHome(async (home) => {
       const store = await loadHashStore();
-      await put(store, "/p.ts", "x\n", ["XYZ"]);
+      await put(store, "/p.ts", "x\n", ["HDtm"]);
 
       const walPath = sqlitePath(home) + "-wal";
       expect(existsSync(walPath)).toBe(true);
@@ -623,8 +623,8 @@ describe("hash-store - corrupt database recovery", () => {
       const store = await loadHashStore();
       expect(getSnapshot(store, "/x.ts", "a\n")).toBeUndefined();
 
-      upsertSnapshot(store, "/x.ts", contentChecksum("a\n"), 1, ["AAA"]);
-      expect(getSnapshot(store, "/x.ts", "a\n")).toEqual(["AAA"]);
+      upsertSnapshot(store, "/x.ts", contentChecksum("a\n"), 1, ["ATIm"]);
+      expect(getSnapshot(store, "/x.ts", "a\n")).toEqual(["ATIm"]);
     });
   });
 
@@ -644,8 +644,8 @@ describe("hash-store - corrupt database recovery", () => {
   it("keeps working when the store is healthy", async () => {
     await withTempHome(async (home) => {
       const store = await loadHashStore();
-      upsertSnapshot(store, "/p.ts", contentChecksum("b\n"), 1, ["BBB"]);
-      expect(getSnapshot(store, "/p.ts", "b\n")).toEqual(["BBB"]);
+      upsertSnapshot(store, "/p.ts", contentChecksum("b\n"), 1, ["BeSR"]);
+      expect(getSnapshot(store, "/p.ts", "b\n")).toEqual(["BeSR"]);
       const entries = await readdir(configHome(home));
       expect(entries.some((name) => name.includes(".corrupt-"))).toBe(false);
     });
@@ -656,7 +656,7 @@ describe("hash-store - schema versioning", () => {
   it("writes the current version on first open", async () => {
     await withTempHome(async (home) => {
       const store = await loadHashStore();
-      await put(store, "/p.ts", "x\n", ["XYZ"]);
+      await put(store, "/p.ts", "x\n", ["HDtm"]);
       shutdownHashStore();
 
       const db = new DatabaseSync(sqlitePath(home), { defensive: false } as any);
@@ -670,18 +670,18 @@ describe("hash-store - schema versioning", () => {
   it("keeps snapshots when the stored version matches", async () => {
     await withTempHome(async () => {
       const store = await loadHashStore();
-      await put(store, "/p.ts", "x\n", ["XYZ"]);
+      await put(store, "/p.ts", "x\n", ["HDtm"]);
       shutdownHashStore();
 
       const reloaded = await loadHashStore();
-      expect(getSnapshot(reloaded, "/p.ts", "x\n")).toEqual(["XYZ"]);
+      expect(getSnapshot(reloaded, "/p.ts", "x\n")).toEqual(["HDtm"]);
     });
   });
 
   it("invalidates snapshots, undo, and served records when the stored version differs", async () => {
     await withTempHome(async (home) => {
       const store = await loadHashStore();
-      await put(store, "/p.ts", "x\n", ["XYZ"]);
+      await put(store, "/p.ts", "x\n", ["HDtm"]);
       upsertUndo(store, "/u.ts", {
         content: "old",
         bom: "",
@@ -711,7 +711,7 @@ describe("hash-store - schema versioning", () => {
   it("keeps snapshots from a pre-versioning database and writes the version", async () => {
     await withTempHome(async (home) => {
       const store = await loadHashStore();
-      await put(store, "/p.ts", "x\n", ["XYZ"]);
+      await put(store, "/p.ts", "x\n", ["HDtm"]);
       shutdownHashStore();
 
       const db = new DatabaseSync(sqlitePath(home), { defensive: false } as any);
@@ -719,7 +719,7 @@ describe("hash-store - schema versioning", () => {
       db.close();
 
       const reloaded = await loadHashStore();
-      expect(getSnapshot(reloaded, "/p.ts", "x\n")).toEqual(["XYZ"]);
+      expect(getSnapshot(reloaded, "/p.ts", "x\n")).toEqual(["HDtm"]);
 
       const check = new DatabaseSync(sqlitePath(home), { defensive: false } as any);
       const row = check.prepare("SELECT value FROM meta WHERE key = 'version'").get() as { value?: string } | undefined;
@@ -731,19 +731,19 @@ describe("hash-store - schema versioning", () => {
 
 describe("hash-store - isValidHashList", () => {
   it("accepts a unique list of valid hashes", () => {
-    expect(isValidHashList(["aB3", "xY7", "Zz9"])).toBe(true);
+    expect(isValidHashList(["ATIm", "Emno", "TrTV"])).toBe(true);
     expect(isValidHashList([])).toBe(true);
   });
 
   it("rejects duplicate hashes", () => {
-    expect(isValidHashList(["aB3", "aB3"])).toBe(false);
-    expect(isValidHashList(["aB3", "xY7", "aB3"])).toBe(false);
+    expect(isValidHashList(["ATIm", "ATIm"])).toBe(false);
+    expect(isValidHashList(["ATIm", "Emno", "ATIm"])).toBe(false);
   });
 
   it("rejects malformed or non-string entries", () => {
-    expect(isValidHashList(["aB3", "ZZ"])).toBe(false);
-    expect(isValidHashList(["aB3", 42])).toBe(false);
-    expect(isValidHashList("aB3")).toBe(false);
+    expect(isValidHashList(["ATIm", "ZZ"])).toBe(false);
+    expect(isValidHashList(["ATIm", 42])).toBe(false);
+    expect(isValidHashList("ATIm")).toBe(false);
     expect(isValidHashList(null)).toBe(false);
   });
 });
@@ -753,10 +753,10 @@ describe("hash-store - snapshot cache", () => {
     await withTempHome(async () => {
       const store = await loadHashStore();
       const checksum = contentChecksum("a\nb\n");
-      upsertSnapshot(store, "/cache-hit.ts", checksum, 2, ["AAA", "BBB"]);
+      upsertSnapshot(store, "/cache-hit.ts", checksum, 2, ["ATIm", "BeSR"]);
       const getSpy = vi.spyOn(store.stmts, "get");
-      expect(getSnapshot(store, "/cache-hit.ts", "a\nb\n")).toEqual(["AAA", "BBB"]);
-      expect(getSnapshot(store, "/cache-hit.ts", "a\nb\n")).toEqual(["AAA", "BBB"]);
+      expect(getSnapshot(store, "/cache-hit.ts", "a\nb\n")).toEqual(["ATIm", "BeSR"]);
+      expect(getSnapshot(store, "/cache-hit.ts", "a\nb\n")).toEqual(["ATIm", "BeSR"]);
       expect(getSpy).not.toHaveBeenCalled();
       getSpy.mockRestore();
     });
@@ -767,15 +767,15 @@ describe("hash-store - snapshot cache", () => {
       const store = await loadHashStore();
       const checksum = contentChecksum("x");
       for (let i = 0; i < SNAPSHOT_CACHE_LIMIT; i++) {
-        upsertSnapshot(store, `/lru-${i}.ts`, checksum, 1, ["AAA"]);
+        upsertSnapshot(store, `/lru-${i}.ts`, checksum, 1, ["ATIm"]);
       }
-      expect(getSnapshot(store, "/lru-0.ts", "x")).toEqual(["AAA"]);
-      upsertSnapshot(store, "/lru-extra.ts", checksum, 1, ["AAA"]);
+      expect(getSnapshot(store, "/lru-0.ts", "x")).toEqual(["ATIm"]);
+      upsertSnapshot(store, "/lru-extra.ts", checksum, 1, ["ATIm"]);
       const getSpy = vi.spyOn(store.stmts, "get");
-      expect(getSnapshot(store, "/lru-0.ts", "x")).toEqual(["AAA"]);
+      expect(getSnapshot(store, "/lru-0.ts", "x")).toEqual(["ATIm"]);
       expect(getSpy).not.toHaveBeenCalled();
       getSpy.mockClear();
-      expect(getSnapshot(store, "/lru-1.ts", "x")).toEqual(["AAA"]);
+      expect(getSnapshot(store, "/lru-1.ts", "x")).toEqual(["ATIm"]);
       expect(getSpy).toHaveBeenCalled();
       getSpy.mockRestore();
     });
@@ -785,17 +785,17 @@ describe("hash-store - snapshot cache", () => {
     await withTempHome(async () => {
       let store = await loadHashStore();
       const checksum = contentChecksum("a\nb\n");
-      upsertSnapshot(store, "/mutable.ts", checksum, 2, ["AAA", "BBB"]);
+      upsertSnapshot(store, "/mutable.ts", checksum, 2, ["ATIm", "BeSR"]);
 
       const cachedHit = getSnapshot(store, "/mutable.ts", "a\nb\n")!;
-      cachedHit[0] = "ZZZ";
-      expect(getSnapshot(store, "/mutable.ts", "a\nb\n")).toEqual(["AAA", "BBB"]);
+      cachedHit[0] = "PyBY";
+      expect(getSnapshot(store, "/mutable.ts", "a\nb\n")).toEqual(["ATIm", "BeSR"]);
 
       shutdownHashStore();
       store = await loadHashStore();
       const dbHit = getSnapshot(store, "/mutable.ts", "a\nb\n")!;
       dbHit[1] = "YYY";
-      expect(getSnapshot(store, "/mutable.ts", "a\nb\n")).toEqual(["AAA", "BBB"]);
+      expect(getSnapshot(store, "/mutable.ts", "a\nb\n")).toEqual(["ATIm", "BeSR"]);
     });
   });
 });

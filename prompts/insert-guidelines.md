@@ -1,3 +1,3 @@
-- `insert`: `anchor` is bare `aB3` from `aB3│content` (never the content), direction `after` adds below, `before` adds above. Do not put the anchor line in `lines`; `[""]` is a blank line.
+- `insert`: `anchor` is bare `Hasu` from `Hasu│content` (never the content), direction `after` adds below, `before` adds above. Do not put the anchor line in `lines`; `[""]` is a blank line.
 - `insert`: `lines` is bare content, one element per line, kept literally even if it duplicates neighbors — nothing is removed.
 - `insert`: the anchor must have been shown by `read`, a post-edit diff (`+anchor│`/` anchor│`), or `anchor_grep`. For an empty file, `read` shows one `anchor│` empty row — insert `after` it.

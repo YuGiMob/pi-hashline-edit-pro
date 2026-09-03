@@ -141,7 +141,7 @@ describe("replace tool - end-to-end", () => {
 
       const readResult = await readTool.execute("r1", { path: "empty.ts" }, undefined, undefined, ctx);
       const emptyHash = getText(readResult).split("\n")[0]!.split("│")[0]!;
-      expect(emptyHash).toMatch(/^[A-Za-z0-9]{3}$/);
+      expect(emptyHash).toMatch(/^[A-Za-z0-9]{4}$/);
 
       await editTool.execute(
         "e1",
@@ -345,9 +345,9 @@ describe("replace tool - end-to-end", () => {
       expect(details.diff!).not.toContain("row(s) exceed");
       expect(Buffer.byteLength(details.diff!, "utf-8")).toBeLessThan(5 * 1024);
       const markerRow = details.diff!.split("\n").find((l) => l.includes("│[Row is"))!;
-      expect(markerRow).toMatch(/^ [A-Za-z0-9]{3}│\[Row is/);
+      expect(markerRow).toMatch(/^ [A-Za-z0-9]{4}│\[Row is/);
       const served = getServed(await loadHashStore(), await resolveTarget(toCwd("min.js", cwd)));
-      expect(served?.has(markerRow.match(/^ ([A-Za-z0-9]{3})│/)![1]!)).toBe(true);
+      expect(served?.has(markerRow.match(/^ ([A-Za-z0-9]{4})│/)![1]!)).toBe(true);
       expect(details.patchTruncated).toBe(true);
       expect(details.patch).toBeDefined();
       expect(details.patch!).not.toContain(long);
@@ -362,7 +362,7 @@ describe("replace tool - end-to-end", () => {
       const readResult = await readTool.execute("r1", { path: "min.js" }, undefined, undefined, ctx);
       const text = getText(readResult);
       const markerRow = text.split("\n").find((l) => l.includes("[Line 2 is"))!;
-      expect(markerRow).toMatch(/^[A-Za-z0-9]{3}│\[Line 2 is/);
+      expect(markerRow).toMatch(/^[A-Za-z0-9]{4}│\[Line 2 is/);
       const markerHash = markerRow.split("│")[0]!;
       const editResult = await editTool.execute(
         "e1",

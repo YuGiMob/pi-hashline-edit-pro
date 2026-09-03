@@ -7,36 +7,20 @@ import {
   persistSnapshot,
 } from "../hash-store";
 import { xxh32, initHasher } from "./hasher";
-import { HASH_LEN, ALPH, ALPH_RE, HASH_CLASS, HASH_RUN } from "./alphabet";
-export { initHasher, HASH_LEN, ALPH_RE, HASH_CLASS, HASH_RUN };
+import { HASH_LEN, ANCHOR_COUNT, anchorAt, anchorIndex, HASH_CLASS, HASH_RUN } from "./alphabet";
+export { initHasher, HASH_LEN, HASH_CLASS, HASH_RUN };
 
 export const ANCHOR_LEN = HASH_LEN;
 
 export const HASH_SEP = "│";
 
-export const HASH_SPACE = ALPH.length ** HASH_LEN;
+export const HASH_SPACE = ANCHOR_COUNT;
 export const MAX_HASH_LINES = HASH_SPACE;
 
-export const HASH_PROBE_STRIDE = ALPH.length ** 2 + ALPH.length + 1;
-
-function idxToHash(idx: number): string {
-  let out = "";
-  for (let j = 0; j < HASH_LEN; j++) {
-    out = ALPH[idx % ALPH.length]! + out;
-    idx = Math.floor(idx / ALPH.length);
-  }
-  return out;
-}
-
-const hashCache = new Map<number, string>();
+export const HASH_PROBE_STRIDE = 571;
 
 function hashAt(idx: number): string {
-  let hash = hashCache.get(idx);
-  if (hash === undefined) {
-    hash = idxToHash(idx);
-    hashCache.set(idx, hash);
-  }
-  return hash;
+  return anchorAt(idx);
 }
 
 export const HL_PREFIX_PLUS_RE = new RegExp(
@@ -182,13 +166,7 @@ export async function lineHashes(
 }
 
 function hashToIndex(hash: string): number {
-  let idx = 0;
-  for (let j = 0; j < HASH_LEN; j++) {
-    const charIdx = ALPH.indexOf(hash[j]!);
-    if (charIdx < 0) return -1;
-    idx = idx * ALPH.length + charIdx;
-  }
-  return idx;
+  return anchorIndex(hash);
 }
 
 function nearestNew(

@@ -100,7 +100,7 @@ describe("insert tool", () => {
       const insertTool = getTool("insert");
       const readResult = await readTool.execute("r1", { path: "empty.ts" }, undefined, undefined, ctx);
       const emptyHash = getText(readResult).split("\n")[0]!.split("│")[0]!;
-      expect(emptyHash).toMatch(/^[A-Za-z0-9]{3}$/);
+      expect(emptyHash).toMatch(/^[A-Za-z0-9]{4}$/);
 
       await insertTool.execute(
         "i1",
@@ -152,7 +152,7 @@ describe("insert tool", () => {
       await expect(
         insertTool.execute(
           "i1",
-          { path: "sample.ts", anchor: "ZZZ", direction: "after", lines: ["x"] },
+          { path: "sample.ts", anchor: "PyBY", direction: "after", lines: ["x"] },
           undefined, undefined, ctx,
         ),
       ).rejects.toThrow(/E_STALE_ANCHOR/);
@@ -345,13 +345,13 @@ describe("insert tool rendering", () => {
     const result = {
       content: [{ type: "text", text: "Successfully inserted in sample.ts. Added 1 line(s), removed 1 line(s)." }],
       details: {
-        diff: "+aB3│BETA1\n-aB3│beta",
+        diff: "+ATIm│BETA1\n-ATIm│beta",
         metrics: { classification: "applied", added_lines: 1, removed_lines: 1 },
       },
     };
     const component = tool.renderResult!(result as any, { expanded: false, isPartial: false }, theme, { state: {}, lastComponent: undefined, isError: false } as any) as any;
-    expect(component.text).toContain("+aB3│BETA1");
-    expect(component.text).toContain("-aB3│beta");
+    expect(component.text).toContain("+ATIm│BETA1");
+    expect(component.text).toContain("-ATIm│beta");
   });
 
   it("computes a diff preview in renderCall for insert args", async () => {

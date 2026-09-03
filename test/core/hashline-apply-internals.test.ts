@@ -24,7 +24,7 @@ resEdit(
     expect(() =>
       applyEdit(content, 
 resEdit(
-        { remove_from: "ZZZ", remove_to: "ZZZ", replacement_lines: ["X"] },
+        { remove_from: "PyBY", remove_to: "PyBY", replacement_lines: ["X"] },
       ))
     ).toThrow(/E_STALE_ANCHOR/);
   });

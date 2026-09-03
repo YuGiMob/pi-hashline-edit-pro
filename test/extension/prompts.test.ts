@@ -35,11 +35,11 @@ const readPrompt = readFileSync(
 describe("prompts/read.md (model-facing contract)", () => {
   it("declares the HASH|content output format", () => {
     expect(readPrompt).toMatch(/anchor│content/);
-    expect(readPrompt).toMatch(/3-char/);
+    expect(readPrompt).toMatch(/4-character/);
   });
 
   it("specifies the alphanumeric anchor alphabet", () => {
-    expect(readPrompt).toMatch(/3-char/);
+    expect(readPrompt).toMatch(/4-character/);
     expect(readPrompt).toContain("alphanumeric");
   });
 

@@ -12,7 +12,7 @@ describe("replace - missing path resolution", () => {
 
       const result = await editTool.execute(
         "e1",
-        { remove_from: hashes[0]!, remove_to: hashes[0]!, replacement_lines: ["AAA"] },
+        { remove_from: hashes[0]!, remove_to: hashes[0]!, replacement_lines: ["ATIm"] },
         undefined,
         undefined,
         ctx,
@@ -21,7 +21,7 @@ describe("replace - missing path resolution", () => {
       expect(result.content[0].text).toContain("Successfully replaced");
       expect(result.content[0].text).toContain("Warnings:");
       expect(result.content[0].text).toContain('Missing "path" resolved to');
-      expect(await readFile(path, "utf-8")).toBe("AAA\nbbb\n");
+      expect(await readFile(path, "utf-8")).toBe("ATIm\nbbb\n");
     });
   });
 
@@ -40,13 +40,13 @@ describe("replace - missing path resolution", () => {
 
       const result = await editTool.execute(
         "e1",
-        { remove_from: betaHash, remove_to: betaHash, replacement_lines: ["BBB"] },
+        { remove_from: betaHash, remove_to: betaHash, replacement_lines: ["BeSR"] },
         undefined, undefined, ctx,
       );
 
       expect(result.content[0].text).toContain("Successfully replaced");
       expect(result.content[0].text).toContain('Missing "path" resolved to');
-      expect(await readFile(path, "utf-8")).toBe("aaa\nBBB\n");
+      expect(await readFile(path, "utf-8")).toBe("aaa\nBeSR\n");
     });
   });
 
@@ -79,7 +79,7 @@ describe("replace - missing path resolution", () => {
       await expect(
         editTool.execute(
           "e1",
-          { remove_from: "AAA", remove_to: "AAA", replacement_lines: ["X"] },
+          { remove_from: "ATIm", remove_to: "ATIm", replacement_lines: ["X"] },
           undefined,
           undefined,
           ctx,
@@ -95,14 +95,14 @@ describe("replace - missing path resolution", () => {
 
       const result = await editTool.execute(
         "e1",
-        { remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BBB"] },
+        { remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BeSR"] },
         undefined,
         undefined,
         ctx,
       );
 
-      expect(result.details?.diff).toContain("BBB");
-      expect(await readFile(path, "utf-8")).toBe("aaa\nBBB\nccc\n");
+      expect(result.details?.diff).toContain("BeSR");
+      expect(await readFile(path, "utf-8")).toBe("aaa\nBeSR\nccc\n");
     });
   });
 });

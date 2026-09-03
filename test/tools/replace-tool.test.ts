@@ -35,7 +35,7 @@ describe("regReplace", () => {
     const tool = getTool("replace");
     const result = tool.prepareArguments({
       file_path: "test.txt",
-      remove_from: "AAA", remove_to: "BBB",
+      remove_from: "ATIm", remove_to: "BeSR",
       replacement_lines: ["new"],
     });
     expect(result.path).toBe("test.txt");
@@ -56,7 +56,7 @@ describe("regReplace", () => {
         {
           path: "sample.txt",
           remove_from: hashes[1]!, remove_to: hashes[1]!,
-          replacement_lines: ["BBB"],
+          replacement_lines: ["BeSR"],
         },
         undefined,
         undefined,
@@ -80,7 +80,7 @@ describe("regReplace", () => {
         {
           path: "sample.txt",
           remove_from: hashes[1]!, remove_to: hashes[2]!,
-          replacement_lines: ["BBB", "CCC"],
+          replacement_lines: ["BeSR", "DAfo"],
         },
         undefined,
         undefined,
@@ -151,7 +151,7 @@ describe("regReplace", () => {
           "e1",
           {
             path: "sample.txt",
-            remove_from: "ZZZ", remove_to: "ZZZ",
+            remove_from: "PyBY", remove_to: "PyBY",
             replacement_lines: ["x"],
           },
           undefined,
@@ -198,7 +198,7 @@ describe("regReplace", () => {
           {
             path: "sample.txt",
             remove_from: hashes[1]!, remove_to: hashes[1]!,
-            replacement_lines: ["BBB"],
+            replacement_lines: ["BeSR"],
             unknown_field: "bad",
           } as any,
           undefined,
@@ -221,7 +221,7 @@ describe("regReplace", () => {
         {
           path: "sample.txt",
           remove_from: hashes[1]!, remove_to: hashes[1]!,
-          replacement_lines: ["BBB"],
+          replacement_lines: ["BeSR"],
         },
         undefined,
         undefined,

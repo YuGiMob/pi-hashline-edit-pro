@@ -9,22 +9,22 @@ describe("assertReq", () => {
 	});
 
 	it("throws for unknown fields", () => {
-		expect(() => assertReq({ path: "test.txt", remove_from: "AAA", remove_to: "BBB", replacement_lines: ["new"], unknown: "field" }))
+		expect(() => assertReq({ path: "test.txt", remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"], unknown: "field" }))
 			.toThrow("[E_BAD_SHAPE]");
 	});
 
 	it("throws for missing path", () => {
-		expect(() => assertReq({ remove_from: "AAA", remove_to: "BBB", replacement_lines: ["new"] }))
+		expect(() => assertReq({ remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"] }))
 			.toThrow("[E_BAD_SHAPE]");
 	});
 
 	it("throws for empty path", () => {
-		expect(() => assertReq({ path: "", remove_from: "AAA", remove_to: "BBB", replacement_lines: ["new"] }))
+		expect(() => assertReq({ path: "", remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"] }))
 			.toThrow("[E_BAD_SHAPE]");
 	});
 
 	it("throws for non-string path", () => {
-		expect(() => assertReq({ path: 42, remove_from: "AAA", remove_to: "BBB", replacement_lines: ["new"] }))
+		expect(() => assertReq({ path: 42, remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"] }))
 			.toThrow("[E_BAD_SHAPE]");
 	});
 
@@ -34,7 +34,7 @@ describe("assertReq", () => {
   });
 
   it("throws when remove_from/remove_to present but no replacement_lines", () => {
-    expect(() => assertReq({ path: "test.txt", remove_from: "AAA", remove_to: "BBB" }))
+    expect(() => assertReq({ path: "test.txt", remove_from: "ATIm", remove_to: "BeSR" }))
       .toThrow(/replacement_lines/);
   });
 
@@ -46,7 +46,7 @@ describe("assertReq", () => {
   it("accepts the top-level edit shape", () => {
     expect(() => assertReq({
       path: "test.txt",
-      remove_from: "AAA", remove_to: "BBB",
+      remove_from: "ATIm", remove_to: "BeSR",
       replacement_lines: ["new"],
     })).not.toThrow();
   });
@@ -64,7 +64,7 @@ describe("anchor validation order", () => {
 				"e1",
 				{
 					path: "does-not-exist.ts",
-					remove_from: "abcd", remove_to: "abcd",
+					remove_from: "abc", remove_to: "abc",
 					replacement_lines: ["x"],
 				},
 				undefined,
@@ -86,7 +86,7 @@ describe("prepareArguments normalization", () => {
 		const tool = buildToolDef();
 		const prepared = tool.prepareArguments!({
 			path: "test.txt",
-			remove_from: "AAA", remove_to: "BBB",
+			remove_from: "ATIm", remove_to: "BeSR",
 			replacement_lines: ["line1", "line2"],
 		}) as Record<string, unknown>;
 		expect(prepared.replacement_lines).toEqual(["line1", "line2"]);
@@ -96,7 +96,7 @@ describe("prepareArguments normalization", () => {
 		const tool = buildToolDef();
 		const prepared = tool.prepareArguments!({
 			file_path: "test.txt",
-			remove_from: "AAA", remove_to: "BBB",
+			remove_from: "ATIm", remove_to: "BeSR",
 			replacement_lines: ["x"],
 		}) as Record<string, unknown>;
 		expect(prepared.path).toBe("test.txt");

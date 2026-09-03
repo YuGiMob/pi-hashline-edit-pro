@@ -1,1 +1,1 @@
-Replace lines via bare 3-char anchor `aB3` from `aB3│content`: `remove_from`/`remove_to` are `aB3` only, `replacement_lines` is bare lines without `│`; one edit per call
+Replace lines via bare 4-char anchor `Hasu` from `Hasu│content`: `remove_from`/`remove_to` are `Hasu` only, `replacement_lines` is bare lines without `│`; one edit per call

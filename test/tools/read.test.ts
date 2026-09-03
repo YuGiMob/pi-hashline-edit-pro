@@ -20,7 +20,7 @@ describe("fmtReadPreview", () => {
     expect(result.text).toContain("│alpha");
     expect(result.text).toContain("│beta");
     const lines = result.text.split("\n");
-    const emptyContentLines = lines.filter((l) => /^[A-Za-z0-9]{3}│$/.test(l));
+    const emptyContentLines = lines.filter((l) => /^[A-Za-z0-9]{4}│$/.test(l));
     expect(emptyContentLines).toHaveLength(0);
   });
 

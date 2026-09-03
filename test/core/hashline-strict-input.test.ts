@@ -22,8 +22,8 @@ describe("edit input validation", () => {
 
 	it("rejects a single string replacement_lines before patch-prefix validation", () => {
 		const toolEdit: HTEdit = {
-      remove_from: "ZZZ",
-      remove_to: "ZZZ", replacement_lines: "+ZZZ:foo",
+      remove_from: "PyBY",
+      remove_to: "PyBY", replacement_lines: "+PyBY:foo",
     } as unknown as HTEdit;
     expect(() => resEdit(toolEdit)).toThrow(
       /must be an array of strings/i,
@@ -31,22 +31,22 @@ describe("edit input validation", () => {
 	});
 
 	it("passes through numbered deletion rows as literal content", () => {
-		const toolEdit: HTEdit = { remove_from: "ZZZ",
-		remove_to: "ZZZ", replacement_lines: ["-1    foo"] };
+		const toolEdit: HTEdit = { remove_from: "PyBY",
+		remove_to: "PyBY", replacement_lines: ["-1    foo"] };
     const resolved = resEdit(toolEdit);
 		expect(resolved.content_lines).toEqual(["-1    foo"]);
 	});
 
 	it("accepts plain literal content unchanged", () => {
-		const toolEdit: HTEdit = { remove_from: "ZZZ",
-		remove_to: "ZZZ", replacement_lines: ["bar"] };
+		const toolEdit: HTEdit = { remove_from: "PyBY",
+		remove_to: "PyBY", replacement_lines: ["bar"] };
     const resolved = resEdit(toolEdit);
 		expect(resolved.content_lines).toEqual(["bar"]);
 	});
 
 	it("preserves '#' comment lines that do not match the strict prefix", () => {
-		const toolEdit: HTEdit = { remove_from: "ZZZ",
-		remove_to: "ZZZ", replacement_lines: ["# keep me"] };
+		const toolEdit: HTEdit = { remove_from: "PyBY",
+		remove_to: "PyBY", replacement_lines: ["# keep me"] };
     const resolved = resEdit(toolEdit);
     expect(resolved.content_lines).toEqual(["# keep me"]);
 	});
@@ -170,12 +170,12 @@ describe("diff preview rows copied into content", () => {
 		expect(result.warnings?.[0]).toMatch(/replacement_lines line 1/);
 	});
 
-	it("strips -HASH│ and -   │ deletion rows with warning", async () => {
+	it("strips -HASH│ and -    │ deletion rows with warning", async () => {
 		const hashes = await lineHashes(file, home.testPath);
 		const anchor = hashes[0]!;
 		const result = applyTool(
       { remove_from: anchor,
-      remove_to: anchor, replacement_lines: [`-${hashes[1]!}│one`, `-   │two`] },
+      remove_to: anchor, replacement_lines: [`-${hashes[1]!}│one`, `-    │two`] },
     hashes);
 		expect(result.content).toBe("one\ntwo\nbeta\ngamma\ndelta");
 		expect(result.warnings?.[0]).toMatch(/replacement_lines line 1, replacement_lines line 2/);
@@ -255,12 +255,12 @@ describe("diff-prefix false-positive guards (tightened shapes)", () => {
 		expect(result.warnings?.[0]).toMatch(/Stripped diff-preview marker/);
 	});
 
-	it("still strips exact -HASH│ and -   │ rows", async () => {
+	it("still strips exact -HASH│ and -    │ rows", async () => {
 		const hashes = await lineHashes(file, home.testPath);
 		const anchor = hashes[0]!;
 		const result = applyTool(
       { remove_from: anchor,
-      remove_to: anchor, replacement_lines: [`-${hashes[1]!}│one`, `-   │two`] },
+      remove_to: anchor, replacement_lines: [`-${hashes[1]!}│one`, `-    │two`] },
     hashes);
 		expect(result.content).toBe("one\ntwo\nbeta\ngamma\ndelta");
 		expect(result.warnings?.[0]).toMatch(/Stripped diff-preview marker/);
@@ -319,14 +319,14 @@ describe("truncated hash prefixes copied into content (issue #27)", () => {
 		expect(result.warnings?.[0]).toMatch(/Stripped "anchor│" prefix/);
 	});
 
-	it("leaves a 7-char run before the separator as literal content", async () => {
+	it("leaves a 9-char run before the separator as literal content", async () => {
 		const hashes = await lineHashes(file, home.testPath);
 		const anchor = hashes[0]!;
 		const result = applyTool(
 			{ remove_from: anchor,
-			remove_to: anchor, replacement_lines: ["abcdefg│literal"] },
+			remove_to: anchor, replacement_lines: ["abcdefghi│literal"] },
 			hashes);
-		expect(result.content).toBe("abcdefg│literal\nbeta\ngamma\ndelta");
+		expect(result.content).toBe("abcdefghi│literal\nbeta\ngamma\ndelta");
 		expect(result.warnings ?? []).toEqual([]);
 	});
 

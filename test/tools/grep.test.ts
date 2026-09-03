@@ -286,7 +286,7 @@ async function withSystemTempDir(prefix: string, run: (dir: string) => Promise<v
       );
       const text = getText(result);
       expect(text).toContain("showing first 5 matches");
-      const rows = text.split("\n").filter((l) => /[A-Za-z0-9]{3}│/.test(l));
+      const rows = text.split("\n").filter((l) => /[A-Za-z0-9]{4}│/.test(l));
       expect(rows).toHaveLength(5);
     });
   });
@@ -569,7 +569,7 @@ async function withSystemTempDir(prefix: string, run: (dir: string) => Promise<v
       const grepTool = getTool("anchor_grep");
       const result = await grepTool.execute("g1", { pattern: "NEEDLE", path: "bigline.txt" }, undefined, undefined, ctx);
       const text = getText(result);
-      const row = text.split("\n").find((l) => /[A-Za-z0-9]{3}│/.test(l))!;
+      const row = text.split("\n").find((l) => /[A-Za-z0-9]{4}│/.test(l))!;
       expect(row).toContain("NEEDLE");
       expect(row).toContain("...");
       expect(Buffer.byteLength(row, "utf-8")).toBeLessThanOrEqual(510);
@@ -586,7 +586,7 @@ async function withSystemTempDir(prefix: string, run: (dir: string) => Promise<v
       const result = await grepTool.execute("g1", { pattern: "^line", path: "wide.txt", limit: 1000 }, undefined, undefined, ctx);
       const text = getText(result);
       expect(text).toContain("output truncated at 2000 rows or 50.0KB");
-      const rows = text.split("\n").filter((l) => /[A-Za-z0-9]{3}│/.test(l));
+      const rows = text.split("\n").filter((l) => /[A-Za-z0-9]{4}│/.test(l));
       expect(rows.length).toBeGreaterThan(0);
       expect(rows.length).toBeLessThan(700);
       expect(Buffer.byteLength(rows.join("\n"), "utf-8")).toBeLessThanOrEqual(50 * 1024);
@@ -638,7 +638,7 @@ async function withSystemTempDir(prefix: string, run: (dir: string) => Promise<v
       const { ctx, getTool } = setupIntegrationTest(cwd);
       const grepTool = getTool("anchor_grep");
       const result = await grepTool.execute("g1", { pattern: "needleX", path: "emoji.txt" }, undefined, undefined, ctx);
-      const row = getText(result).split("\n").find((l) => /[A-Za-z0-9]{3}│/.test(l))!;
+      const row = getText(result).split("\n").find((l) => /[A-Za-z0-9]{4}│/.test(l))!;
       expect(row.isWellFormed()).toBe(true);
       expect(row).toContain("...");
       expect(Buffer.byteLength(row, "utf-8")).toBeLessThanOrEqual(510);
@@ -652,7 +652,7 @@ async function withSystemTempDir(prefix: string, run: (dir: string) => Promise<v
       const grepTool = getTool("anchor_grep");
       const result = await grepTool.execute("g1", { pattern: "x{600}", path: "many.txt", limit: 1000 }, undefined, undefined, ctx);
       const text = getText(result);
-      const rowsShown = text.split("\n").filter((l) => /[A-Za-z0-9]{3}│/.test(l)).length;
+      const rowsShown = text.split("\n").filter((l) => /[A-Za-z0-9]{4}│/.test(l)).length;
       const note = text.match(/grep: (\d+) line\(s\) exceed 500B/);
       expect(note).not.toBeNull();
       expect(Number(note![1]!)).toBe(rowsShown);
@@ -685,7 +685,7 @@ async function withSystemTempDir(prefix: string, run: (dir: string) => Promise<v
       const { ctx, getTool } = setupIntegrationTest(cwd);
       const grepTool = getTool("anchor_grep");
       const result = await grepTool.execute("g1", { pattern: "NEEDLE1234", path: "wide2.txt" }, undefined, undefined, ctx);
-      const rows = getText(result).split("\n").filter((l) => /[A-Za-z0-9]{3}│/.test(l));
+      const rows = getText(result).split("\n").filter((l) => /[A-Za-z0-9]{4}│/.test(l));
       expect(rows).toHaveLength(1);
       expect(rows[0]!).toContain("NEEDLE1234");
       expect(rows[0]!).toContain("...");
@@ -699,7 +699,7 @@ async function withSystemTempDir(prefix: string, run: (dir: string) => Promise<v
       const { ctx, getTool } = setupIntegrationTest(cwd);
       const grepTool = getTool("anchor_grep");
       const result = await grepTool.execute("g1", { pattern: "needle", path: "wide3.txt", context: 1 }, undefined, undefined, ctx);
-      const rows = getText(result).split("\n").filter((l) => /[A-Za-z0-9]{3}│/.test(l));
+      const rows = getText(result).split("\n").filter((l) => /[A-Za-z0-9]{4}│/.test(l));
       expect(rows).toHaveLength(2);
       for (const row of rows) {
         expect(Buffer.byteLength(row, "utf-8")).toBeLessThanOrEqual(510);

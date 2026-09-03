@@ -200,7 +200,7 @@ export function getText(result: { content: Array<{ text?: string }> }): string {
   return result.content[0]?.text ?? "";
 }
 export function extractHash(line: string): string {
-  const m = line.match(/([A-Za-z0-9]{3})│/);
+  const m = line.match(/([A-Za-z0-9]{4})│/);
   return m ? m[1]! : line.split("│")[0]!
 }
 export function expectedEditContent(

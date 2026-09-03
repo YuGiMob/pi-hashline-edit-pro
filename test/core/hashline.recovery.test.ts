@@ -34,7 +34,7 @@ describe("applyEdit - recovery scenarios", () => {
   it("shows current context around the resolved anchor when only one anchor of a range is stale", async () => {
     const content = "a\nb\nc\nd\ne";
     const hashes = await lineHashes(content, home.testPath);
-    const staleStart = "ZZZ";
+    const staleStart = "PyBY";
     let caught: Error | undefined;
     try {
       applyEdit(content, resEdit(
@@ -53,7 +53,7 @@ describe("applyEdit - recovery scenarios", () => {
   it("shows context anchored on the start when only the end is stale", async () => {
     const content = "a\nb\nc\nd\ne";
     const hashes = await lineHashes(content, home.testPath);
-    const staleEnd = "ZZZ";
+    const staleEnd = "PyBY";
     let caught: Error | undefined;
     try {
       applyEdit(content, resEdit(
@@ -73,7 +73,7 @@ describe("applyEdit - recovery scenarios", () => {
     let caught: Error | undefined;
     try {
       applyEdit(content, resEdit(
-        { remove_from: "ZZZ",
+        { remove_from: "PyBY",
         remove_to: "YYY", replacement_lines: ["X"] },
       ));
     } catch (error) {
@@ -96,31 +96,31 @@ describe("applyEdit - recovery scenarios", () => {
   });
 
   it("rejects unknown fields in edit items", () => {
-    const edit = { remove_from: "ZZZ", remove_to: "ZZZ", replacement_lines: ["x"], extra: true } as any;
+    const edit = { remove_from: "PyBY", remove_to: "PyBY", replacement_lines: ["x"], extra: true } as any;
     expect(() => resEdit(edit)).toThrow(/unknown or unsupported fields/);
   });
 
   it("rejects missing replacement_lines", () => {
-    const edit = { remove_from: "ZZZ",
-    remove_to: "ZZZ" } as any;
+    const edit = { remove_from: "PyBY",
+    remove_to: "PyBY" } as any;
     expect(() => resEdit(edit)).toThrow(/requires a "replacement_lines" array/);
   });
 
   it("rejects null replacement_lines", () => {
-    const edit = { remove_from: "ZZZ",
-    remove_to: "ZZZ", replacement_lines: null } as any;
+    const edit = { remove_from: "PyBY",
+    remove_to: "PyBY", replacement_lines: null } as any;
     expect(() => resEdit(edit)).toThrow(/must be an array of strings/);
   });
 
   it("rejects a single string replacement_lines", () => {
-    const edit = { remove_from: "ZZZ",
-    remove_to: "ZZZ", replacement_lines: "hello" } as any;
+    const edit = { remove_from: "PyBY",
+    remove_to: "PyBY", replacement_lines: "hello" } as any;
     expect(() => resEdit(edit)).toThrow(/must be an array of strings/);
   });
 
   it("accepts array replacement_lines", () => {
-    const edit = { remove_from: "ZZZ",
-    remove_to: "ZZZ", replacement_lines: ["hello", "world", ""] } as any;
+    const edit = { remove_from: "PyBY",
+    remove_to: "PyBY", replacement_lines: ["hello", "world", ""] } as any;
     const resolved = resEdit(edit);
     expect(resolved.content_lines).toEqual(["hello", "world", ""]);
   });

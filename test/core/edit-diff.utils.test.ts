@@ -201,10 +201,10 @@ describe("genDiff - output limits", () => {
     expect(diff).not.toContain(long);
     const markers = diff.split("\n").filter((line) => line.includes("content not shown"));
     expect(markers).toHaveLength(2);
-    expect(markers[0]!).toMatch(/^- {3}│/);
-    expect(markers[1]!).toMatch(/^\+[A-Za-z0-9]{3}│/);
-    expect(markers[0]!.indexOf("│")).toBe(4);
-    expect(markers[1]!.indexOf("│")).toBe(4);
+    expect(markers[0]!).toMatch(/^- {4}│/);
+    expect(markers[1]!).toMatch(/^\+[A-Za-z0-9]{4}│/);
+    expect(markers[0]!.indexOf("│")).toBe(5);
+    expect(markers[1]!.indexOf("│")).toBe(5);
     expect(diff).not.toContain("row(s) exceed");
   });
 

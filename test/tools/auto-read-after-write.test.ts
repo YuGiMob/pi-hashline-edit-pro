@@ -163,8 +163,8 @@ describe("auto-read after write", () => {
 
       const autoReadText = writeResult!.content![1]!.text!;
       expect(autoReadText).toContain("--- Auto-read (hashline anchors) ---");
-      expect(autoReadText).toMatch(/[A-Za-z0-9]{3}│hello/);
-      expect(autoReadText).toMatch(/[A-Za-z0-9]{3}│world/);
+      expect(autoReadText).toMatch(/[A-Za-z0-9]{4}│hello/);
+      expect(autoReadText).toMatch(/[A-Za-z0-9]{4}│world/);
     } finally {
       await cleanupCwd(cwd);
     }
@@ -303,7 +303,7 @@ describe("auto-read after write", () => {
       const autoReadText = writeResult!.content![1]!.text!;
 
       const lines = autoReadText.split("\n");
-      const hashlinePattern = /^[A-Za-z0-9]{3}│/;
+      const hashlinePattern = /^[A-Za-z0-9]{4}│/;
 
       const headerIndex = lines.findIndex((l) =>
         l.includes("--- Auto-read (hashline anchors) ---"),
@@ -380,7 +380,7 @@ describe("auto-read after write", () => {
       const text = (writeResult as { content: Array<{ type: string; text: string }> }).content[1].text;
       expect(text).toContain("--- Auto-read (hashline anchors) ---");
       expect(text).toContain("[File is empty. Use replace to insert content.]");
-      expect(text).toMatch(/^[A-Za-z0-9]{3}│/m);
+      expect(text).toMatch(/^[A-Za-z0-9]{4}│/m);
     } finally {
       await cleanupCwd(cwd);
     }

@@ -13,7 +13,7 @@ describe("fmtReadPreview", () => {
 
   it("returns empty file marker for content with only newline", async () => {
     const result = await fmtReadPreview("\n", {}, undefined, home.testPath);
-    expect(result.text).toMatch(/^[A-Za-z0-9]{3}│$/);
+    expect(result.text).toMatch(/^[A-Za-z0-9]{4}│$/);
   });
 
   it("returns all lines when no offset or limit given", async () => {
@@ -56,11 +56,11 @@ describe("fmtReadPreview", () => {
   });
 
   it("uses precomputed hashes when provided", async () => {
-    const hashes = ["AAA", "BBB", "CCC"];
+    const hashes = ["ATIm", "BeSR", "DAfo"];
     const result = await fmtReadPreview("a\nb\nc\n", {}, hashes, home.testPath);
-    expect(result.text).toContain("AAA│a");
-    expect(result.text).toContain("BBB│b");
-    expect(result.text).toContain("CCC│c");
+    expect(result.text).toContain("ATIm│a");
+    expect(result.text).toContain("BeSR│b");
+    expect(result.text).toContain("DAfo│c");
   });
 
   it("skips an oversized first line and shows the rest with a bash fallback (auto-read budget)", async () => {
@@ -85,7 +85,7 @@ describe("fmtReadPreview", () => {
   it("returns only the marker row when every line is oversized (auto-read budget)", async () => {
     const big = "Z".repeat(60_000);
     const result = await fmtReadPreview(`${big}\n`, {}, undefined, home.testPath, DEFAULT_MAX_BYTES);
-    expect(result.text).toMatch(/^[A-Za-z0-9]{3}│\[Line 1 is .*exceeds 50\.0KB/);
+    expect(result.text).toMatch(/^[A-Za-z0-9]{4}│\[Line 1 is .*exceeds 50\.0KB/);
     expect(result.text).toContain("sed -n '1p'");
     expect(result.servedHashes).toHaveLength(1);
     expect(result.nextOffset).toBeUndefined();
@@ -106,7 +106,7 @@ describe("fmtReadPreview", () => {
   it("marks a 60KB line with a hash-anchored marker by default", async () => {
     const big = "V".repeat(60_000);
     const result = await fmtReadPreview(`${big}\nb\n`, {}, undefined, home.testPath);
-    expect(result.text).toMatch(/^[A-Za-z0-9]{3}│\[Line 1 is .*exceeds 50\.0KB/);
+    expect(result.text).toMatch(/^[A-Za-z0-9]{4}│\[Line 1 is .*exceeds 50\.0KB/);
     expect(result.text).not.toContain("│V");
     expect(result.text).toContain("│b");
     expect(result.servedHashes).toHaveLength(2);
@@ -115,14 +115,14 @@ describe("fmtReadPreview", () => {
   it("shows a line just under 50KB in full by default", async () => {
     const big = "U".repeat(50_000);
     const result = await fmtReadPreview(`${big}\n`, {}, undefined, home.testPath);
-    expect(result.text).toMatch(new RegExp(`^[A-Za-z0-9]{3}│U{50000}$`));
+    expect(result.text).toMatch(new RegExp(`^[A-Za-z0-9]{4}│U{50000}$`));
     expect(result.text).not.toContain("content not shown");
   });
 
   it("marks lines over 50KB by default with a hash-anchored marker", async () => {
     const big = "T".repeat(210_000);
     const result = await fmtReadPreview(`${big}\n`, {}, undefined, home.testPath);
-    expect(result.text).toMatch(/^[A-Za-z0-9]{3}│\[Line 1 is .*exceeds 50\.0KB/);
+    expect(result.text).toMatch(/^[A-Za-z0-9]{4}│\[Line 1 is .*exceeds 50\.0KB/);
     expect(result.text).toContain("sed -n '1p'");
     expect(result.text).toContain("head -c 51200");
     expect(result.servedHashes).toHaveLength(1);

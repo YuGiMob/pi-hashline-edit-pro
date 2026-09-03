@@ -15,19 +15,19 @@ beforeAll(async () => {
 
 describe("coverage boost utils", () => {
   it("isHashRow detects hash rows", () => {
-    expect(isHashRow("abc│hello")).toBe(true);
-    expect(isHashRow("ab│hello")).toBe(false);
-    expect(isHashRow("abcd│hello")).toBe(false);
-    expect(isHashRow("AB1│")).toBe(true);
+    expect(isHashRow("Hasu│hello")).toBe(true);
+    expect(isHashRow("Ha│hello")).toBe(false);
+    expect(isHashRow("HasuX│hello")).toBe(false);
+    expect(isHashRow("AB1c│")).toBe(true);
     expect(isHashRow("")).toBe(false);
-    expect(isHashRow("abc|hello")).toBe(false);
+    expect(isHashRow("Hasu|hello")).toBe(false);
   });
   it("numberedRead adds gutters for hash rows", () => {
-    expect(numberedRead("abc│hello\ndef│world", 1)).toBe("1 │ abc│hello\n2 │ def│world");
-    expect(numberedRead("plain\nabc│hello", 5)).toBe("plain\n5 │ abc│hello");
+    expect(numberedRead("Hasu│hello\narvm│world", 1)).toBe("1 │ Hasu│hello\n2 │ arvm│world");
+    expect(numberedRead("plain\nHasu│hello", 5)).toBe("plain\n5 │ Hasu│hello");
     expect(numberedRead("", 1)).toBe("");
     expect(numberedRead("nohash", 10)).toBe("nohash");
-    expect(numberedRead("a1B│x\na2C│y\na3D│z", 99)).toBe(" 99 │ a1B│x\n100 │ a2C│y\n101 │ a3D│z");
+    expect(numberedRead("a1Bc│x\na2Cd│y\na3De│z", 99)).toBe(" 99 │ a1Bc│x\n100 │ a2Cd│y\n101 │ a3De│z");
   });
   it("withLineNumbers adds gutters", () => {
     expect(withLineNumbers("a\nb", [1, 2])).toBe("1 │ a\n2 │ b");
@@ -90,30 +90,30 @@ describe("coverage boost utils", () => {
 
 describe("coverage boost parse", () => {
   it("parseHashRef valid", () => {
-    expect(parseHashRef("abc")).toEqual({ hash: "abc" });
-    expect(parseHashRef("  abc  ")).toEqual({ hash: "abc" });
-    expect(parseHashRef("A1b")).toEqual({ hash: "A1b" });
+    expect(parseHashRef("Hasu")).toEqual({ hash: "Hasu" });
+    expect(parseHashRef("  Hasu  ")).toEqual({ hash: "Hasu" });
+    expect(parseHashRef("A1bc")).toEqual({ hash: "A1bc" });
   });
   it("parseHashRef empty", () => {
-    expect(() => parseHashRef("")).toThrow(/E_BAD_REF.*Expected a 3-char/);
+    expect(() => parseHashRef("")).toThrow(/E_BAD_REF.*Expected a 4-char/);
     expect(() => parseHashRef("   ")).toThrow(/E_BAD_REF/);
   });
   it("parseHashRef numeric", () => {
     expect(() => parseHashRef("123abc")).toThrow(/no line numbers/);
-    expect(() => parseHashRef("1234")).toThrow(/no line numbers/);
+    expect(() => parseHashRef("12345")).toThrow(/no line numbers/);
   });
   it("parseHashRef multiline block", () => {
-    expect(() => parseHashRef("abc│hello\ndef│world")).toThrow(/remove_from and remove_to must each be a single bare/);
-    expect(() => parseHashRef("abc│hello\ndef│world\n")).toThrow(/remove_from and remove_to/);
+    expect(() => parseHashRef("Hasu│hello\narvm│world")).toThrow(/remove_from and remove_to must each be a single bare/);
+    expect(() => parseHashRef("Hasu│hello\narvm│world\n")).toThrow(/remove_from and remove_to/);
   });
   it("parseHashRef with pipe", () => {
-    expect(() => parseHashRef("abc│hello")).toThrow(/drop everything from/);
-    expect(() => parseHashRef("  abc│  ")).toThrow(/drop everything/);
+    expect(() => parseHashRef("Hasu│hello")).toThrow(/drop everything from/);
+    expect(() => parseHashRef("  Hasu│  ")).toThrow(/drop everything/);
   });
   it("parseHashRef invalid generic", () => {
-    expect(() => parseHashRef("ab")).toThrow(/Expected a 3-char/);
-    expect(() => parseHashRef("abcd")).toThrow(/Expected a 3-char/);
-    expect(() => parseHashRef("ab!")).toThrow(/Expected a 3-char/);
+    expect(() => parseHashRef("Ha")).toThrow(/Expected a 4-char/);
+    expect(() => parseHashRef("abcde")).toThrow(/Expected a 4-char/);
+    expect(() => parseHashRef("Ha!")).toThrow(/Expected a 4-char/);
   });
 });
 
@@ -128,18 +128,18 @@ describe("coverage boost hasher", () => {
 
 describe("coverage boost validation", () => {
   it("isValidHashList", () => {
-    expect(isValidHashList(["abc", "def"])).toBe(true);
-    expect(isValidHashList(["abc", "abc"])).toBe(false);
-    expect(isValidHashList(["ab"])).toBe(false);
+    expect(isValidHashList(["Hasu", "arvm"])).toBe(true);
+    expect(isValidHashList(["Hasu", "Hasu"])).toBe(false);
+    expect(isValidHashList(["Ha"])).toBe(false);
     expect(isValidHashList(["AB!"])).toBe(false);
-    expect(isValidHashList("abc")).toBe(false);
+    expect(isValidHashList("Hasu")).toBe(false);
     expect(isValidHashList([])).toBe(true);
     expect(isValidHashList([123 as unknown as string])).toBe(false);
   });
   it("isValidServedMap", () => {
-    expect(isValidServedMap({ abc: "x" })).toBe(true);
-    expect(isValidServedMap({ ab: "x" })).toBe(false);
-    expect(isValidServedMap({ abc: 123 as unknown as string })).toBe(false);
+    expect(isValidServedMap({ Hasu: "x" })).toBe(true);
+    expect(isValidServedMap({ Ha: "x" })).toBe(false);
+    expect(isValidServedMap({ Hasu: 123 as unknown as string })).toBe(false);
     expect(isValidServedMap(null)).toBe(false);
     expect(isValidServedMap([])).toBe(false);
     expect(isValidServedMap({ "AB!": "x" })).toBe(false);
@@ -157,12 +157,12 @@ describe("coverage boost validation", () => {
   });
   it("parseHashList valid", () => {
     let called = false;
-    expect(parseHashList(JSON.stringify(["abc", "def"]), () => { called = true; })).toEqual(["abc", "def"]);
+    expect(parseHashList(JSON.stringify(["Hasu", "arvm"]), () => { called = true; })).toEqual(["Hasu", "arvm"]);
     expect(called).toBe(false);
   });
   it("parseHashList duplicate", () => {
     let called = false;
-    expect(parseHashList(JSON.stringify(["abc", "abc"]), () => { called = true; })).toBeUndefined();
+    expect(parseHashList(JSON.stringify(["Hasu", "Hasu"]), () => { called = true; })).toBeUndefined();
     expect(called).toBe(true);
   });
   it("parseServedMap invalid json", () => {
@@ -177,19 +177,19 @@ describe("coverage boost validation", () => {
   });
   it("parseServedMap valid", () => {
     let called = false;
-    const m = parseServedMap(JSON.stringify({ abc: "x", def: "y" }), () => { called = true; });
-    expect(m?.get("abc")).toBe("x");
+    const m = parseServedMap(JSON.stringify({ Hasu: "x", arvm: "y" }), () => { called = true; });
+    expect(m?.get("Hasu")).toBe("x");
     expect(called).toBe(false);
   });
   it("parseStoredHashes and Served", () => {
     expect(parseStoredHashes(undefined, () => {})).toBeUndefined();
     expect(parseStoredServed(undefined, () => {})).toBeUndefined();
-    expect(parseStoredHashes({ hashes: JSON.stringify(["abc"]) } as unknown as Record<string, unknown>, () => {})).toEqual(["abc"]);
-    expect(parseStoredServed({ hashes: JSON.stringify({ abc: "x" }) } as unknown as Record<string, unknown>, () => {})?.get("abc")).toBe("x");
+    expect(parseStoredHashes({ hashes: JSON.stringify(["Hasu"]) } as unknown as Record<string, unknown>, () => {})).toEqual(["Hasu"]);
+    expect(parseStoredServed({ hashes: JSON.stringify({ Hasu: "x" }) } as unknown as Record<string, unknown>, () => {})?.get("Hasu")).toBe("x");
   });
   it("isValidSnapshot", () => {
-    expect(isValidSnapshot({ content: "a", hashes: ["abc"] })).toBe(true);
-    expect(isValidSnapshot({ content: 123, hashes: ["abc"] })).toBe(false);
+    expect(isValidSnapshot({ content: "a", hashes: ["Hasu"] })).toBe(true);
+    expect(isValidSnapshot({ content: 123, hashes: ["Hasu"] })).toBe(false);
     expect(isValidSnapshot({ content: "a", hashes: ["ab"] })).toBe(false);
     expect(isValidSnapshot(null)).toBe(false);
     expect(isValidSnapshot({})).toBe(false);

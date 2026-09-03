@@ -2,9 +2,9 @@
 
 [![npm version](https://img.shields.io/npm/v/pi-hashline-edit-pro.svg)](https://www.npmjs.com/package/pi-hashline-edit-pro) [![npm downloads](https://img.shields.io/npm/dm/pi-hashline-edit-pro.svg)](https://www.npmjs.com/package/pi-hashline-edit-pro)
 
-Anchor-based `read`, `replace`, `insert`, and `anchor_grep` tools for [pi-coding-agent](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent). Every line of a file gets a unique 3-character anchor, and you edit by anchor. There are no line numbers and no fuzzy matching, so edits land on the lines you meant.
+Anchor-based `read`, `replace`, `insert`, and `anchor_grep` tools for [pi-coding-agent](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent). Every line of a file gets a unique 4-character anchor, and you edit by anchor. There are no line numbers and no fuzzy matching, so edits land on the lines you meant.
 
-Fork of [pi-hashline-edit](https://github.com/RimuruW/pi-hashline-edit) by RimuruW, extended with 3-character anchors and collision resolution.
+Fork of [pi-hashline-edit](https://github.com/RimuruW/pi-hashline-edit) by RimuruW, extended with 4-character tokenizer-friendly anchors and collision resolution.
 
 ## Features
 
@@ -22,9 +22,9 @@ Fork of [pi-hashline-edit](https://github.com/RimuruW/pi-hashline-edit) by Rimur
 1. Read a file:
 
 ```text
-ve7│function hello() {
-szJ│  console.log("world");
-kQm│}
+Dafo│function hello() {
+Emno│  console.log("world");
+HDtm│}
 ```
 
 2. Replace a line by its anchor:
@@ -32,8 +32,8 @@ kQm│}
 ```json
 {
   "path": "src/main.ts",
-  "remove_from": "szJ",
-  "remove_to": "szJ",
+  "remove_from": "Emno",
+  "remove_to": "Emno",
   "replacement_lines": ["  console.log('hi');"]
 }
 ```
@@ -54,7 +54,7 @@ pi install /path/to/pi-hashline-edit-pro
 
 ## The read tool
 
-`read` returns a text file with every line prefixed by `anchor│content`. The anchor is 3 characters from `A-Za-z0-9` (for example `aB3`).
+`read` returns a text file with every line prefixed by `anchor│content`. The anchor is 4 characters from `A-Za-z0-9` (for example `Hasu`), drawn from a curated table of two-character tokens so every anchor costs 2 tokens in the major tokenizers.
 
 | Parameter | Description |
 | --- | --- |
@@ -72,7 +72,7 @@ Edge cases:
 - UTF-16 and UTF-32 text (detected via BOM) is rejected, since editing it would corrupt the file.
 - Empty files come back as a single empty-line anchor (`anchor│`); use `replace` on that anchor to insert content.
 - BOMs are stripped for display. Non-UTF-8 bytes are shown as `U+FFFD`; editing such a file rewrites it as UTF-8, with a warning.
-- Files over 238,328 lines or 100MB are rejected with `[E_FILE_TOO_LARGE]`.
+- Files over 257,795 lines or 100MB are rejected with `[E_FILE_TOO_LARGE]`.
 
 ## The replace tool
 
@@ -83,16 +83,16 @@ One edit per call, with `remove_from`, `remove_to`, and `replacement_lines` at t
 ```json
 {
   "path": "src/main.ts",
-  "remove_from": "szJ",
-  "remove_to": "kQm",
+  "remove_from": "Emno",
+  "remove_to": "HDtm",
   "replacement_lines": ["  console.log('hi');", "}"]
 }
 ```
 
 | Field | Description |
 | --- | --- |
-| `remove_from` | 3-char anchor from `read` output marking the FIRST line to remove (inclusive). |
-| `remove_to` | 3-char anchor from `read` output marking the LAST line to remove (inclusive). |
+| `remove_from` | 4-char anchor from `read` output marking the FIRST line to remove (inclusive). |
+| `remove_to` | 4-char anchor from `read` output marking the LAST line to remove (inclusive). |
 | `replacement_lines` | Replacement lines as an array of strings, one element per line. Mirror the removed lines exactly, blank lines included: use `[]` to delete the range, `[""]` for a single blank line, `["a", ""]` for a line followed by a blank line, and `["", ""]` for two blank lines. Do not embed `\n` inside an element: each element is exactly one line. |
 
 Notes:
@@ -111,7 +111,7 @@ Notes:
 ```json
 {
   "path": "src/main.ts",
-  "anchor": "szJ",
+  "anchor": "Emno",
   "direction": "after",
   "lines": ["  console.log('hi');"]
 }
@@ -119,7 +119,7 @@ Notes:
 
 | Field | Description |
 | --- | --- |
-| `anchor` | 3-char anchor from `read` output marking the line next to which the lines go (inclusive; the line is preserved). A pasted diff row like `+aB3│x` or an `anchor│` prefix is stripped automatically with a warning. |
+| `anchor` | 4-char anchor from `read` output marking the line next to which the lines go (inclusive; the line is preserved). A pasted diff row like `+Hasu│x` or an `anchor│` prefix is stripped automatically with a warning. |
 | `direction` | `"after"` to insert below the anchor line, `"before"` to insert above it. |
 | `lines` | Lines to insert as an array of strings, one element per line. Mirror `replacement_lines` semantics: use `[""]` for a blank line and do not embed `\n` inside an element. The anchor line is never part of `lines`. |
 
@@ -202,11 +202,11 @@ Settings live in `~/.config/pi-hashline-edit-pro/config.json`, created automatic
 
 ## How anchors work
 
-Each line is canonicalized (carriage returns stripped, trailing whitespace trimmed) and hashed with [xxhash-wasm](https://github.com/jungomi/xxhash-wasm) (xxHash32), then mapped to a 3-character string over `A-Za-z0-9`, which gives 62³ = 238,328 possible anchors. The canonicalization keeps anchors stable across editor-save cycles that add or remove trailing whitespace. A line longer than 500 bytes is hashed from its first 500 bytes; uniqueness is still guaranteed by the collision-resolution below.
+Each line is canonicalized (carriage returns stripped, trailing whitespace trimmed) and hashed with [xxhash-wasm](https://github.com/jungomi/xxhash-wasm) (xxHash32), then mapped to a 4-character anchor from a frozen table of 257,795 anchors. The canonicalization keeps anchors stable across editor-save cycles that add or remove trailing whitespace. A line longer than 500 bytes is hashed from its first 500 bytes; uniqueness is still guaranteed by the collision-resolution below.
 
-The alphabet is sized for an LLM consumer: the model reads the hashes as tokens rather than inspecting glyph shapes, so letters and digits are all included. The URL-safe specials `-` and `_` are deliberately excluded. A hash starting with `-` looks like a diff-preview deletion row, and `-`/`_` at the start of a line are markdown-active, which invites mis-copying and false autocorrections.
+The table is curated for tokenizers, not for humans: every anchor is the concatenation of two 2-character sequences that are single tokens in the o200k, cl100k, GPT-2, Llama, and Mistral vocabularies (verified offline against each full vocabulary), and the 4-character concatenation itself is verified to encode as exactly 2 tokens in all of them. An anchor therefore costs 2 tokens on a read row and 2 tokens in an edit call, with the `│` separator as the only overhead. Anchors are letters only; the digits dropped out because SentencePiece vocabularies have no two-digit tokens. The table is generated by `scripts/generate-anchor-table.py` and shipped as `src/hashline/anchor-table.json`.
 
-Anchors are unique by construction. If a line's base hash collides with an already-assigned hash, the next free hash is allocated from a bitset by probing with a stride coprime to the hash space (O(1) amortized). The stride is `62² + 62 + 1`, so consecutive collisions, runs of blank lines, repeated `}`, land on anchors that differ in all three characters instead of sharing a prefix. Every line in a file therefore gets a unique anchor; two byte-identical lines (repeated `}`, repeated `import` statements) never share one. The same guarantee sets the file size cap: at most 238,328 lines per file, beyond which `read`, `replace`, and `insert` reject with `[E_FILE_TOO_LARGE]` (use `write` for very large files).
+Anchors are unique by construction. If a line's base hash collides with an already-assigned hash, the next free hash is allocated from a bitset by probing with a stride coprime to the hash space (O(1) amortized). The stride advances both anchor halves, so consecutive collisions — runs of blank lines, repeated `}` — never share their first two characters. Every line in a file therefore gets a unique anchor; two byte-identical lines (repeated `}`, repeated `import` statements) never share one. The same guarantee sets the file size cap: at most 257,795 lines per file, beyond which `read`, `replace`, and `insert` reject with `[E_FILE_TOO_LARGE]` (use `write` for very large files).
 
 Hashes live in a persistent per-file store (`~/.config/pi-hashline-edit-pro/hash-store.sqlite`) that keeps the hashes of unchanged lines across edits. When a range is replaced, the runtime maps the old content onto the new content and copies hashes for lines that survived; only genuinely new lines get fresh hashes.
 
@@ -226,10 +226,10 @@ A no-op replace never changes the file, so anchors remain valid. On first run af
 | Code | Meaning |
 | --- | --- |
 | `[E_BAD_SHAPE]` | Request envelope or edit item has unknown, missing, or wrongly-typed fields (for example `replacement_lines` must be an array of strings, one element per line). |
-| `[E_BAD_REF]` | An anchor in `remove_from`/`remove_to` is not a bare 3-char anchor. |
+| `[E_BAD_REF]` | An anchor in `remove_from`/`remove_to` is not a bare 4-char anchor. |
 | `[E_STALE_ANCHOR]` | An anchor does not match any line in the current file; call `read` for fresh anchors. |
 | `[E_AMBIGUOUS_ANCHOR]` | An anchor matches multiple lines; call `read` for fresh anchors. |
-| `[E_INVALID_PATCH]` | A `replacement_lines` element is a diff-preview row (`+anchor│`, `-anchor│`, `-   │`). The marker is stripped automatically with a warning. |
+| `[E_INVALID_PATCH]` | A `replacement_lines` element is a diff-preview row (`+anchor│`, `-anchor│`, `-    │`). The marker is stripped automatically with a warning. |
 | `[E_BARE_HASH_PREFIX]` | A `replacement_lines` element starts with an `anchor│` prefix (the anchor plus the separator). The prefix is stripped automatically with a warning. |
 | `[E_BAD_OP]` | Range start line is after range end line. The pair is swapped automatically with a warning. |
 | `[E_WOULD_EMPTY]` | An edit would empty a non-empty file; use `write` instead. |
@@ -240,7 +240,7 @@ A no-op replace never changes the file, so anchors remain valid. On first run af
 | `[E_UNDO_UNAVAILABLE]` | Undo history could not be persisted to the hash store; the edit was refused and the file was left unchanged. |
 | `[E_RANGE_STALE]` | A line in the replaced range no longer matches what was last shown (the file changed on disk, or the line was never shown). The edit was refused; the current range is returned with fresh anchors. |
 | `[E_BOUNDARY_BYPASS]` | The boundary anti-duplication was turned off for one replace call (an identical replacement had previously been cut to a noop); the duplicate lines were applied literally. The dedup is restored for the next call. |
-| `[E_FILE_TOO_LARGE]` | The file exceeds the 238,328-line hashline limit or the 100MB size limit. |
+| `[E_FILE_TOO_LARGE]` | The file exceeds the 257,795-line hashline limit or the 100MB size limit. |
 | `[E_WRITE_HASH_ECHO]` | A `write` `content` line begins with the exact `anchor│` served for this file at the same line. The write is refused, file byte-identical; retry with bare content (remove the copied anchors). |
 | `[E_PATH_CHANGED]` | A write target changed identity after it was read; the write was refused to avoid following a swapped symlink or overwriting a replacement file. |
 | `[E_UNSAFE_REGEX]` | A grep regex can trigger excessive backtracking; simplify it or search with `literal: true`. |

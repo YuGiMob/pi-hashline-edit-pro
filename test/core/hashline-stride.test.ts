@@ -18,8 +18,12 @@ function gcd(a: number, b: number): number {
   return a;
 }
 
-function allCharsDiffer(a: string, b: string): boolean {
-  return a[0] !== b[0] && a[1] !== b[1] && a[2] !== b[2];
+function firstPiece(a: string): string {
+  return a.slice(0, 2);
+}
+
+function piecesDiffer(a: string, b: string): boolean {
+  return firstPiece(a) !== firstPiece(b);
 }
 
 describe("hash probe stride", () => {
@@ -27,30 +31,12 @@ describe("hash probe stride", () => {
     expect(gcd(HASH_PROBE_STRIDE, HASH_SPACE)).toBe(1);
   });
 
-  it("changes all three characters between consecutive allocations", () => {
-    const digit0 = HASH_PROBE_STRIDE % 62;
-    const digit1 = Math.floor(HASH_PROBE_STRIDE / 62) % 62;
-    const digit2 = Math.floor(HASH_PROBE_STRIDE / 62 ** 2) % 62;
-    expect(digit0).not.toBe(0);
-    expect(digit1).not.toBe(0);
-    expect(digit1).not.toBe(61);
-    expect(digit2).not.toBe(0);
-    expect(digit2).not.toBe(61);
-  });
-
-  it("spreads blank lines so consecutive hashes share no characters", () => {
-    const content = Array.from({ length: 20 }, () => "").join("\n");
-    const hashes = _lineHashesPure(content);
-    for (let i = 1; i < hashes.length; i++) {
-      expect(allCharsDiffer(hashes[i - 1]!, hashes[i]!)).toBe(true);
-    }
-  });
-
-  it("spreads repeated closing braces the same way", () => {
-    const content = Array.from({ length: 20 }, () => "}").join("\n");
-    const hashes = _lineHashesPure(content);
-    for (let i = 1; i < hashes.length; i++) {
-      expect(allCharsDiffer(hashes[i - 1]!, hashes[i]!)).toBe(true);
+  it("keeps consecutive allocations on different piece heads", () => {
+    for (const line of ["", "}"]) {
+      const hashes = _lineHashesPure(Array.from({ length: 20 }, () => line).join("\n"));
+      for (let i = 1; i < hashes.length; i++) {
+        expect(piecesDiffer(hashes[i - 1]!, hashes[i]!)).toBe(true);
+      }
     }
   });
 
@@ -58,7 +44,7 @@ describe("hash probe stride", () => {
     const content = Array.from({ length: 20 }, () => "").join("\n");
     const hashes = await lineHashes(content, home.testPath);
     for (let i = 1; i < hashes.length; i++) {
-      expect(allCharsDiffer(hashes[i - 1]!, hashes[i]!)).toBe(true);
+      expect(piecesDiffer(hashes[i - 1]!, hashes[i]!)).toBe(true);
     }
   });
 
@@ -83,7 +69,7 @@ describe("hash probe stride", () => {
       hashes: oldHashes,
     });
     for (let i = 1; i < newHashes.length; i++) {
-      expect(allCharsDiffer(newHashes[i - 1]!, newHashes[i]!)).toBe(true);
+      expect(piecesDiffer(newHashes[i - 1]!, newHashes[i]!)).toBe(true);
     }
   });
 });

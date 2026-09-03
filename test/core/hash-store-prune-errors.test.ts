@@ -60,14 +60,14 @@ describe("hash-store - pruneMissing error handling", () => {
     shutdownHashStore();
     const store = await loadHashStore();
     const locked = join(tmpHome, "locked.ts");
-    await putSnapshot(store, locked, "locked\n", ["AAA"]);
-    recordServed(store, locked, new Map([["AAA", "AAA"]]));
+    await putSnapshot(store, locked, "locked\n", ["ATIm"]);
+    recordServed(store, locked, new Map([["ATIm", "ATIm"]]));
 
     state.statErrors.set(locked, statError("EACCES", "permission denied"));
     await pruneMissing(store);
 
-    expect(getSnapshot(store, locked, "locked\n")).toEqual(["AAA"]);
-    expect(getServed(store, locked)).toEqual(new Map([["AAA", "AAA"]]));
+    expect(getSnapshot(store, locked, "locked\n")).toEqual(["ATIm"]);
+    expect(getServed(store, locked)).toEqual(new Map([["ATIm", "ATIm"]]));
   });
 
   it("keeps the snapshot when stat fails with ELOOP", async () => {
@@ -75,12 +75,12 @@ describe("hash-store - pruneMissing error handling", () => {
     shutdownHashStore();
     const store = await loadHashStore();
     const loop = join(tmpHome, "loop.ts");
-    await putSnapshot(store, loop, "loop\n", ["BBB"]);
+    await putSnapshot(store, loop, "loop\n", ["BeSR"]);
 
     state.statErrors.set(loop, statError("ELOOP", "too many symbolic links"));
     await pruneMissing(store);
 
-    expect(getSnapshot(store, loop, "loop\n")).toEqual(["BBB"]);
+    expect(getSnapshot(store, loop, "loop\n")).toEqual(["BeSR"]);
   });
 
   it("still prunes paths that stat reports as ENOENT", async () => {
@@ -88,7 +88,7 @@ describe("hash-store - pruneMissing error handling", () => {
     shutdownHashStore();
     const store = await loadHashStore();
     const gone = join(tmpHome, "gone.ts");
-    await putSnapshot(store, gone, "gone\n", ["CCC"]);
+    await putSnapshot(store, gone, "gone\n", ["DAfo"]);
 
     state.statErrors.set(gone, statError("ENOENT", "no such file"));
     await pruneMissing(store);

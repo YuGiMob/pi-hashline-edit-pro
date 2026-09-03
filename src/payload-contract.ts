@@ -14,12 +14,12 @@ const replacementLinesSchema = Type.Array(
 
 const removeFromSchema = Type.String({
   description:
-    "Bare 3-char anchor only (e.g. \"aB3\"): copy just the anchor from the leftmost column of a read row like `aB3│content`; never the line content. Marks the FIRST line to remove (inclusive)",
+    "Bare 4-char anchor only (e.g. \"Hasu\"): copy just the anchor from the leftmost column of a read row like `Hasu│content`; never the line content. Marks the FIRST line to remove (inclusive)",
 });
 
 const removeToSchema = Type.String({
   description:
-    "Bare 3-char anchor only (e.g. \"aB3\"): copy just the anchor from the leftmost column of a read row like `aB3│content`; never the line content. Marks the LAST line to remove (inclusive)",
+    "Bare 4-char anchor only (e.g. \"Hasu\"): copy just the anchor from the leftmost column of a read row like `Hasu│content`; never the line content. Marks the LAST line to remove (inclusive)",
 });
 
 export const editToolSchema = Type.Object(

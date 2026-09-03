@@ -45,7 +45,7 @@ describe("file kind guards in tools", () => {
           "e1",
           {
             path: "image.png",
-            remove_from: "AAA", remove_to: "BBB", replacement_lines: ["x"],
+            remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["x"],
           },
           undefined,
           undefined,
@@ -65,7 +65,7 @@ describe("file kind guards in tools", () => {
           "e1",
           {
             path: "utf16.txt",
-            remove_from: "AAA", remove_to: "BBB", replacement_lines: ["x"],
+            remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["x"],
           },
           undefined,
           undefined,
@@ -85,7 +85,7 @@ describe("file kind guards in tools", () => {
           "e1",
           {
             path: "mydir",
-            remove_from: "AAA", remove_to: "BBB", replacement_lines: ["x"],
+            remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["x"],
           },
           undefined,
           undefined,

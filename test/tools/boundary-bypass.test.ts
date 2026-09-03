@@ -71,7 +71,7 @@ describe("boundary dedup noop bypass", () => {
           path: "sample.ts",
           remove_from: hashes[0]!,
           remove_to: hashes[0]!,
-          replacement_lines: ["AAA"],
+          replacement_lines: ["ATIm"],
         },
         undefined,
         undefined,
@@ -82,12 +82,12 @@ describe("boundary dedup noop bypass", () => {
       expect(again.details.classification).toBe("noop");
       expect(getText(again)).toContain("No changes made");
       expect(getText(again)).not.toContain("[E_BOUNDARY_BYPASS]");
-      expect(await readFile(path, "utf-8")).toBe("AAA\nbbb\nccc\n");
+      expect(await readFile(path, "utf-8")).toBe("ATIm\nbbb\nccc\n");
 
       const resend = await editTool.execute("e4", payload, undefined, undefined, ctx);
       expect(getText(resend)).toContain("Successfully replaced");
       expect(getText(resend)).toContain("[E_BOUNDARY_BYPASS]");
-      expect(await readFile(path, "utf-8")).toBe("AAA\nbbb\nccc\nccc\n");
+      expect(await readFile(path, "utf-8")).toBe("ATIm\nbbb\nccc\nccc\n");
     });
   });
 
