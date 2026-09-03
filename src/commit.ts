@@ -56,7 +56,7 @@ export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promis
   }
   if (pipe.hadBoundaryDedup) {
     warnings.push(
-      `Boundary dedup removed ${pipe.boundaryRemovedLines} re-included adjacent line(s) from the replacement; the current content is the intended result. Do not re-insert them; use insert to keep the duplicates.`,
+      `Boundary dedup removed ${pipe.boundaryRemovedLines} re-included boundary line(s); the file is correct as-is — do not re-insert them (use insert for literal duplicates).`,
     );
   }
 

@@ -97,7 +97,7 @@ describe("parseText", () => {
 		const warnings: string[] = [];
 		expect(parseText(["a\r\nb\rc"], warnings)).toEqual(["a", "b", "c"]);
 		expect(warnings).toHaveLength(1);
-		expect(warnings[0]).toMatch(/split embedded newlines in replacement_lines/);
+		expect(warnings[0]).toMatch(/contained embedded newlines/);
 	});
 
 	it("does not warn when no element contains embedded newlines", () => {
@@ -135,7 +135,7 @@ describe("parseText json-envelope autocorrect", () => {
 		const warnings: string[] = [];
 		expect(parseText(['["  "version": "2.8.4","].'], warnings)).toEqual(['  "version": "2.8.4",']);
 		expect(warnings).toHaveLength(1);
-		expect(warnings[0]).toMatch(/wrapped in JSON array syntax/);
+		expect(warnings[0]).toMatch(/JSON array syntax/);
 	});
 
 	it("leaves valid JSON array lines alone", () => {

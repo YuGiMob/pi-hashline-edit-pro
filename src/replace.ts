@@ -91,7 +91,7 @@ async function resolveMissingPath(
   if (matches.length === 1) {
     return {
       path: matches[0]!,
-      warning: `[E_BAD_SHAPE] Autocorrected: missing "path" resolved to ${matches[0]}.`,
+      warning: `[E_BAD_SHAPE] Missing "path" resolved to ${matches[0]}.`,
     };
   }
   if (matches.length > 1) {

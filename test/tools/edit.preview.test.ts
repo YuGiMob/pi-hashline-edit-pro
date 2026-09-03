@@ -347,7 +347,7 @@ describe("renderResult", () => {
       content: [
         {
           type: "text",
-          text: "Successfully replaced in sample.ts.\n\nWarnings:\n[E_BAD_OP] Autocorrected: remove_from/remove_to were reversed; swapped them.",
+          text: "Successfully replaced in sample.ts.\n\nWarnings:\n[E_BAD_OP] Swapped reversed remove_from/remove_to.",
         },
       ],
       details: {
@@ -363,7 +363,7 @@ describe("renderResult", () => {
     ) as Text;
     const text = (component as any).text as string;
     expect(text).toContain("+aB3│BBB");
-    expect(text).toContain("[E_BAD_OP] Autocorrected: remove_from/remove_to were reversed; swapped them.");
+    expect(text).toContain("[E_BAD_OP] Swapped reversed remove_from/remove_to.");
   });
 
   it("returns an empty component when there is nothing to render", () => {

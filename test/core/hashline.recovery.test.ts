@@ -17,7 +17,7 @@ describe("applyEdit - recovery scenarios", () => {
       remove_to: hashes[1]!, replacement_lines: ["X"] },
     ));
     expect(result.content).toBe("a\nX\ne");
-    expect(result.warnings?.[0]).toMatch(/Autocorrected: remove_from\/remove_to were reversed/);
+    expect(result.warnings?.[0]).toMatch(/Swapped reversed remove_from\/remove_to/);
   });
 
   it("rejects stale anchor", async () => {

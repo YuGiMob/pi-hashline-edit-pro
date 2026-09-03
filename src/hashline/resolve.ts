@@ -195,7 +195,7 @@ export function stripAnchorRow(
 			: match[1] === "-"
 				? 'leading "-" marker'
 				: '"anchor│" prefix';
-	warnings?.push(`[E_BAD_REF] Stripped ${marker} from ${entryLabel} "${trimmed}".`);
+	warnings?.push(`[E_BAD_REF] Stripped ${marker} from ${entryLabel} "${clipLine(trimmed, 48)}".`);
 	return match[2]!;
 }
 
@@ -240,13 +240,8 @@ export function stripBarePrefixes(
 	const locations = stripped
 		.map((s) => `replacement_lines line ${s.lineIndex + 1}`)
 		.join(", ");
-	const matchedCount = stripped.filter((s) => s.matched).length;
-	const guidance =
-		matchedCount === 0
-			? " Verify it was pasted from read output."
-			: "";
 	warnings.push(
-		`[E_BARE_HASH_PREFIX] Stripped "anchor│" prefix from ${locations}.${guidance}`
+		`[E_BARE_HASH_PREFIX] Stripped "anchor│" prefix from ${locations}.`
 	);
 	return { ...edit, content_lines: contentLines };
 }
@@ -290,7 +285,7 @@ export function swapReversedRanges(
 		return edit;
 	}
 	warnings.push(
-		`[E_BAD_OP] Autocorrected: remove_from/remove_to were reversed; swapped them.`
+		`[E_BAD_OP] Swapped reversed remove_from/remove_to.`
 	);
 	return { ...edit, hash_bounds: [endRef, startRef] as [Anchor, Anchor] };
 }

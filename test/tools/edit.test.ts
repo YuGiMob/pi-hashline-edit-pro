@@ -135,7 +135,7 @@ describe("regReplace", () => {
       expect(result.content[0].text).toContain("Successfully replaced");
       expect(result.content[0].text).toContain("Added 1 line(s), removed 2 line(s).");
       expect(result.content[0].text).toContain("Warnings:");
-      expect(result.content[0].text).toContain("were reversed");
+      expect(result.content[0].text).toContain("Swapped reversed");
       expect(result.details?.diff).toContain("X");
     });
   });

@@ -245,9 +245,9 @@ describe("boundary dedup noop bypass", () => {
         ctx,
       );
       expect(getText(result)).toContain("Successfully replaced");
-      expect(getText(result)).toContain("Boundary dedup removed 1 re-included adjacent line(s)");
-      expect(getText(result)).toContain("Do not re-insert them");
-      expect(getText(result)).toContain("use insert to keep the duplicates");
+      expect(getText(result)).toContain("Boundary dedup removed 1 re-included boundary line(s)");
+      expect(getText(result)).toContain("do not re-insert them");
+      expect(getText(result)).toContain("(use insert for literal duplicates)");
       expect(await readFile(path, "utf-8")).toBe("aaa\nBBB\nccc\n");
     });
   });

@@ -64,7 +64,7 @@ function unwrapJsonEnvelope(line: string, warnings?: string[]): string {
     return line;
   } catch {
     warnings?.push(
-      '[E_BAD_SHAPE] Autocorrected: replacement_lines element was wrapped in JSON array syntax (starts with [" and ends with "].); unwrapped it to the bare line.',
+      '[E_BAD_SHAPE] Unwrapped JSON array syntax from a replacement_lines element.',
     );
     return match[1]!;
   }
@@ -84,7 +84,7 @@ export function parseText(edit: string[], warnings?: string[]): string[] {
   }
   if (split) {
     warnings?.push(
-      "[E_BAD_SHAPE] Autocorrected: split embedded newlines in replacement_lines into separate lines.",
+      "[E_BAD_SHAPE] replacement_lines contained embedded newlines; split into one line each.",
     );
   }
   return out;
