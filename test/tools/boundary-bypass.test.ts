@@ -246,7 +246,7 @@ describe("boundary dedup noop bypass", () => {
       );
       expect(getText(result)).toContain("Successfully replaced");
       expect(getText(result)).toContain('Boundary dedup: "aaa" already exists next to the edited range, so it was not added again');
-      expect(getText(result)).toContain("Use insert only if you truly want a duplicate");
+      expect(getText(result)).not.toContain("Use insert only if you truly want");
       expect(await readFile(path, "utf-8")).toBe("aaa\nBBB\nccc\n");
     });
   });

@@ -25,7 +25,7 @@ export interface CommitMeta {
 function boundaryDedupWarning(lineTexts: string[]): string {
   const quoted = lineTexts.map((line) => `"${clipLine(line, 80)}"`).join(", ");
   const plural = lineTexts.length > 1;
-  return `Boundary dedup: ${quoted} already ${plural ? "exist" : "exists"} next to the edited range, so ${plural ? "they were" : "it was"} not added again. Use insert only if you truly want ${plural ? "duplicates" : "a duplicate"}.`;
+  return `Boundary dedup: ${quoted} already ${plural ? "exist" : "exists"} next to the edited range, so ${plural ? "they were" : "it was"} not added again.`;
 }
 
 export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promise<TResult> {
