@@ -442,7 +442,7 @@ export function getSnapshot(
     snapshotCache.set(path, cached);
     return cached.hashes.slice();
   }
-  const row = store.stmts.get(path, checksum, lineCount);
+  const row = withBusyRetry(() => store.stmts.get(path, checksum, lineCount));
   const parsed = parseStoredHashes(row, () => {
     if (deleteCorrupt) store.stmts.deleteOne(path);
     snapshotCache.delete(path);
@@ -484,7 +484,7 @@ export function upsertUndo(store: HashStore, path: string, entry: UndoRecord): v
 }
 
 export function getUndoEntry(store: HashStore, path: string): UndoRecord | undefined {
-  const row = store.stmts.undoGet(path);
+  const row = withBusyRetry(() => store.stmts.undoGet(path));
   if (!row) return undefined;
   const parsed = parseStoredHashes(row, () => store.stmts.undoDelete(path));
   if (!parsed) return undefined;

@@ -494,6 +494,11 @@ export function regGrep(pi: ExtensionAPI): void {
         const sortedNums = [...allNums].sort((a, b) => a - b);
         const indices = sortedNums.map((n) => n - 1).filter((n) => n >= 0);
         if (countOnly) {
+          if (globRegex) {
+            const displayPath = relative(ctx.cwd, absPath).replace(/\\/g, "/");
+            const globPath = relative(globRoot, absPath).replace(/\\/g, "/");
+            if (!globRegex.test(globPath) && !globRegex.test(displayPath)) continue;
+          }
           const norm = await tryReadNormFile(absPath, ctx.cwd, { maxLines: MAX_HASH_LINES, noPersist: true, signal });
           if (!norm) continue;
           const hit = makeHitFromIndices(norm, relative(ctx.cwd, absPath).replace(/\\/g, "/"), indices, context, validatedRegex, totalForFile, indices.length);
@@ -515,13 +520,13 @@ export function regGrep(pi: ExtensionAPI): void {
           limitTruncated = true;
           break;
         }
-        const norm = await tryReadNormFile(absPath, ctx.cwd, { maxLines: MAX_HASH_LINES, noPersist: true, signal });
-        if (!norm) continue;
         if (globRegex) {
           const displayPath = relative(ctx.cwd, absPath).replace(/\\/g, "/");
           const globPath = relative(globRoot, absPath).replace(/\\/g, "/");
           if (!globRegex.test(globPath) && !globRegex.test(displayPath)) continue;
         }
+        const norm = await tryReadNormFile(absPath, ctx.cwd, { maxLines: MAX_HASH_LINES, noPersist: true, signal });
+        if (!norm) continue;
         const hit = makeHitFromIndices(norm, relative(ctx.cwd, absPath).replace(/\\/g, "/"), indices, context, validatedRegex, totalForFile, Math.min(totalForFile, remaining));
         if (!hit) continue;
         const display = displayRowsForHit(hit);

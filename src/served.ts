@@ -1,4 +1,5 @@
 import { loadHashStore, parseStoredServed, STORE_NOT_OPEN_MESSAGE, withStore, type HashStore } from "./hash-store";
+import { withBusyRetry } from "./hash-store/retry";
 import { HASH_CLASS } from "./hashline/alphabet";
 import { contentChecksum } from "./hashline/hasher";
 
@@ -37,7 +38,7 @@ export function buildServedMap(fileHashes: string[], fileLines: string[], wanted
 }
 
 export function getServed(store: HashStore, path: string): Map<string, string> | undefined {
-  const row = store.stmts.servedGet(path);
+  const row = withBusyRetry(() => store.stmts.servedGet(path));
   const parsed = parseStoredServed(row, () => store.stmts.servedDelete(path));
   if (!parsed) return undefined;
   return parsed;

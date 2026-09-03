@@ -105,6 +105,9 @@ export function regUndo(pi: ExtensionAPI): void {
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const path = params.path;
+      if (typeof path !== "string" || path.length === 0) {
+        throw new Error('[E_BAD_SHAPE] Undo request requires a non-empty "path" string.');
+      }
       const { resolved: mutationTargetPath } = await resolveInCwd(path, ctx.cwd);
 
       const undo = await getUndo(mutationTargetPath);
