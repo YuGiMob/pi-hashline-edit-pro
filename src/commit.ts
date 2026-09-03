@@ -1,5 +1,5 @@
 import type { PipelineResult } from "./replace";
-import { abortIf } from "./utils";
+import { abortIf, clipLine } from "./utils";
 import { buildChanged, buildNoop, type RMeta, type TResult } from "./replace-response";
 import { saveUndo } from "./replace-undo";
 import { safeSnapId } from "./file-reader";
@@ -20,6 +20,12 @@ export interface CommitMeta {
   foldedAnchorLines?: number;
   onApplied?: () => void;
   onNoopDedup?: () => void;
+}
+
+function boundaryDedupWarning(lineTexts: string[]): string {
+  const quoted = lineTexts.map((line) => `"${clipLine(line, 80)}"`).join(", ");
+  const plural = lineTexts.length > 1;
+  return `Boundary dedup: ${quoted} already ${plural ? "exist" : "exists"} next to the edited range, so ${plural ? "they were" : "it was"} not added again. Use insert only if you truly want ${plural ? "duplicates" : "a duplicate"}.`;
 }
 
 export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promise<TResult> {
@@ -54,10 +60,8 @@ export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promis
       "Non-UTF-8 bytes were shown as U+FFFD; this edit rewrote the file as UTF-8.",
     );
   }
-  if (pipe.hadBoundaryDedup) {
-    warnings.push(
-      `Boundary dedup removed ${pipe.boundaryRemovedLines} re-included boundary line(s); the file is correct as-is — do not re-insert them (use insert for literal duplicates).`,
-    );
+  if (pipe.boundaryRemovedLineTexts.length > 0) {
+    warnings.push(boundaryDedupWarning(pipe.boundaryRemovedLineTexts));
   }
 
   abortIf(signal);

@@ -63,6 +63,7 @@ export interface PipelineResult {
   totalRemovedLines: number;
   hadBoundaryDedup: boolean;
   boundaryRemovedLines: number;
+  boundaryRemovedLineTexts: string[];
   identity: FileIdentity;
 }
 
@@ -226,6 +227,7 @@ export async function execPipeline(
     totalRemovedLines,
     hadBoundaryDedup: (anchorResult.autoFixes?.length ?? 0) > 0,
     boundaryRemovedLines: anchorResult.autoFixes?.length ?? 0,
+    boundaryRemovedLineTexts: anchorResult.autoFixes?.map((fix) => fix.removedLine) ?? [],
     identity,
   };
 }
