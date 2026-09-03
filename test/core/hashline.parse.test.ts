@@ -129,3 +129,24 @@ describe("parseText", () => {
 		expect(parseText(["-   something", "-abc", "- old style"])).toEqual(["-   something", "-abc", "- old style"]);
 	});
 });
+
+describe("parseText json-envelope autocorrect", () => {
+	it("unwraps a JSON-array-wrapped element from a mis-serialized tool call and warns", () => {
+		const warnings: string[] = [];
+		expect(parseText(['["  "version": "2.8.4","].'], warnings)).toEqual(['  "version": "2.8.4",']);
+		expect(warnings).toHaveLength(1);
+		expect(warnings[0]).toMatch(/wrapped in JSON array syntax/);
+	});
+
+	it("leaves valid JSON array lines alone", () => {
+		const warnings: string[] = [];
+		expect(parseText(['["a", "b"]'], warnings)).toEqual(['["a", "b"]']);
+		expect(warnings).toHaveLength(0);
+	});
+
+	it("leaves valid JSON array lines with a trailing dot alone when they parse", () => {
+		const warnings: string[] = [];
+		expect(parseText(['["a", "b"].'], warnings)).toEqual(['["a", "b"].']);
+		expect(warnings).toHaveLength(0);
+	});
+});

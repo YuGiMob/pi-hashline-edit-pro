@@ -53,6 +53,23 @@ function parseRef(ref: string): Anchor {
 
 export const parseHashRef = parseRef;
 
+const JSON_ENVELOPE_RE = /^\s*\["(.*)"\]\.\s*$/;
+
+function unwrapJsonEnvelope(line: string, warnings?: string[]): string {
+  const match = line.match(JSON_ENVELOPE_RE);
+  if (!match) return line;
+  const withoutDot = line.trim().slice(0, -1);
+  try {
+    JSON.parse(withoutDot);
+    return line;
+  } catch {
+    warnings?.push(
+      '[E_BAD_SHAPE] Autocorrected: replacement_lines element was wrapped in JSON array syntax (starts with [" and ends with "].); unwrapped it to the bare line.',
+    );
+    return match[1]!;
+  }
+}
+
 export function parseText(edit: string[], warnings?: string[]): string[] {
   if (!Array.isArray(edit) || edit.some((line) => typeof line !== "string")) {
     throw new Error(NEW_CONTENT_NOT_ARRAY_MSG);
@@ -60,8 +77,9 @@ export function parseText(edit: string[], warnings?: string[]): string[] {
   const out: string[] = [];
   let split = false;
   for (const line of edit) {
-    const normalized = line.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-    if (normalized !== line) split = true;
+    const unwrapped = unwrapJsonEnvelope(line, warnings);
+    const normalized = unwrapped.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    if (normalized !== unwrapped) split = true;
     out.push(...normalized.split("\n"));
   }
   if (split) {
