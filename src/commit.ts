@@ -1,5 +1,7 @@
 import type { PipelineResult } from "./replace";
-import { abortIf, clipLine } from "./utils";
+import { abortIf } from "./utils";
+import { DEDUP_ANCHOR } from "./constants";
+import { HASH_SEP } from "./hashline";
 import { buildChanged, buildNoop, type RMeta, type TResult } from "./replace-response";
 import { saveUndo } from "./replace-undo";
 import { safeSnapId } from "./file-reader";
@@ -22,10 +24,10 @@ export interface CommitMeta {
   onNoopDedup?: () => void;
 }
 
-function boundaryDedupWarning(lineTexts: string[]): string {
-  const quoted = lineTexts.map((line) => `"${clipLine(line, 80)}"`).join(", ");
-  const plural = lineTexts.length > 1;
-  return `Boundary dedup: ${quoted} already ${plural ? "exist" : "exists"} next to the edited range, so ${plural ? "they were" : "it was"} not added again.`;
+function boundaryDedupWarning(count: number): string {
+  const noun = count === 1 ? "1 line" : `${count} lines`;
+  const row = count === 1 ? "row" : "rows";
+  return `Boundary dedup: ${noun} not added again (see ${DEDUP_ANCHOR}${HASH_SEP} ${row}).`;
 }
 
 export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promise<TResult> {
@@ -61,7 +63,7 @@ export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promis
     );
   }
   if (pipe.boundaryRemovedLineTexts.length > 0) {
-    warnings.push(boundaryDedupWarning(pipe.boundaryRemovedLineTexts));
+    warnings.push(boundaryDedupWarning(pipe.boundaryRemovedLineTexts.length));
   }
 
   abortIf(signal);
@@ -109,6 +111,8 @@ export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promis
     warnings,
     snapshotId: updatedSnapshotId,
     editMeta,
+    boundaryDedupAbove: pipe.boundaryDedupAbove,
+    boundaryDedupBelow: pipe.boundaryDedupBelow,
   };
   const changed = buildChanged(successInput, meta.verb);
   if (changed.details.diff) {

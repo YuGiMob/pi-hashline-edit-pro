@@ -23,7 +23,7 @@ import { applyEdit,
   type NEdit,
 } from "./hashline";
 import { commitEdit } from "./commit";
-import type { RMetrics } from "./replace-response";
+import { withDedupRows, type RMetrics } from "./replace-response";
 import {
   type RPreview,
   type RRState,
@@ -64,6 +64,8 @@ export interface PipelineResult {
   hadBoundaryDedup: boolean;
   boundaryRemovedLines: number;
   boundaryRemovedLineTexts: string[];
+  boundaryDedupAbove: string[];
+  boundaryDedupBelow: string[];
   identity: FileIdentity;
 }
 
@@ -216,6 +218,9 @@ export async function execPipeline(
     edit, originalHashes, isNoop, anchorResult.autoFixes?.length ?? 0,
   );
 
+  const sortedFixes = [...(anchorResult.autoFixes ?? [])].sort((a, b) => a.removedLineIndex - b.removedLineIndex);
+  const aboveFixes = sortedFixes.filter((fix) => fix.kind === "leading" || fix.kind === "last-new-before");
+  const belowFixes = sortedFixes.filter((fix) => fix.kind === "trailing" || fix.kind === "first-new-after");
   return {
     path,
     originalNormalized,
@@ -233,7 +238,9 @@ export async function execPipeline(
     totalRemovedLines,
     hadBoundaryDedup: (anchorResult.autoFixes?.length ?? 0) > 0,
     boundaryRemovedLines: anchorResult.autoFixes?.length ?? 0,
-    boundaryRemovedLineTexts: anchorResult.autoFixes?.map((fix) => fix.removedLine) ?? [],
+    boundaryRemovedLineTexts: sortedFixes.map((fix) => fix.removedLine),
+    boundaryDedupAbove: aboveFixes.map((fix) => fix.removedLine),
+    boundaryDedupBelow: belowFixes.map((fix) => fix.removedLine),
     identity,
   };
 }
@@ -244,7 +251,8 @@ export function previewFromPipe(pipe: PipelineResult): RPreview {
       error: `No changes made to ${pipe.path}. The edit produced identical content.`,
     };
   }
-  return { diff: genDiff(pipe.originalNormalized, pipe.result, 4, pipe.resultHashes, pipe.originalHashes).diff };
+  const base = genDiff(pipe.originalNormalized, pipe.result, 4, pipe.resultHashes, pipe.originalHashes);
+  return { diff: withDedupRows(base.diff, base.lineNumbers, pipe.boundaryDedupAbove, pipe.boundaryDedupBelow).diff };
 }
 export function previewError(error: unknown): RPreview {
   return { error: error instanceof Error ? error.message : String(error) };

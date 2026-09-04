@@ -12,3 +12,5 @@ export const HASH_STORE_BUSY_TIMEOUT = 1000;
 export const HASH_STORE_VERSION = 7;
 export const NEW_CONTENT_NOT_ARRAY_MSG =
   `[E_BAD_SHAPE] "replacement_lines" must be an array of strings, one per line (use [] to delete).`;
+
+export const DEDUP_ANCHOR = "dedup";

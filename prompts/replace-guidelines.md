@@ -2,4 +2,4 @@
 - `replace`: `replacement_lines` takes bare lines without `│`; `[""]` is one blank line; pasted `anchor│` prefixes are stripped automatically.
 - `replace`: keep the range tight — only lines that actually change — and copy leading spaces exactly.
 - `replace`: post-edit diff `+anchor│`/` anchor│` rows are fresh anchors for the next edit — no new `read` needed. One edit per turn; check the diff before the next edit on that file.
-- `replace`: if `replacement_lines` re-include the boundary line adjacent to the range, it is deduplicated automatically.
+- `replace`: if `replacement_lines` re-include the boundary line adjacent to the range, it is deduplicated automatically, shown as `dedup│content` rows in the diff (not editable, never use `dedup` as an anchor).

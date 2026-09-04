@@ -245,8 +245,41 @@ describe("boundary dedup noop bypass", () => {
         ctx,
       );
       expect(getText(result)).toContain("Successfully replaced");
-      expect(getText(result)).toContain('Boundary dedup: "aaa" already exists next to the edited range, so it was not added again');
-      expect(getText(result)).not.toContain("Use insert only if you truly want");
+      expect(getText(result)).toContain('Boundary dedup: 1 line not added again (see dedup│ row).');
+      expect(result.details.diff).toContain('dedup│aaa');
+      const rows = String(result.details.diff).split("\n");
+      const survivor = rows.findIndex((row) => row.includes('│aaa') && !row.includes('dedup'));
+      const deduped = rows.findIndex((row) => row === 'dedup│aaa');
+      expect(survivor).toBeGreaterThanOrEqual(0);
+      expect(deduped).toBe(survivor + 1);
+      expect(result.details.diff).not.toContain('"aaa" already exists');
+      expect(await readFile(path, "utf-8")).toBe("aaa\nBBB\nccc\n");
+    });
+  });
+  it("places a trailing dedup row beside the surviving line below the change", async () => {
+    await withTempFile("sample.ts", "aaa\nbbb\nccc\n", async ({ cwd, path }) => {
+      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const hashes = await readSample(ctx, readTool);
+      const result = await editTool.execute(
+        "e1",
+        {
+          path: "sample.ts",
+          remove_from: hashes[1]!,
+          remove_to: hashes[1]!,
+          replacement_lines: ["BBB", "ccc"],
+        },
+        undefined,
+        undefined,
+        ctx,
+      );
+      expect(getText(result)).toContain("Successfully replaced");
+      const rows = String(result.details.diff).split("\n");
+      const added = rows.findIndex((row) => row.endsWith("│BBB"));
+      const deduped = rows.findIndex((row) => row === "dedup│ccc");
+      const survivor = rows.findIndex((row) => row.includes("│ccc") && !row.includes("dedup"));
+      expect(added).toBeGreaterThanOrEqual(0);
+      expect(deduped).toBe(added + 1);
+      expect(survivor).toBe(deduped + 1);
       expect(await readFile(path, "utf-8")).toBe("aaa\nBBB\nccc\n");
     });
   });

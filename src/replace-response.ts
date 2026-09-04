@@ -1,7 +1,10 @@
+import { formatSize, DEFAULT_MAX_BYTES } from "@earendil-works/pi-coding-agent";
 import type { NEdit } from "./hashline";
+import { HASH_SEP } from "./hashline";
 import type { ReplaceDetails } from "./replace";
 import { genDiff, genPatch } from "./replace-diff";
 import { visLines, clipLine } from "./utils";
+import { DEDUP_ANCHOR } from "./constants";
 
 export type TResult = {
 	content: Array<{ type: "text"; text: string }>;
@@ -46,6 +49,8 @@ export interface SuccessInput {
   warnings: string[] | undefined;
   snapshotId?: string;
   editMeta: RMeta;
+  boundaryDedupAbove?: string[];
+  boundaryDedupBelow?: string[];
 }
 
 
@@ -124,11 +129,47 @@ export function buildNoop(input: NoopInput, noopNoun = "Replacement"): TResult {
 		},
 	};
 }
+export function fmtDedupRow(line: string): string {
+  const row = `${DEDUP_ANCHOR}${HASH_SEP}${line}`;
+  if (Buffer.byteLength(row, "utf-8") <= DEFAULT_MAX_BYTES) return row;
+  const size = formatSize(Buffer.byteLength(row, "utf-8"));
+  const limit = formatSize(DEFAULT_MAX_BYTES);
+  return `${DEDUP_ANCHOR}${HASH_SEP}[Row is ${size}, exceeds ${limit}; content not shown. Use read to see the full line.]`;
+}
+
+export function isChangeRow(line: string): boolean {
+  return line.startsWith("+") || line.startsWith("-");
+}
+
+export function withDedupRows(diff: string, lineNumbers: (number | undefined)[], above: string[] | undefined, below: string[] | undefined): { diff: string; lineNumbers: (number | undefined)[] } {
+  const top = (above ?? []).map(fmtDedupRow);
+  const bottom = (below ?? []).map(fmtDedupRow);
+  if (top.length === 0 && bottom.length === 0) return { diff, lineNumbers };
+  if (diff.length === 0) return { diff: [...top, ...bottom].join("\n"), lineNumbers: [...lineNumbers, ...[...top, ...bottom].map(() => undefined)] };
+  const lines = diff.split("\n");
+  let first = -1;
+  let last = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (isChangeRow(lines[i]!)) {
+      if (first < 0) first = i;
+      last = i;
+    }
+  }
+  if (first < 0) return { diff: `${diff}\n${[...top, ...bottom].join("\n")}`, lineNumbers: [...lineNumbers, ...[...top, ...bottom].map(() => undefined)] };
+  const out = [...lines];
+  const nums = [...lineNumbers];
+  out.splice(last + 1, 0, ...bottom);
+  nums.splice(last + 1, 0, ...bottom.map(() => undefined));
+  out.splice(first, 0, ...top);
+  nums.splice(first, 0, ...top.map(() => undefined));
+  return { diff: out.join("\n"), lineNumbers: nums };
+}
 
 export function buildChanged(input: SuccessInput, verb = "replaced"): TResult {
-  const { path, result, warnings, snapshotId, originalNormalized, originalHashes, editMeta, resultHashes } = input;
+  const { path, result, warnings, snapshotId, originalNormalized, originalHashes, editMeta, resultHashes, boundaryDedupAbove, boundaryDedupBelow } = input;
   const resultLines = visLines(result);
-  const diffResult = genDiff(originalNormalized, result, 1, resultHashes, originalHashes);
+  const baseDiff = genDiff(originalNormalized, result, 1, resultHashes, originalHashes);
+  const diffResult = withDedupRows(baseDiff.diff, baseDiff.lineNumbers, boundaryDedupAbove, boundaryDedupBelow);
   const addedLines = editMeta.addedLines;
   const removedLines = editMeta.removedLines;
   const warningsBlock = warnBlock(warnings);
@@ -161,7 +202,7 @@ export function buildChanged(input: SuccessInput, verb = "replaced"): TResult {
       patch: patchResult.patch,
       ...(patchResult.truncated ? { patchTruncated: true as const } : {}),
       firstChangedLine:
-        editMeta.firstChangedLine ?? diffResult.firstChangedLine,
+        editMeta.firstChangedLine ?? baseDiff.firstChangedLine,
       snapshotId,
       metrics,
       diffLineNumbers: diffResult.lineNumbers,
