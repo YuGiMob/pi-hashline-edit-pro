@@ -1,4 +1,5 @@
 import { loadHashStore, parseStoredServed, STORE_NOT_OPEN_MESSAGE, withStore, type HashStore } from "./hash-store";
+import { touchSession } from "./hash-store/cache";
 import { withBusyRetry } from "./hash-store/retry";
 import { HASH_CLASS } from "./hashline/alphabet";
 import { contentChecksum } from "./hashline/hasher";
@@ -81,6 +82,7 @@ export function recordServed(
   entries: Map<string, string>,
   scope?: ReadonlySet<string>,
 ): void {
+  touchSession(path);
   try {
     withStore(() => {
       const map = computeUpdate(store, path, entries, scope);

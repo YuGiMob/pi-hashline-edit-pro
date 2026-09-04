@@ -20,11 +20,7 @@ import {
   retriedWrite,
   openDbWithBusyRetryAsync,
 } from "./hash-store/retry";
-import {
-  snapshotCache,
-  cacheSnapshot,
-  SNAPSHOT_CACHE_LIMIT,
-} from "./hash-store/cache";
+import { snapshotCache, cacheSnapshot, SNAPSHOT_CACHE_LIMIT, touchSession, sessionRank, clearSession, forgetSession } from "./hash-store/cache";
 
 export { isValidHashList, isValidServedMap, parseHashList, parseServedMap, parseStoredHashes, parseStoredServed, isCorruptionError };
 export { SNAPSHOT_CACHE_LIMIT };
@@ -99,6 +95,9 @@ interface Prepared {
   servedGet: (...params: SqlParams) => Record<string, unknown> | undefined;
   servedUpsert: (...params: SqlParams) => void;
   servedDelete: (...params: SqlParams) => void;
+  snapshotTime: (...params: SqlParams) => Record<string, unknown> | undefined;
+  undoTime: (...params: SqlParams) => Record<string, unknown> | undefined;
+  servedTime: (...params: SqlParams) => Record<string, unknown> | undefined;
 }
 
 export interface HashStore {
@@ -199,6 +198,9 @@ function buildStore(db: RawDb): { db: RawDb; stmts: Prepared } {
     "ON CONFLICT(path) DO UPDATE SET hashes = excluded.hashes, updated_at = excluded.updated_at"
   );
   const servedDelStmt = db.prepare("DELETE FROM served WHERE path = ?");
+  const snapshotTimeStmt = db.prepare("SELECT updated_at FROM snapshots WHERE path = ?");
+  const undoTimeStmt = db.prepare("SELECT updated_at FROM undo WHERE path = ?");
+  const servedTimeStmt = db.prepare("SELECT updated_at FROM served WHERE path = ?");
   const stmts: Prepared = {
     get: (...params) => getStmt.get(...params) as Record<string, unknown> | undefined,
     allPaths: (...params) => allStmt.all(...params) as Record<string, unknown>[],
@@ -212,6 +214,9 @@ function buildStore(db: RawDb): { db: RawDb; stmts: Prepared } {
     servedGet: (...params) => servedGetStmt.get(...params) as Record<string, unknown> | undefined,
     servedUpsert: retriedWrite(servedUpsertStmt),
     servedDelete: retriedWrite(servedDelStmt),
+    snapshotTime: (...params) => snapshotTimeStmt.get(...params) as Record<string, unknown> | undefined,
+    undoTime: (...params) => undoTimeStmt.get(...params) as Record<string, unknown> | undefined,
+    servedTime: (...params) => servedTimeStmt.get(...params) as Record<string, unknown> | undefined,
   };
   return { db, stmts };
 }
@@ -345,6 +350,7 @@ export function shutdownHashStore(): void {
     cachedDb = null;
   }
   snapshotCache.clear();
+  clearSession();
 }
 
 export function withStore(fn: () => void): void {
@@ -462,6 +468,7 @@ export function upsertSnapshot(
 ): void {
   store.stmts.upsert(path, checksum, lineCount, JSON.stringify(hashes), Date.now());
   cacheSnapshot(path, checksum, lineCount, hashes);
+  touchSession(path);
 }
 export function persistSnapshot(
   store: HashStore,
@@ -482,6 +489,7 @@ export function upsertUndo(store: HashStore, path: string, entry: UndoRecord): v
     entry.resultContent,
     Date.now(),
   );
+  touchSession(path);
 }
 
 export function getUndoEntry(store: HashStore, path: string): UndoRecord | undefined {
@@ -540,6 +548,7 @@ export async function pruneMissing(store: HashStore): Promise<void> {
     }
   });
   for (const path of missing) snapshotCache.delete(path);
+  for (const path of missing) forgetSession(path);
 }
 
 function matchPathsByHashes(
@@ -602,4 +611,46 @@ export function findSnapshotPaths(store: HashStore, hashes: string[]): string[] 
 
 export function findServedPaths(store: HashStore, hashes: string[]): string[] {
   return matchPathsByServed(store.stmts.allServed() as { path: string; hashes: string }[], hashes);
+}
+
+export function pathActivity(store: HashStore, path: string): number {
+  let activity = 0;
+  try {
+    const snap = withBusyRetry(() => store.stmts.snapshotTime(path)) as { updated_at?: unknown } | undefined;
+    const snapTime = typeof snap?.updated_at === "number" ? snap.updated_at : 0;
+    if (snapTime > activity) activity = snapTime;
+  } catch {
+  }
+  try {
+    const undo = withBusyRetry(() => store.stmts.undoTime(path)) as { updated_at?: unknown } | undefined;
+    const undoTime = typeof undo?.updated_at === "number" ? undo.updated_at : 0;
+    if (undoTime > activity) activity = undoTime;
+  } catch {
+  }
+  try {
+    const served = withBusyRetry(() => store.stmts.servedTime(path)) as { updated_at?: unknown } | undefined;
+    const servedTime = typeof served?.updated_at === "number" ? served.updated_at : 0;
+    if (servedTime > activity) activity = servedTime;
+  } catch {
+  }
+  return activity;
+}
+
+export function pickRecentPath(store: HashStore, candidates: string[]): string {
+  let best = candidates[0]!;
+  let bestSession = -1;
+  let bestActivity = -1;
+  for (const candidate of candidates) {
+    const rank = sessionRank(candidate) ?? -1;
+    let activity = -1;
+    if (rank < 0) {
+      activity = pathActivity(store, candidate);
+    }
+    if (rank > bestSession || (rank === bestSession && activity > bestActivity)) {
+      best = candidate;
+      bestSession = rank;
+      bestActivity = activity;
+    }
+  }
+  return best;
 }

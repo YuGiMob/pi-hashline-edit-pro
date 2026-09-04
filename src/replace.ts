@@ -15,7 +15,6 @@ import { type FileIdentity } from "./fs-write";
 import { applyEdit,
   lineHashes,
   resEdit,
-  parseHashRef,
   MAX_HASH_LINES,
   RangeStaleError,
   AnchorMismatchError,
@@ -28,7 +27,8 @@ import {
   type RPreview,
   type RRState,
 } from "./replace-render";
-import { loadHashStore, findSnapshotPaths, findServedPaths, type HashStore } from "./hash-store";
+import { loadHashStore, type HashStore } from "./hash-store";
+import { resolveReplacePath } from "./missing-path";
 import { getServed, recordServedSafe } from "./served";
 import { noopPayloadKey, markBoundaryNoop, consumeBoundaryBypass, clearBoundaryBypass } from "./boundary-bypass";
 import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper } from "./edit-common";
@@ -69,41 +69,6 @@ export interface PipelineResult {
   identity: FileIdentity;
 }
 
-async function resolveMissingPath(
-  request: Record<string, unknown>,
-): Promise<{ path: string; warning: string } | undefined> {
-  if (typeof request.path === "string") return undefined;
-  const from = request.remove_from;
-  const to = request.remove_to;
-  if (typeof from !== "string" || typeof to !== "string") return undefined;
-  const hashes: string[] = [];
-  for (const ref of [from, to]) {
-    try {
-      hashes.push(parseHashRef(ref).hash);
-    } catch {
-      return undefined;
-    }
-  }
-  let store: HashStore;
-  try {
-    store = await loadHashStore();
-  } catch {
-    return undefined;
-  }
-  const matches = [...new Set([...findSnapshotPaths(store, hashes), ...findServedPaths(store, hashes)])];
-  if (matches.length === 1) {
-    return {
-      path: matches[0]!,
-      warning: `[E_BAD_SHAPE] Missing "path" resolved to ${matches[0]}.`,
-    };
-  }
-  if (matches.length > 1) {
-    throw new Error(
-      `[E_BAD_SHAPE] Edit request requires a non-empty "path" string; the anchors match multiple known files: ${matches.join(", ")}.`,
-    );
-  }
-  return undefined;
-}
 
 export interface ExecPipelineOptions {
   accessMode?: number;
@@ -300,7 +265,7 @@ export function buildToolDef(): ToolDef {
     renderResult: editRenderResultWrapper,
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const canonical = normReq(params);
-      const resolution = isRec(canonical) ? await resolveMissingPath(canonical) : undefined;
+      const resolution = isRec(canonical) ? await resolveReplacePath(canonical) : undefined;
       if (resolution && isRec(canonical)) {
         canonical.path = resolution.path;
       }

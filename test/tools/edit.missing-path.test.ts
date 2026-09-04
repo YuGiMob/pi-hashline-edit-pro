@@ -50,7 +50,7 @@ describe("replace - missing path resolution", () => {
     });
   });
 
-  it("rejects a missing path when the anchors match multiple files", async () => {
+  it("picks the most recent file when the anchors match multiple files", async () => {
     await withTempDir("ambig-", async (dir) => {
       const { ctx, editTool } = setupIntegrationTest(dir);
       const first = join(dir, "a.txt");
@@ -60,15 +60,18 @@ describe("replace - missing path resolution", () => {
       const hashes = await lineHashes("same\n", first);
       await lineHashes("same\n", second);
 
-      await expect(
-        editTool.execute(
-          "e1",
-          { remove_from: hashes[0]!, remove_to: hashes[0]!, replacement_lines: ["X"] },
-          undefined,
-          undefined,
-          ctx,
-        ),
-      ).rejects.toThrow(/match multiple known files/);
+      const result = await editTool.execute(
+        "e1",
+        { remove_from: hashes[0]!, remove_to: hashes[0]!, replacement_lines: ["X"] },
+        undefined,
+        undefined,
+        ctx,
+      );
+      expect(result.content[0].text).toContain("Successfully replaced");
+      expect(result.content[0].text).toContain('Missing "path" resolved to');
+      expect(result.content[0].text).toContain("picked most recent of 2");
+      expect(await readFile(second, "utf-8")).toBe("X\n");
+      expect(await readFile(first, "utf-8")).toBe("same\n");
     });
   });
 

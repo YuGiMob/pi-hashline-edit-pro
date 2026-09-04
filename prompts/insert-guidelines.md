@@ -1,1 +1,2 @@
 - `insert`: the anchor must have been shown by `read`, a post-edit diff (`+anchor│`/` anchor│`), or any served `anchor│content` row. Empty file: `read` shows one `anchor│` row — insert `after` it.
+- `insert`: always include explicit `path`/`file_path`, even when the file can be inferred from anchors. Do not rely on anchor-based path inference.

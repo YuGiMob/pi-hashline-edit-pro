@@ -1,4 +1,5 @@
 - `replace`: use the same anchor for `remove_from` and `remove_to` to change one line.
+- `replace`: always include explicit `path`/`file_path`, even when the file can be inferred from anchors. Do not rely on anchor-based path inference.
 - `replace`: `replacement_lines` takes bare lines without `│`; `[""]` is one blank line; pasted `anchor│` prefixes are stripped automatically.
 - `replace`: keep the range tight — only lines that actually change — and copy leading spaces exactly.
 - `replace`: post-edit diff `+anchor│`/` anchor│` rows are fresh anchors for the next edit — no new `read` needed. One edit per turn; check the diff before the next edit on that file.
