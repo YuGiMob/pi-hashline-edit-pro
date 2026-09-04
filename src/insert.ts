@@ -111,6 +111,10 @@ export async function insertPreview(request: unknown, cwd: string, signal?: Abor
       const expanded = decodeStringArray(normalized.lines);
       if (expanded) normalized.lines = expanded;
     }
+    if (isRec(normalized)) {
+      const resolution = await resolveInsertPath(normalized);
+      if (resolution) normalized.path = resolution.path;
+    }
     assertInsertReq(normalized);
     const { ref } = parseInsertAnchor(normalized.anchor);
     const preload = await readNormFile(normalized.path, cwd, {
@@ -141,7 +145,7 @@ function getInsertInput(args: unknown): { path?: string; anchor?: string; direct
   } catch {
     return null;
   }
-  if (!isRec(normalized) || typeof normalized.path !== "string") return null;
+  if (!isRec(normalized)) return null;
   if (
     typeof normalized.anchor !== "string" ||
     (normalized.direction !== "before" && normalized.direction !== "after") ||
@@ -151,10 +155,10 @@ function getInsertInput(args: unknown): { path?: string; anchor?: string; direct
     return null;
   }
   return {
-    path: normalized.path,
-    anchor: normalized.anchor,
-    direction: normalized.direction,
-    lines: normalized.lines,
+    ...(typeof normalized.path === "string" ? { path: normalized.path } : {}),
+    anchor: normalized.anchor as string,
+    direction: normalized.direction as "before" | "after",
+    lines: normalized.lines as string[],
   };
 }
 

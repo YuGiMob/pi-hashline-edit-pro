@@ -28,9 +28,9 @@ describe("getPreviewInput", () => {
 		expect(getPreviewInput(42)).toBeNull();
 	});
 
-	it("returns null for record without path", () => {
-		expect(getPreviewInput({ remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"] })).toBeNull();
-	});
+  it("returns partial input for record without path", () => {
+    expect(getPreviewInput({ remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"] })).toEqual({ remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"] });
+  });
 
 	it("returns null for record with non-string path", () => {
 		expect(getPreviewInput({ path: 42 })).toBeNull();

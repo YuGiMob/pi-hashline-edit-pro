@@ -213,6 +213,7 @@ describe("compPreview - noop", () => {
       );
       expect(preview).toEqual({
         error: "No changes made to sample.ts. The edit produced identical content.",
+        path: "sample.ts",
       });
     });
   });

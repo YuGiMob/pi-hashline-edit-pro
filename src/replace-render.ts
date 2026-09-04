@@ -12,8 +12,7 @@ export type MdTheme = Pick<
 	"fg" | "bold" | "italic" | "underline" | "strikethrough"
 >;
 
-export type RPreview = { diff: string } | { error: string };
-
+export type RPreview = { diff: string; path?: string } | { error: string; path?: string };
 export type RRState = {
 	argsKey?: string;
 	preview?: RPreview;
@@ -65,17 +64,21 @@ export function fmtResult(diff: string, theme: FgT): string {
 }
 
 export function fmtCall(
-	args: { path?: string } | undefined,
-	state: RRState,
-	expanded: boolean,
-	theme: CallT,
-	toolName = "replace",
+  args: { path?: string; remove_from?: string; remove_to?: string; anchor?: string } | undefined,
+  state: RRState,
+  expanded: boolean,
+  theme: CallT,
+  toolName = "replace",
 ): string {
-	const path = args?.path;
-	const pathDisplay =
-		typeof path === "string" && path.length > 0
-			? theme.fg("accent", path)
-			: theme.fg("toolOutput", "...");
+  const previewPath = state.preview && "path" in state.preview ? state.preview.path : undefined;
+  const path = args?.path ?? previewPath;
+  const anchorFallback = typeof args?.remove_from === "string" && typeof args?.remove_to === "string" ? `${args.remove_from}→${args.remove_to}` : typeof args?.anchor === "string" ? args.anchor : undefined;
+  const pathDisplay =
+    typeof path === "string" && path.length > 0
+      ? theme.fg("accent", path)
+      : typeof anchorFallback === "string" && anchorFallback.length > 0
+        ? theme.fg("accent", anchorFallback)
+        : theme.fg("toolOutput", "...");
 	let text = `${theme.fg("toolTitle", theme.bold(toolName))} ${pathDisplay}`;
 
 	if (!state.preview) {
@@ -234,7 +237,7 @@ export function reuseMarkdown(context: any, content: string, theme: any): Markdo
 
 export function makeRenderCall(
 	preview: (args: unknown, cwd: string, signal?: AbortSignal) => Promise<RPreview>,
-	options: { getInput?: (args: unknown) => { path?: string } | null; toolName?: string } = {},
+  options: { getInput?: (args: unknown) => { path?: string; remove_from?: string; remove_to?: string; anchor?: string } | null; toolName?: string } = {},
 ) {
 	const getInput = options.getInput ?? getPreviewInput;
 	const toolName = options.toolName ?? "replace";

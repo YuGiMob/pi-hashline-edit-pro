@@ -75,16 +75,14 @@ export function normReq(input: unknown): unknown {
   return record;
 }
 
-export function getPreviewInput(args: unknown): ReqParams | null {
+export function getPreviewInput(args: unknown): { path?: string; remove_from: string; remove_to: string; replacement_lines: string[] } | null {
   let normalized: unknown;
   try {
     normalized = normReq(args);
   } catch {
     return null;
   }
-  if (!isRec(normalized) || typeof normalized.path !== "string") {
-    return null;
-  }
+  if (!isRec(normalized)) return null;
   if (
     typeof normalized.remove_from !== "string" ||
     typeof normalized.remove_to !== "string" ||
@@ -94,9 +92,9 @@ export function getPreviewInput(args: unknown): ReqParams | null {
     return null;
   }
   return {
-    path: normalized.path,
-    remove_from: normalized.remove_from,
-    remove_to: normalized.remove_to,
-    replacement_lines: normalized.replacement_lines,
+    ...(typeof normalized.path === "string" ? { path: normalized.path } : {}),
+    remove_from: normalized.remove_from as string,
+    remove_to: normalized.remove_to as string,
+    replacement_lines: normalized.replacement_lines as string[],
   };
 }

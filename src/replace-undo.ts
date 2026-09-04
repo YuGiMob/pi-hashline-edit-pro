@@ -11,7 +11,8 @@ import { genDiff, genPatch } from "./replace-diff";
 import { cntDiff, errCode, makePrepareArguments, splitLines } from "./utils";
 import { loadP, loadGuide } from "./prompts";
 import { buildMetrics } from "./replace-response";
-import { renderEditResult } from "./replace-render";
+import { renderEditResult, fmtCall } from "./replace-render";
+import { Text } from "@earendil-works/pi-tui";
 import { changedRange, lineHashes } from "./hashline";
 export interface UndoEntry {
   content: string;
@@ -100,6 +101,11 @@ export function regUndo(pi: ExtensionAPI): void {
       }),
     }),
     executionMode: "sequential",
+    renderCall(args: any, theme: any, context: any) {
+      const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
+      text.setText(fmtCall(args as { path?: string } | undefined, { preview: undefined } as never, context.expanded === true, theme, "undo_last_change"));
+      return text;
+    },
     renderResult(result, opts, theme, context) {
       return renderEditResult(result as never, opts as { isPartial: boolean; expanded?: boolean }, theme as never, context as never);
     },

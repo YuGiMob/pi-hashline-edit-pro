@@ -214,10 +214,11 @@ export function previewFromPipe(pipe: PipelineResult): RPreview {
   if (pipe.originalNormalized === pipe.result) {
     return {
       error: `No changes made to ${pipe.path}. The edit produced identical content.`,
+      path: pipe.path,
     };
   }
   const base = genDiff(pipe.originalNormalized, pipe.result, 4, pipe.resultHashes, pipe.originalHashes);
-  return { diff: withDedupRows(base.diff, base.lineNumbers, pipe.boundaryDedupAbove, pipe.boundaryDedupBelow).diff };
+  return { diff: withDedupRows(base.diff, base.lineNumbers, pipe.boundaryDedupAbove, pipe.boundaryDedupBelow).diff, path: pipe.path };
 }
 export function previewError(error: unknown): RPreview {
   return { error: error instanceof Error ? error.message : String(error) };
@@ -229,6 +230,10 @@ export async function compPreview(
 ): Promise<RPreview> {
   try {
     const normalized = normReq(request);
+    if (isRec(normalized)) {
+      const resolution = await resolveReplacePath(normalized);
+      if (resolution) normalized.path = resolution.path;
+    }
     assertReq(normalized);
     const pipe = await execPipeline(
       normalized,
