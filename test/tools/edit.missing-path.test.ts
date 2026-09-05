@@ -134,6 +134,27 @@ describe("insert - missing path resolution", () => {
     await expect(resolvePathFromHashes(["ZZZZ"])).resolves.toBeUndefined();
   });
 
+  it("caps the candidate list at 3 paths", async () => {
+    const { resolvePathFromHashes } = await import("../../src/missing-path");
+    const { withTempDir } = await import("../support/fixtures");
+    await withTempDir("many-", async (dir) => {
+      const { join } = await import("path");
+      const { writeFile } = await import("fs/promises");
+      const paths: string[] = [];
+      for (let i = 0; i < 5; i++) {
+        const p = join(dir, `f${i}.txt`);
+        await writeFile(p, "same\n", "utf-8");
+        paths.push(p);
+      }
+      const { lineHashes } = await import("../../src/hashline");
+      const hashes = await lineHashes("same\n", paths[0]!);
+      for (let i = 1; i < paths.length; i++) await lineHashes("same\n", paths[i]!);
+      const resolved = await resolvePathFromHashes([hashes[0]!]);
+      expect(resolved?.warning).toContain("picked most recent of 5");
+      expect(resolved?.warning).toContain("(+2 more)");
+    });
+  });
+
   it("falls back to stored activity when the session has no touches", async () => {
     await withTempFile("sample.ts", "aaa\n", async ({ cwd, path }) => {
       const hashes = await lineHashes("aaa\n", path);

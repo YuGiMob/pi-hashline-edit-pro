@@ -636,21 +636,20 @@ export function pathActivity(store: HashStore, path: string): number {
   return activity;
 }
 
-export function pickRecentPath(store: HashStore, candidates: string[]): string {
-  let best = candidates[0]!;
-  let bestSession = -1;
-  let bestActivity = -1;
-  for (const candidate of candidates) {
+export function rankRecentPaths(store: HashStore, candidates: string[]): string[] {
+  const scored = candidates.map((candidate) => {
     const rank = sessionRank(candidate) ?? -1;
-    let activity = -1;
-    if (rank < 0) {
-      activity = pathActivity(store, candidate);
-    }
-    if (rank > bestSession || (rank === bestSession && activity > bestActivity)) {
-      best = candidate;
-      bestSession = rank;
-      bestActivity = activity;
-    }
-  }
-  return best;
+    const activity = rank < 0 ? pathActivity(store, candidate) : -1;
+    return { candidate, rank, activity };
+  });
+  scored.sort((a, b) => {
+    if (a.rank !== b.rank) return b.rank - a.rank;
+    if (a.activity !== b.activity) return b.activity - a.activity;
+    return a.candidate < b.candidate ? -1 : a.candidate > b.candidate ? 1 : 0;
+  });
+  return scored.map((entry) => entry.candidate);
+}
+
+export function pickRecentPath(store: HashStore, candidates: string[]): string {
+  return rankRecentPaths(store, candidates)[0]!;
 }

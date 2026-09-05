@@ -1,4 +1,4 @@
-import { loadHashStore, findSnapshotPaths, findServedPaths, pickRecentPath } from "./hash-store";
+import { loadHashStore, findSnapshotPaths, findServedPaths, rankRecentPaths } from "./hash-store";
 import { parseHashRef } from "./hashline/parse";
 import { stripAnchorRow } from "./hashline/resolve";
 
@@ -15,9 +15,12 @@ export async function resolvePathFromHashes(hashes: string[]): Promise<{ path: s
     const single = matches[0]!;
     return { path: single, warning: `[E_BAD_SHAPE] Missing "path" resolved to ${single}.` };
   }
-  const sorted = [...matches].sort();
-  const picked = pickRecentPath(store, sorted);
-  return { path: picked, warning: `[E_BAD_SHAPE] Missing "path" resolved to ${picked} (picked most recent of ${sorted.length}: ${sorted.join(", ")}).` };
+  const ranked = rankRecentPaths(store, [...matches]);
+  const picked = ranked[0]!;
+  const shown = ranked.slice(0, 3);
+  const hidden = ranked.length - shown.length;
+  const listed = hidden > 0 ? `${shown.join(", ")}, ... (+${hidden} more)` : shown.join(", ");
+  return { path: picked, warning: `[E_BAD_SHAPE] Missing "path" resolved to ${picked} (picked most recent of ${ranked.length}: ${listed}).` };
 }
 
 export async function resolveReplacePath(request: Record<string, unknown>): Promise<{ path: string; warning: string } | undefined> {
