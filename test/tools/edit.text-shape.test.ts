@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { lineHashes } from "../../src/hashline";
 import { withTempFile, setupIntegrationTest, useTestHome } from "../support/fixtures";
@@ -85,6 +86,29 @@ describe("edit tool text shape (token budget)", () => {
       );
       expect(result.content[0].text).toContain("Successfully replaced");
       expect(result.content[0].text).toContain("Added 1 line(s), removed 1 line(s).");
+    });
+  });
+
+  it("warns when a replacement_lines element carries embedded newlines", async () => {
+    await withTempFile("sample.ts", "aaa\nbbb\nccc\n", async ({ cwd, path }) => {
+      const { ctx, editTool } = setupIntegrationTest(cwd);
+      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+
+      const result = await editTool.execute(
+        "e1",
+        {
+          path: "sample.ts",
+          remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BBB\nCCC"],
+        },
+        undefined,
+        undefined,
+        ctx,
+      );
+      expect(result.content[0].text).toContain("Successfully replaced");
+      expect(result.content[0].text).toContain("Warnings:");
+      expect(result.content[0].text).toMatch(/embedded newlines/);
+      expect(result.details?.metrics?.warnings).toBeGreaterThan(0);
+      await expect(readFile(path, "utf-8")).resolves.toBe("aaa\nBBB\nCCC\nccc\n");
     });
   });
 });

@@ -99,6 +99,12 @@ describe("parseText", () => {
 		expect(warnings).toHaveLength(1);
 		expect(warnings[0]).toMatch(/contained embedded newlines/);
 	});
+	it("warns for plain \n embedded newlines without carriage returns", () => {
+		const warnings: string[] = [];
+		expect(parseText(["a\nb\nc"], warnings)).toEqual(["a", "b", "c"]);
+		expect(warnings).toHaveLength(1);
+		expect(warnings[0]).toMatch(/contained embedded newlines/);
+	});
 
 	it("does not warn when no element contains embedded newlines", () => {
 		const warnings: string[] = [];

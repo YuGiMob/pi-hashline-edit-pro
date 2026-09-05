@@ -85,7 +85,7 @@ export function parseText(edit: string[], warnings?: string[]): string[] {
   for (const line of edit) {
     const unwrapped = unwrapJsonEnvelope(line, warnings);
     const normalized = unwrapped.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-    if (normalized !== unwrapped) split = true;
+    if (normalized.includes("\n")) split = true;
     out.push(...normalized.split("\n"));
   }
   if (split) {
