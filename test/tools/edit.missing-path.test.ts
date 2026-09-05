@@ -109,3 +109,42 @@ describe("replace - missing path resolution", () => {
     });
   });
 });
+
+describe("insert - missing path resolution", () => {
+  it("resolves a missing path when the anchor uniquely identifies a file", async () => {
+    await withTempFile("sample.ts", "aaa\nbbb\n", async ({ cwd, path }) => {
+      const { ctx, getTool } = setupIntegrationTest(cwd);
+      const insertTool = getTool("insert");
+      const hashes = await lineHashes("aaa\nbbb\n", path);
+      const result = await insertTool.execute("e1", { anchor: hashes[0]!, direction: "after", lines: ["NEW"] }, undefined, undefined, ctx);
+      expect(result.content[0].text).toContain("Successfully inserted");
+      expect(result.content[0].text).toContain('Missing "path" resolved to');
+      expect(await readFile(path, "utf-8")).toBe("aaa\nNEW\nbbb\n");
+    });
+  });
+
+  it("returns undefined for early-return shapes", async () => {
+    const { resolveReplacePath, resolveInsertPath, resolvePathFromHashes } = await import("../../src/missing-path");
+    await expect(resolveReplacePath({ path: "x" })).resolves.toBeUndefined();
+    await expect(resolveReplacePath({})).resolves.toBeUndefined();
+    await expect(resolveReplacePath({ remove_from: "!!!", remove_to: "!!!" })).resolves.toBeUndefined();
+    await expect(resolveInsertPath({ path: "x" })).resolves.toBeUndefined();
+    await expect(resolveInsertPath({})).resolves.toBeUndefined();
+    await expect(resolveInsertPath({ anchor: "!!!" })).resolves.toBeUndefined();
+    await expect(resolvePathFromHashes(["ZZZZ"])).resolves.toBeUndefined();
+  });
+
+  it("falls back to stored activity when the session has no touches", async () => {
+    await withTempFile("sample.ts", "aaa\n", async ({ cwd, path }) => {
+      const hashes = await lineHashes("aaa\n", path);
+      const { clearSession } = await import("../../src/hash-store/cache");
+      const { loadHashStore, pathActivity, pickRecentPath } = await import("../../src/hash-store");
+      clearSession();
+      const store = await loadHashStore();
+      expect(pathActivity(store, path)).toBeGreaterThanOrEqual(0);
+      expect(pickRecentPath(store, [path])).toBe(path);
+      expect(hashes.length).toBeGreaterThan(0);
+      expect(cwd.length).toBeGreaterThan(0);
+    });
+  });
+});
