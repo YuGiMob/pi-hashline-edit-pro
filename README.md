@@ -91,6 +91,7 @@ One edit per call, with `remove_from`, `remove_to`, and `replacement_lines` at t
 
 | Field | Description |
 | --- | --- |
+| `path` | Path to edit; always provide it explicitly — it is only auto-resolved from the anchors as a fallback. |
 | `remove_from` | 4-char anchor from `read` output marking the FIRST line to remove (inclusive). |
 | `remove_to` | 4-char anchor from `read` output marking the LAST line to remove (inclusive). |
 | `replacement_lines` | Replacement lines as an array of strings, one element per line. Mirror the removed lines exactly, blank lines included: use `[]` to delete the range, `[""]` for a single blank line, `["a", ""]` for a line followed by a blank line, and `["", ""]` for two blank lines. Do not embed `\n` inside an element: each element is exactly one line. |
@@ -119,12 +120,14 @@ Notes:
 
 | Field | Description |
 | --- | --- |
+| `path` | Path to edit; always provide it explicitly — it is only auto-resolved from the anchors as a fallback. |
 | `anchor` | 4-char anchor from `read` output marking the line next to which the lines go (inclusive; the line is preserved). A pasted diff row like `+Hasu│x` or an `anchor│` prefix is stripped automatically with a warning. |
 | `direction` | `"after"` to insert below the anchor line, `"before"` to insert above it. |
 | `lines` | Lines to insert as an array of strings, one element per line. Mirror `replacement_lines` semantics: use `[""]` for a blank line and do not embed `\n` inside an element. The anchor line is never part of `lines`. |
 
 Notes:
 
+- A missing `path` is resolved from the anchor the same way as `replace` (reported as a warning); when the anchor matches multiple known files the most recently touched file is picked, with the candidates named.
 - The anchor line must have been shown to you (read output, a post-edit diff row, anchor_grep output, or stale-range feedback). The same verification as `replace` applies: a stale or unshown anchor is rejected with `[E_STALE_ANCHOR]`, `[E_AMBIGUOUS_ANCHOR]`, or `[E_RANGE_STALE]` and the retry needs no `read`.
 - Lines are applied literally: nothing is removed, and a line that duplicates its neighbor is kept. `replace`'s boundary anti-duplication never runs for `insert`.
 - To seed an empty file, read it and insert after the `anchor│` empty-line row.
