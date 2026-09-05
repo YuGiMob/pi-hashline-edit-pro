@@ -25,10 +25,10 @@ export type RRState = {
 type DiffRowKind = "added" | "removed" | "context";
 
 function diffRowKind(line: string): DiffRowKind {
-	const stripped = line.replace(/^\s*\d+\s+│\s*/, "");
-	if (stripped.startsWith("+") && !stripped.startsWith("+++")) return "added";
-	if (stripped.startsWith("-") && !stripped.startsWith("---")) return "removed";
-	if (isDedupRow(stripped)) return "removed";
+	const withoutGutter = line.replace(/^\s*\d+\s+│\s*/, "");
+	if (isDedupRow(withoutGutter) || isDedupRow(withoutGutter.replace(/^\s*│\s*/, ""))) return "removed";
+	if (withoutGutter.startsWith("+") && !withoutGutter.startsWith("+++")) return "added";
+	if (withoutGutter.startsWith("-") && !withoutGutter.startsWith("---")) return "removed";
 	return "context";
 }
 

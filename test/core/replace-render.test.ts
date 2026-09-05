@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
 	getPreviewInput,
+	toNumberedDiff,
 	colorLines,
 	fmtPreview,
 	fmtResult,
@@ -12,6 +13,7 @@ import {
 	fmtResultMd,
 	mkMdTheme,
 } from "../../src/replace-render";
+import { withDedupRows } from "../../src/replace-response";
 
 const mockTheme = {
 	fg: vi.fn((color: string, text: string) => `[${color}]${text}`),
@@ -89,6 +91,20 @@ describe("colorLines", () => {
 		const lines = ["12 │ dedup│aaa"];
 		const result = colorLines(lines, mockTheme);
 		expect(result[0]).toContain("[error]");
+	});
+
+	it("colors blank-gutter dedup rows red", () => {
+		const lines = ["   │ dedup│aaa"];
+		const result = colorLines(lines, mockTheme);
+		expect(result[0]).toContain("[error]");
+	});
+
+	it("colors dedup rows red in the numbered diff", () => {
+		const { diff, lineNumbers } = withDedupRows("+AAA│x\n BBB│y", [1, 2], ["kept"], []);
+		const numbered = toNumberedDiff(diff, lineNumbers);
+		const result = colorLines(numbered.split("\n"), mockTheme);
+		const dedupRow = result.find((row) => row.includes("dedup│kept"));
+		expect(dedupRow).toContain("[error]");
 	});
 });
 
