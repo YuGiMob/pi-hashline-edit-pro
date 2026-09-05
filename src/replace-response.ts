@@ -137,6 +137,10 @@ export function fmtDedupRow(line: string): string {
   return `${DEDUP_ANCHOR}${HASH_SEP}[Row is ${size}, exceeds ${limit}; content not shown. Use read to see the full line.]`;
 }
 
+export function isDedupRow(line: string): boolean {
+  return line.startsWith(`${DEDUP_ANCHOR}${HASH_SEP}`);
+}
+
 export function isChangeRow(line: string): boolean {
   return line.startsWith("+") || line.startsWith("-");
 }

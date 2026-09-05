@@ -78,6 +78,18 @@ describe("colorLines", () => {
 		expect(result[0]).toContain("[dim]");
 		expect(result[1]).toContain("[dim]");
 	});
+
+	it("colors dedup rows red", () => {
+		const lines = ["dedup│aaa"];
+		const result = colorLines(lines, mockTheme);
+		expect(result[0]).toContain("[error]");
+	});
+
+	it("colors numbered dedup rows red", () => {
+		const lines = ["12 │ dedup│aaa"];
+		const result = colorLines(lines, mockTheme);
+		expect(result[0]).toContain("[error]");
+	});
 });
 
 describe("fmtPreview", () => {

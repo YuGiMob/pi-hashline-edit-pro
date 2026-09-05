@@ -2,6 +2,7 @@ import { Markdown, Text } from "@earendil-works/pi-tui";
 import { keyHint, type Theme } from "@earendil-works/pi-coding-agent";
 import type { ReplaceDetails } from "./replace";
 import { withLineNumbers } from "./utils";
+import { isDedupRow } from "./replace-response";
 import { getPreviewInput } from "./payload-contract";
 export { getPreviewInput };
 
@@ -27,6 +28,7 @@ function diffRowKind(line: string): DiffRowKind {
 	const stripped = line.replace(/^\s*\d+\s+│\s*/, "");
 	if (stripped.startsWith("+") && !stripped.startsWith("+++")) return "added";
 	if (stripped.startsWith("-") && !stripped.startsWith("---")) return "removed";
+	if (isDedupRow(stripped)) return "removed";
 	return "context";
 }
 
