@@ -37,22 +37,22 @@ describe("boundary dedup noop bypass", () => {
       const first = await editTool.execute("e1", payload, undefined, undefined, ctx);
       expect(first.details.classification).toBe("noop");
       expect(getText(first)).toContain("No changes made");
-      expect(getText(first)).not.toContain("[E_BOUNDARY_BYPASS]");
+      expect(getText(first)).not.toContain("[W_BOUNDARY_BYPASS]");
       expect(await readFile(path, "utf-8")).toBe("aaa\nbbb\nccc\n");
 
       const second = await editTool.execute("e2", payload, undefined, undefined, ctx);
       expect(getText(second)).toContain("Successfully replaced");
-      expect(getText(second)).toContain("[E_BOUNDARY_BYPASS] Boundary dedup was off for this call and is back on.");
+      expect(getText(second)).toContain("[W_BOUNDARY_BYPASS] Boundary dedup was off for this call and is back on.");
       expect(await readFile(path, "utf-8")).toBe("aaa\nbbb\nccc\nccc\n");
 
       const third = await editTool.execute("e3", payload, undefined, undefined, ctx);
       expect(third.details.classification).toBe("noop");
       expect(getText(third)).toContain("No changes made");
-      expect(getText(third)).not.toContain("[E_BOUNDARY_BYPASS]");
+      expect(getText(third)).not.toContain("[W_BOUNDARY_BYPASS]");
 
       const fourth = await editTool.execute("e4", payload, undefined, undefined, ctx);
       expect(getText(fourth)).toContain("Successfully replaced");
-      expect(getText(fourth)).toContain("[E_BOUNDARY_BYPASS]");
+      expect(getText(fourth)).toContain("[W_BOUNDARY_BYPASS]");
       expect(await readFile(path, "utf-8")).toBe("aaa\nbbb\nccc\nccc\nccc\n");
     });
   });
@@ -81,12 +81,12 @@ describe("boundary dedup noop bypass", () => {
       const again = await editTool.execute("e3", payload, undefined, undefined, ctx);
       expect(again.details.classification).toBe("noop");
       expect(getText(again)).toContain("No changes made");
-      expect(getText(again)).not.toContain("[E_BOUNDARY_BYPASS]");
+      expect(getText(again)).not.toContain("[W_BOUNDARY_BYPASS]");
       expect(await readFile(path, "utf-8")).toBe("ATIm\nbbb\nccc\n");
 
       const resend = await editTool.execute("e4", payload, undefined, undefined, ctx);
       expect(getText(resend)).toContain("Successfully replaced");
-      expect(getText(resend)).toContain("[E_BOUNDARY_BYPASS]");
+      expect(getText(resend)).toContain("[W_BOUNDARY_BYPASS]");
       expect(await readFile(path, "utf-8")).toBe("ATIm\nbbb\nccc\nccc\n");
     });
   });
@@ -110,7 +110,7 @@ describe("boundary dedup noop bypass", () => {
         ctx,
       );
       expect(getText(missingPath)).toContain("Successfully replaced");
-      expect(getText(missingPath)).toContain("[E_BOUNDARY_BYPASS]");
+      expect(getText(missingPath)).toContain("[W_BOUNDARY_BYPASS]");
       expect(await readFile(path, "utf-8")).toBe("aaa\nbbb\nccc\nccc\n");
     });
   });
@@ -130,14 +130,14 @@ describe("boundary dedup noop bypass", () => {
         const result = await editTool.execute(`e${i}`, plain, undefined, undefined, ctx);
         expect(result.details.classification).toBe("noop");
         expect(getText(result)).toContain("No changes made");
-        expect(getText(result)).not.toContain("[E_BOUNDARY_BYPASS]");
+        expect(getText(result)).not.toContain("[W_BOUNDARY_BYPASS]");
       }
       expect(await readFile(path, "utf-8")).toBe("aaa\nbbb\nccc\n");
 
       await editTool.execute("e3", cutPayload(hashes), undefined, undefined, ctx);
       const resend = await editTool.execute("e4", cutPayload(hashes), undefined, undefined, ctx);
       expect(getText(resend)).toContain("Successfully replaced");
-      expect(getText(resend)).toContain("[E_BOUNDARY_BYPASS]");
+      expect(getText(resend)).toContain("[W_BOUNDARY_BYPASS]");
       expect(await readFile(path, "utf-8")).toBe("aaa\nbbb\nccc\nccc\n");
     });
   });
@@ -152,12 +152,12 @@ describe("boundary dedup noop bypass", () => {
         expect("error" in preview ? preview.error : "no error").toContain(
           "No changes made",
         );
-        expect("error" in preview ? preview.error : "no error").not.toContain("[E_BOUNDARY_BYPASS]");
+        expect("error" in preview ? preview.error : "no error").not.toContain("[W_BOUNDARY_BYPASS]");
       }
 
       const result = await editTool.execute("e1", cutPayload(hashes), undefined, undefined, ctx);
       expect(result.details.classification).toBe("noop");
-      expect(getText(result)).not.toContain("[E_BOUNDARY_BYPASS]");
+      expect(getText(result)).not.toContain("[W_BOUNDARY_BYPASS]");
     });
   });
 
@@ -184,12 +184,12 @@ describe("boundary dedup noop bypass", () => {
         ctx,
       );
       expect(other.details.classification).toBe("noop");
-      expect(getText(other)).not.toContain("[E_BOUNDARY_BYPASS]");
+      expect(getText(other)).not.toContain("[W_BOUNDARY_BYPASS]");
       expect(await readFile(path, "utf-8")).toBe("aaa\nbbb\nccc\n");
 
       const resend = await editTool.execute("a2", cutPayload(hashes), undefined, undefined, ctx);
       expect(getText(resend)).toContain("Successfully replaced");
-      expect(getText(resend)).toContain("[E_BOUNDARY_BYPASS]");
+      expect(getText(resend)).toContain("[W_BOUNDARY_BYPASS]");
       expect(await readFile(path, "utf-8")).toBe("aaa\nbbb\nccc\nccc\n");
     });
   });
@@ -222,7 +222,7 @@ describe("boundary dedup noop bypass", () => {
       const resend = await editTool.execute("e2", cutPayload(hashes), undefined, undefined, ctx);
       expect(resend.details.classification).toBe("noop");
       expect(getText(resend)).toContain("No changes made");
-      expect(getText(resend)).not.toContain("[E_BOUNDARY_BYPASS]");
+      expect(getText(resend)).not.toContain("[W_BOUNDARY_BYPASS]");
       expect(await readFile(path, "utf-8")).toBe("aaa\nbbb\nccc\n");
     });
   });

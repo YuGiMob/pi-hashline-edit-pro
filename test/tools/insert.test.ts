@@ -315,7 +315,7 @@ describe("insert tool", () => {
 
       const resend = await editTool.execute("e2", payload, undefined, undefined, ctx);
       expect(resend.details.classification).toBe("noop");
-      expect(getText(resend)).not.toContain("[E_BOUNDARY_BYPASS]");
+      expect(getText(resend)).not.toContain("[W_BOUNDARY_BYPASS]");
       expect(await readFile(path, "utf-8")).toBe("aaa\nAAA2\nbbb\nccc\n");
     });
   });

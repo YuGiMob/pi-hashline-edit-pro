@@ -130,7 +130,7 @@ export async function execPipeline(
   let replacementLines = params.replacement_lines;
   const expandedReplacement = decodeStringArray(replacementLines);
   if (expandedReplacement) {
-    editWarnings.push('[E_BAD_SHAPE] Unwrapped JSON array syntax from a replacement_lines element.');
+    editWarnings.push('[W_BAD_SHAPE] Unwrapped JSON array syntax from a replacement_lines element.');
     replacementLines = expandedReplacement;
   }
   const edit = resEdit(
@@ -286,7 +286,7 @@ export function buildToolDef(): ToolDef {
           { accessMode: constants.R_OK | constants.W_OK, signal, skipBoundaryDedup: boundaryBypass },
         );
         const appliedWarnings = boundaryBypass
-          ? ["[E_BOUNDARY_BYPASS] Boundary dedup was off for this call and is back on."]
+          ? ["[W_BOUNDARY_BYPASS] Boundary dedup was off for this call and is back on."]
           : [];
         return commitEdit(pipe, {
           path,

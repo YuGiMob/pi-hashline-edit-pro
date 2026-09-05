@@ -13,14 +13,14 @@ export async function resolvePathFromHashes(hashes: string[]): Promise<{ path: s
   if (matches.length === 0) return undefined;
   if (matches.length === 1) {
     const single = matches[0]!;
-    return { path: single, warning: `[E_BAD_SHAPE] Missing "path" resolved to ${single}.` };
+    return { path: single, warning: `[W_BAD_SHAPE] Missing "path" resolved to ${single}.` };
   }
   const ranked = rankRecentPaths(store, [...matches]);
   const picked = ranked[0]!;
   const shown = ranked.slice(0, 3);
   const hidden = ranked.length - shown.length;
   const listed = hidden > 0 ? `${shown.join(", ")}, ... (+${hidden} more)` : shown.join(", ");
-  return { path: picked, warning: `[E_BAD_SHAPE] Missing "path" resolved to ${picked} (picked most recent of ${ranked.length}: ${listed}).` };
+  return { path: picked, warning: `[W_BAD_SHAPE] Missing "path" resolved to ${picked} (picked most recent of ${ranked.length}: ${listed}).` };
 }
 
 export async function resolveReplacePath(request: Record<string, unknown>): Promise<{ path: string; warning: string } | undefined> {

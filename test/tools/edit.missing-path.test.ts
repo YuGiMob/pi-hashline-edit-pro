@@ -20,7 +20,7 @@ describe("replace - missing path resolution", () => {
 
       expect(result.content[0].text).toContain("Successfully replaced");
       expect(result.content[0].text).toContain("Warnings:");
-      expect(result.content[0].text).toContain('Missing "path" resolved to');
+      expect(result.content[0].text).toContain('[W_BAD_SHAPE] Missing "path" resolved to');
       expect(await readFile(path, "utf-8")).toBe("ATIm\nbbb\n");
     });
   });

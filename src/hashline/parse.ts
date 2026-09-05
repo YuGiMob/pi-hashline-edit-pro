@@ -63,14 +63,14 @@ function unwrapJsonEnvelope(line: string, warnings?: string[]): string {
     const parsed: unknown = JSON.parse(withoutDot);
     if (Array.isArray(parsed) && parsed.length === 1 && typeof parsed[0] === "string") {
       warnings?.push(
-        '[E_BAD_SHAPE] Unwrapped JSON array syntax from a replacement_lines element.',
+        '[W_BAD_SHAPE] Unwrapped JSON array syntax from a replacement_lines element.',
       );
       return parsed[0];
     }
     return line;
   } catch {
     warnings?.push(
-      '[E_BAD_SHAPE] Unwrapped JSON array syntax from a replacement_lines element.',
+      '[W_BAD_SHAPE] Unwrapped JSON array syntax from a replacement_lines element.',
     );
     return match[1]!;
   }
@@ -90,7 +90,7 @@ export function parseText(edit: string[], warnings?: string[]): string[] {
   }
   if (split) {
     warnings?.push(
-      "[E_BAD_SHAPE] replacement_lines contained embedded newlines; split into one line each.",
+      "[W_BAD_SHAPE] replacement_lines contained embedded newlines; split into one line each.",
     );
   }
   return out;

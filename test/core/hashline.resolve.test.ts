@@ -93,7 +93,7 @@ describe("resEdit", () => {
 		expect(resolved.hash_bounds[0].hash).toBe("riBB");
 		expect(resolved.hash_bounds[1].hash).toBe("riBB");
 		expect(warnings).toHaveLength(2);
-		expect(warnings[0]).toMatch(/^\[E_BAD_REF\]/);
+    expect(warnings[0]).toMatch(/^\[W_BAD_REF\]/);
 		expect(warnings[0]).toContain('Stripped "anchor│" prefix');
 		expect(warnings[0]).toContain("remove_from/remove_to entry");
 	});

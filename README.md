@@ -100,7 +100,7 @@ Notes:
 
 - The request is checked before any file I/O, so a bad request never touches the file.
 - Common copy-paste slips are fixed automatically and reported: a leftover `anchor│` prefix (including a truncated or expanded prefix of up to 6 characters, e.g. `L3│` or `ab12│`) in `replacement_lines` or `remove_from`/`remove_to`, diff-preview rows pasted into the replacement, a reversed range, or a boundary line pasted twice. New lines that re-include a block adjacent to the range are stripped automatically when that block is unique in the file. The whole run is stripped as one unit (including repeated structural lines like `}`), so re-including an unchanged block next to the range never duplicates it. A missing `path` is resolved from the anchors when they identify known files in the hash store (reported as a warning); when the anchors match multiple known files the most recently touched file is picked, with up to 3 candidate paths named. `file_path` works as an alias for `path` in all five tools.
-- An edit that produces identical content reports `No changes made` and leaves the anchors alone. When such a noop happened because a boundary anti-duplication cut removed lines from the replacement (the cut blocked a line that duplicates the block next to the range from being added), the same replacement sent once more runs with the edge anti-duplication turned off for that single call and is applied literally. The duplicated lines are kept, and the result carries a `[E_BOUNDARY_BYPASS]` notice. The pending bypass is per file and keyed to that payload; copied `anchor│` prefixes, diff markers, and stray whitespace in the resend are normalized before matching, so a copy-paste resend still hits it. Any applied edit clears it, and a successful `write` also clears it.
+- An edit that produces identical content reports `No changes made` and leaves the anchors alone. When such a noop happened because a boundary anti-duplication cut removed lines from the replacement (the cut blocked a line that duplicates the block next to the range from being added), the same replacement sent once more runs with the edge anti-duplication turned off for that single call and is applied literally. The duplicated lines are kept, and the result carries a `[W_BOUNDARY_BYPASS]` notice. The pending bypass is per file and keyed to that payload; copied `anchor│` prefixes, diff markers, and stray whitespace in the resend are normalized before matching, so a copy-paste resend still hits it. Any applied edit clears it, and a successful `write` also clears it.
 - Every line in the removed range must match what was last shown to you. The extension records the `anchor│content` rows it serves (`read` output, the auto-read block after `write`, the `+anchor│`/` anchor│` rows of post-edit diffs (replace, insert, and undo), the current-range rows of `[E_RANGE_STALE]` feedback, and the context rows of stale/ambiguous-anchor feedback) and verifies the whole range against that record before writing. If an interior line changed on disk since it was shown (external editor, formatter-on-save, code generation) or was never shown, the edit is refused with `[E_RANGE_STALE]` and the current range is returned with fresh anchors, so the retry needs no `read`. Edits outside the served record are only possible for files that were never read (for example right after a `write` with auto-read disabled); once the file has been served, every replaced line must have been shown.
 - After a successful edit you get the post-edit diff with fresh anchors, so you can keep editing without re-reading. The diff is capped at 50KB: a row longer than 50KB is shown as a marker that keeps the row's anchor (so the line stays editable via the diff), and when the total cap is hit the diff ends with a truncation note. Only the rows shown in the capped diff are recorded as served. The same caps apply to the `insert` and `undo_last_change` diffs, to the interactive previews, and to `details.patch` (which is flagged with `details.patchTruncated` when it was cut and can no longer be applied as-is).
 - Do not issue multiple replace or insert calls on the same file in one message; parallel edits split attention across the post-edit diffs and removed lines are easy to miss. Verify each diff before the next edit on that file.
@@ -224,17 +224,21 @@ Two guarantees make this safe even with duplicated content:
 
 A no-op replace never changes the file, so anchors remain valid. On first run after upgrading from an older version, the previous `hash-store.json` is imported once and renamed to `hash-store.json.bak`.
 
-## Error codes
+## Error and warning codes
+
+Codes starting with `E_` are errors (the operation failed); codes starting with `W_` are warnings (the operation succeeded with a notice).
 
 | Code | Meaning |
 | --- | --- |
 | `[E_BAD_SHAPE]` | Request envelope or edit item has unknown, missing, or wrongly-typed fields (for example `replacement_lines` must be an array of strings, one element per line). |
+| `[W_BAD_SHAPE]` | Auto-corrected request slip reported as a warning (for example unwrapped JSON array syntax, embedded newlines split into lines, or a missing `path` resolved from anchors). |
 | `[E_BAD_REF]` | An anchor in `remove_from`/`remove_to` is not a bare 4-char anchor. |
+| `[W_BAD_REF]` | A pasted `anchor│` or diff-preview marker was stripped from an anchor field with a warning. |
 | `[E_STALE_ANCHOR]` | An anchor does not match any line in the current file; call `read` for fresh anchors. |
 | `[E_AMBIGUOUS_ANCHOR]` | An anchor matches multiple lines; call `read` for fresh anchors. |
-| `[E_INVALID_PATCH]` | A `replacement_lines` element is a diff-preview row (`+anchor│`, `-anchor│`, `-    │`). The marker is stripped automatically with a warning. |
-| `[E_BARE_HASH_PREFIX]` | A `replacement_lines` element starts with an `anchor│` prefix (the anchor plus the separator). The prefix is stripped automatically with a warning. |
-| `[E_BAD_OP]` | Range start line is after range end line. The pair is swapped automatically with a warning. |
+| `[W_INVALID_PATCH]` | A `replacement_lines` element is a diff-preview row (`+anchor│`, `-anchor│`, `-    │`). The marker is stripped automatically with a warning. |
+| `[W_BARE_HASH_PREFIX]` | A `replacement_lines` element starts with an `anchor│` prefix (the anchor plus the separator). The prefix is stripped automatically with a warning. |
+| `[W_BAD_OP]` | Range start line is after range end line. The pair is swapped automatically with a warning. |
 | `[E_WOULD_EMPTY]` | An edit would empty a non-empty file; use `write` instead. |
 | `[E_NOT_FOUND]` | The path does not exist. |
 | `[E_ACCESS]` | The file is not readable or writable. |
@@ -242,7 +246,7 @@ A no-op replace never changes the file, so anchors remain valid. On first run af
 | `[E_UNDO_STALE]` | `undo_last_change` refused: the file was modified after the last edit. The undo record is kept until the file matches the edited state again or a new edit replaces it. |
 | `[E_UNDO_UNAVAILABLE]` | Undo history could not be persisted to the hash store; the edit was refused and the file was left unchanged. |
 | `[E_RANGE_STALE]` | A line in the replaced range no longer matches what was last shown (the file changed on disk, or the line was never shown). The edit was refused; the current range is returned with fresh anchors. |
-| `[E_BOUNDARY_BYPASS]` | The boundary anti-duplication was turned off for one replace call (an identical replacement had previously been cut to a noop); the duplicate lines were applied literally. The dedup is restored for the next call. |
+| `[W_BOUNDARY_BYPASS]` | The boundary anti-duplication was turned off for one replace call (an identical replacement had previously been cut to a noop); the duplicate lines were applied literally. The dedup is restored for the next call. |
 | `[E_FILE_TOO_LARGE]` | The file exceeds the 257,795-line hashline limit or the 100MB size limit. |
 | `[E_WRITE_HASH_ECHO]` | A `write` `content` line begins with the exact `anchor│` served for this file at the same line. The write is refused, file byte-identical; retry with bare content (remove the copied anchors). |
 | `[E_PATH_CHANGED]` | A write target changed identity after it was read; the write was refused to avoid following a swapped symlink or overwriting a replacement file. |

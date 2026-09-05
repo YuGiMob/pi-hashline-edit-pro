@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 import { describe, expect, it } from "vitest";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const codeRe = /\[E_[A-Z0-9_]+\]/g;
+const codeRe = /\[(?:E|W)_[A-Z0-9_]+\]/g;
 
 function collectCodes(dir: string): Set<string> {
   const codes = new Set<string>();

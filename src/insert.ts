@@ -181,7 +181,7 @@ export function buildInsertToolDef(): InsertToolDef {
       if (isRec(canonical)) {
         const expanded = decodeStringArray(canonical.lines);
         if (expanded) {
-          insertWarnings.push('[E_BAD_SHAPE] Unwrapped JSON array syntax from a lines element.');
+          insertWarnings.push('[W_BAD_SHAPE] Unwrapped JSON array syntax from a lines element.');
           canonical.lines = expanded;
         }
       }
