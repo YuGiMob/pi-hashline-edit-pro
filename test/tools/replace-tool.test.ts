@@ -42,6 +42,21 @@ describe("regReplace", () => {
     expect(result.file_path).toBeUndefined();
   });
 
+  it("prepareArguments normalizes replace_from/replace_to to remove_from/remove_to", () => {
+    const { pi, getTool } = makeFakePiRegistry();
+    regReplace(pi);
+    const tool = getTool("replace");
+    const result = tool.prepareArguments({
+      path: "test.txt",
+      replace_from: "ATIm", replace_to: "BeSR",
+      replacement_lines: ["new"],
+    });
+    expect(result.remove_from).toBe("ATIm");
+    expect(result.remove_to).toBe("BeSR");
+    expect(result.replace_from).toBeUndefined();
+    expect(result.replace_to).toBeUndefined();
+  });
+
 
 
   it("replaces a single line via execute", async () => {
@@ -56,6 +71,30 @@ describe("regReplace", () => {
         {
           path: "sample.txt",
           remove_from: hashes[1]!, remove_to: hashes[1]!,
+          replacement_lines: ["BeSR"],
+        },
+        undefined,
+        undefined,
+        { cwd } as any,
+      );
+
+      expect(result.content[0].text).toContain("Successfully replaced in sample.txt");
+      expect(result.content[0].text).toContain("Added 1 line(s), removed 1 line(s).");
+    });
+  });
+
+  it("replaces a single line via the replace_from/replace_to aliases", async () => {
+    await withTempFile("sample.txt", "aaa\nbbb\nccc\n", async ({ cwd }) => {
+      const { pi, getTool } = makeFakePiRegistry();
+      regReplace(pi);
+      const tool = getTool("replace");
+      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+
+      const result = await tool.execute(
+        "e1",
+        {
+          path: "sample.txt",
+          replace_from: hashes[1]!, replace_to: hashes[1]!,
           replacement_lines: ["BeSR"],
         },
         undefined,

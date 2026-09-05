@@ -287,6 +287,18 @@ describe("makePrepareArguments", () => {
     expect(result).toEqual({ path: "a.txt", offset: 1 });
   });
 
+  it("normalizes replace_from and replace_to to remove_from and remove_to", () => {
+    const prepare = makePrepareArguments();
+    const result = prepare({ replace_from: "a", replace_to: "b" });
+    expect(result).toEqual({ remove_from: "a", remove_to: "b" });
+  });
+
+  it("normalizes each remove field only when it is missing", () => {
+    const prepare = makePrepareArguments();
+    const result = prepare({ remove_from: "a", replace_from: "b", replace_to: "c" });
+    expect(result).toEqual({ remove_from: "a", replace_from: "b", remove_to: "c" });
+  });
+
   it("does not mutate the original input", () => {
     const prepare = makePrepareArguments();
     const input = { file_path: "a.txt" };

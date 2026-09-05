@@ -87,6 +87,18 @@ describe("normReq - top-level shape", () => {
 		expect(result.remove_to).toEqual("BeSR");
 	});
 
+	it("normalizes replace_from and replace_to to remove_from and remove_to", () => {
+		const input = {
+			replace_from: "ATIm", replace_to: "BeSR",
+			replacement_lines: ["new"],
+		};
+		const result = normReq(input) as Record<string, unknown>;
+		expect(result.remove_from).toEqual("ATIm");
+		expect(result.remove_to).toEqual("BeSR");
+		expect(result.replace_from).toBeUndefined();
+		expect(result.replace_to).toBeUndefined();
+	});
+
 	it("does not mutate the original flat-format input", () => {
 		const input = {
 			path: "test.txt",

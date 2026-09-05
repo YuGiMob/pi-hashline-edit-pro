@@ -9,11 +9,23 @@ export function normalizeFilePath(record: Record<string, unknown>): void {
   }
 }
 
+export function normalizeAnchors(record: Record<string, unknown>): void {
+  if (typeof record.remove_from !== "string" && typeof record.replace_from === "string") {
+    record.remove_from = record.replace_from;
+    delete record.replace_from;
+  }
+  if (typeof record.remove_to !== "string" && typeof record.replace_to === "string") {
+    record.remove_to = record.replace_to;
+    delete record.replace_to;
+  }
+}
+
 export function makePrepareArguments(): (args: unknown) => any {
   return (args) => {
     if (!isRec(args)) return args;
     const record = { ...args };
     normalizeFilePath(record);
+    normalizeAnchors(record);
     return record;
   };
 }

@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import { isRec, normalizeFilePath, rejectUnknownFields } from "./utils";
+import { isRec, normalizeAnchors, normalizeFilePath, rejectUnknownFields } from "./utils";
 
 const replacementLinesSchema = Type.Array(
   Type.String({
@@ -72,6 +72,7 @@ export function normReq(input: unknown): unknown {
   }
   const record: Record<string, unknown> = { ...input };
   normalizeFilePath(record);
+  normalizeAnchors(record);
   return record;
 }
 
