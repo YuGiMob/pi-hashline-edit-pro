@@ -17,7 +17,7 @@ export const HASH_SEP = "│";
 export const HASH_SPACE = ANCHOR_COUNT;
 export const MAX_HASH_LINES = HASH_SPACE;
 
-export const HASH_PROBE_STRIDE = 571;
+export const HASH_PROBE_STRIDE = 1347;
 
 function hashAt(idx: number): string {
   return anchorAt(idx);

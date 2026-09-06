@@ -15,7 +15,7 @@ const home = useTestHome();
 
 describe("hashline limits", () => {
   it("derives the hash space from the alphabet and hash length", () => {
-    expect(HASH_SPACE).toBe(257795);
+    expect(HASH_SPACE).toBe(1353139);
     expect(MAX_HASH_LINES).toBe(HASH_SPACE);
   });
 

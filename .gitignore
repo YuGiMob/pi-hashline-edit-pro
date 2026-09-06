@@ -171,3 +171,4 @@ Temporary Items
 
 # Test temp directories
 .tmp/
+__pycache__/
