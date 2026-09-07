@@ -125,7 +125,8 @@ export function buildNoop(input: NoopInput, noopNoun = "Replacement"): TResult {
 			firstChangedLine: undefined,
 			snapshotId,
 			classification: "noop" as const,
-			metrics,
+      metrics,
+      ...(warnings?.length ? { warnings: [...warnings] } : {}),
 		},
 	};
 }
@@ -210,6 +211,7 @@ export function buildChanged(input: SuccessInput, verb = "replaced"): TResult {
       snapshotId,
       metrics,
       diffLineNumbers: diffResult.lineNumbers,
+      ...(warnings?.length ? { warnings: [...warnings] } : {}),
     },
   };
 }

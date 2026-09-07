@@ -101,12 +101,18 @@ const TEMP_PREFIX = ".tmp-";
 const TEMP_UUID_RE = /^\.tmp-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const STALE_TEMP_MS = 60 * 60 * 1000;
 const sweptDirs = new Map<string, number>();
+const SWEPT_DIRS_LIMIT = 256;
 
 async function sweepStaleTemps(dir: string): Promise<void> {
   const sweepNow = Date.now();
   const lastSweep = sweptDirs.get(dir);
   if (lastSweep !== undefined && sweepNow - lastSweep < STALE_TEMP_MS) return;
+  sweptDirs.delete(dir);
   sweptDirs.set(dir, sweepNow);
+  if (sweptDirs.size > SWEPT_DIRS_LIMIT) {
+    const oldest = sweptDirs.keys().next().value;
+    if (oldest !== undefined) sweptDirs.delete(oldest);
+  }
   try {
     const entries = await readdir(dir, { withFileTypes: true });
     for (const entry of entries) {

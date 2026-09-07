@@ -7,6 +7,7 @@ import { regGrep } from "./src/grep";
 import { regUndo, clearUndo } from "./src/replace-undo";
 import { regRead, fmtReadPreview } from "./src/read";
 import type { RMetrics } from "./src/replace-response";
+import type { ReplaceDetails } from "./src/replace";
 import { extractWarnings } from "./src/replace-render";
 import { MAX_HASH_LINES } from "./src/hashline";
 import {
@@ -164,7 +165,9 @@ export default function (pi: ExtensionAPI): void {
     const metrics = (event.details as { metrics?: RMetrics } | undefined)?.metrics;
     if (metrics?.classification === "noop") return;
 
-    const diff = (event.details as { diff?: string } | undefined)?.diff;
+    const toolDetails = event.details as ReplaceDetails | undefined;
+    const diff = toolDetails?.diff;
+    const detailWarnings = Array.isArray(toolDetails?.warnings) ? toolDetails.warnings.filter((w): w is string => typeof w === "string") : [];
     if (typeof diff !== "string") return;
     const hasDiff = diff.length > 0;
 
@@ -175,7 +178,7 @@ export default function (pi: ExtensionAPI): void {
       )
       .map((entry) => entry.text)
       .join("\n");
-    const warnings = extractWarnings(rendered);
+    const warnings = detailWarnings.length ? `Warnings:\n${detailWarnings.join("\n")}` : extractWarnings(rendered);
     const hint = hasDiff ? (warnings ? `${diff}\n\n${warnings}` : diff) : warnings ? `[post-edit] applied successfully; the diff is empty (whitespace-only change).\n\n${warnings}` : "[post-edit] applied successfully; the diff is empty (whitespace-only change).";
     return {
       content: [

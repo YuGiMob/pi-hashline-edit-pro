@@ -1,5 +1,5 @@
-import { mkdir, readFile, readdir, rm, stat } from "fs/promises";
-import { appendFileSync } from "fs";
+import { chmod, mkdir, readFile, readdir, rm, stat } from "fs/promises";
+import { appendFileSync, chmodSync } from "fs";
 import { join } from "path";
 import { createHash } from "crypto";
 import { sessionClaimsDir } from "./paths";
@@ -130,7 +130,11 @@ export async function initRegistry(sessionFile: string | undefined): Promise<voi
   seedServedFromOwned(folded);
   registries.set(key, folded);
   try {
-    await mkdir(sessionClaimsDir(), { recursive: true });
+    await mkdir(sessionClaimsDir(), { recursive: true, mode: 0o700 });
+    if (process.platform !== "win32") {
+      try { await chmod(sessionClaimsDir(), 0o700); } catch (error) { if (errCode(error) !== "ENOENT") console.error("Failed to secure anchor registry directory:", error); }
+      try { await chmod(currentSidecar, 0o600); } catch (error) { if (errCode(error) !== "ENOENT") console.error("Failed to secure anchor registry sidecar:", error); }
+    }
     appendEvent({ kind: "session", sessionFile } satisfies RegistryEvent);
   } catch (error) {
     console.error("Failed to initialize anchor registry sidecar:", error);
@@ -146,6 +150,9 @@ function appendEvent(event: RegistryEvent): void {
   if (!currentSidecar) return;
   try {
     appendFileSync(currentSidecar, JSON.stringify(event) + "\n", "utf-8");
+    if (process.platform !== "win32") {
+      try { chmodSync(currentSidecar, 0o600); } catch (error) { if (errCode(error) !== "ENOENT") console.error("Failed to secure anchor registry sidecar:", error); }
+    }
   } catch (error) {
     console.error("Failed to append registry event:", error);
   }

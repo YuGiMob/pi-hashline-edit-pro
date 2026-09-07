@@ -165,7 +165,7 @@ export function buildAppliedText(
 				: "";
 		sections.push(`${diffSection}${hint}`);
 	}
-	const warnings = extractWarnings(text);
+	const warnings = details?.warnings?.length ? `Warnings:\n${details.warnings.join("\n")}` : extractWarnings(text);
 	if (warnings) sections.push(warnings);
 	return sections.length > 0 ? sections.join("\n\n") : undefined;
 }

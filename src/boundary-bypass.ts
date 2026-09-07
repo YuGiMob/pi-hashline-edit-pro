@@ -13,6 +13,7 @@ function canonLines(lines: string[]): string[] {
 }
 
 const boundaryBypassTracker = new Map<string, string>();
+const BOUNDARY_BYPASS_LIMIT = 256;
 
 export function noopPayloadKey(
   absolutePath: string,
@@ -29,7 +30,12 @@ export function noopPayloadKey(
 }
 
 export function markBoundaryNoop(absolutePath: string, payload: string): void {
+  boundaryBypassTracker.delete(absolutePath);
   boundaryBypassTracker.set(absolutePath, payload);
+  if (boundaryBypassTracker.size > BOUNDARY_BYPASS_LIMIT) {
+    const oldest = boundaryBypassTracker.keys().next().value;
+    if (oldest !== undefined) boundaryBypassTracker.delete(oldest);
+  }
 }
 
 export function consumeBoundaryBypass(absolutePath: string, payload: string): boolean {

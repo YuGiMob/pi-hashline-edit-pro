@@ -46,6 +46,7 @@ export type ReplaceDetails = {
   classification?: "noop";
   metrics?: RMetrics;
   diffLineNumbers?: (number|undefined)[];
+  warnings?: string[];
 };
 
 export interface PipelineResult {

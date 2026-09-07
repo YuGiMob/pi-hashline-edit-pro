@@ -108,6 +108,7 @@ export async function insertPreview(request: unknown, cwd: string, signal?: Abor
       accessMode: constants.R_OK,
       maxLines: MAX_HASH_LINES,
       noPersist: true,
+      allocation: "shadow",
       signal,
     });
     const { editParams } = buildInsertEdit(normalized, preload, ref, targetPath);

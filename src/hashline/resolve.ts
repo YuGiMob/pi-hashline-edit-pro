@@ -97,7 +97,7 @@ export function fmtMismatchWithHashes(
   if (notFound.length > 0) {
     const refList = notFound.map((m) => `"${m.ref.hash}"`).join(", ");
     out.push(
-      `[E_STALE_ANCHOR] ${notFound.length} stale anchor${notFound.length > 1 ? "s" : ""}${filePath ? ` in ${filePath}` : ""}: ${refList}. The file changed since read. Call read() for fresh anchors.`
+      `[E_STALE_ANCHOR] ${notFound.length} stale anchor${notFound.length > 1 ? "s" : ""}${filePath ? ` in ${filePath}` : ""}: ${refList}. The file changed since read. Call read()${filePath ? ` on ${filePath}` : ""} for fresh anchors.`
     );
     for (const m of notFound) {
       const ctx = m.context;
@@ -536,8 +536,8 @@ export function assertRangeServed(
       : `${mismatchLines.length} of ${rangeLength} line(s) in the replaced range (lines ${startLine}-${endLine})${location} do not match`;
   const capHint =
     rangeLength > shownLength
-      ? `\n\n[The range has ${rangeLength} lines; showing the first ${shownLength}. Call read() with offset=${startLine + shownLength} to see the rest.]`
-      : "";
+      ? `\n\n[The range has ${rangeLength} lines; showing the first ${shownLength}. Call read()${filePath ? ` on ${filePath}` : ""} with offset=${startLine + shownLength} to see the rest.]`
+      : "\n\nRetry with the fresh anchors above without a read.";
   const message =
     `[E_RANGE_STALE] ${mismatchText} what was shown. Nothing was modified. Current range with fresh anchors:\n\n${rows.join("\n")}${capHint}`;
   throw new RangeStaleError(message, shownHashes, shownMap);
