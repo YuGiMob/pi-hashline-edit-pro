@@ -1,4 +1,5 @@
-import { appendFile, mkdir, readFile, readdir, rm, stat } from "fs/promises";
+import { mkdir, readFile, readdir, rm, stat } from "fs/promises";
+import { appendFileSync } from "fs";
 import { join } from "path";
 import { createHash } from "crypto";
 import { sessionClaimsDir } from "./paths";
@@ -130,7 +131,7 @@ export async function initRegistry(sessionFile: string | undefined): Promise<voi
   registries.set(key, folded);
   try {
     await mkdir(sessionClaimsDir(), { recursive: true });
-    await appendFile(currentSidecar, JSON.stringify({ kind: "session", sessionFile } satisfies RegistryEvent) + "\n", "utf-8");
+    appendEvent({ kind: "session", sessionFile } satisfies RegistryEvent);
   } catch (error) {
     console.error("Failed to initialize anchor registry sidecar:", error);
   }
@@ -142,9 +143,12 @@ function current(): SessionState | undefined {
 }
 
 function appendEvent(event: RegistryEvent): void {
-  appendFile(currentSidecar!, JSON.stringify(event) + "\n", "utf-8").catch((error) => {
+  if (!currentSidecar) return;
+  try {
+    appendFileSync(currentSidecar, JSON.stringify(event) + "\n", "utf-8");
+  } catch (error) {
     console.error("Failed to append registry event:", error);
-  });
+  }
 }
 
 function fingerprintIndex(state: SessionState, path: string): Map<string, string[]> {
@@ -188,9 +192,7 @@ export function allocateAnchor(path: string, checksum: string): string {
   const anchor = mintAnchor(state);
   state.everMinted.add(anchor);
   state.owned.set(anchor, { path, checksum });
-  if (currentSidecar) {
-    appendEvent({ kind: "allocate", path, rows: [[anchor, checksum]] });
-  }
+  appendEvent({ kind: "allocate", path, rows: [[anchor, checksum]] });
   return anchor;
 }
 
@@ -217,7 +219,7 @@ export function freeAnchors(path: string, anchors?: string[]): void {
 		}
 		state.served.delete(path);
 	}
-	if (freed.length > 0 && currentSidecar) {
+	if (freed.length > 0) {
 		appendEvent({ kind: "free", path, anchors: anchors ?? undefined });
 	}
 }
@@ -227,7 +229,6 @@ export function clearRegistry(): void {
 	if (!state) return;
 	state.owned.clear();
 	state.served.clear();
-	if (!currentSidecar) return;
 	appendEvent({ kind: "clear" });
 }
 
@@ -362,7 +363,7 @@ export function alignOwnershipWithSpans(
   const freed: { anchor: string; checksum: string }[] = [];
   const minted: MintedAt[] = [];
   const log = (event: RegistryEvent): void => {
-    if (!options?.shadow && currentSidecar) appendEvent(event);
+    if (!options?.shadow) appendEvent(event);
   };
 
   const sorted = [...spans].sort((a, b) => a.start - b.start);
@@ -432,7 +433,7 @@ export function alignOwnership(
   const freed: { anchor: string; checksum: string }[] = [];
   const minted: MintedAt[] = [];
   const log = (event: RegistryEvent): void => {
-    if (!options?.shadow && currentSidecar) appendEvent(event);
+    if (!options?.shadow) appendEvent(event);
   };
   if (prevAnchors) {
     for (const anchor of prevAnchors) state.everMinted.add(anchor);
@@ -544,7 +545,7 @@ export async function allocateFileAnchors(
           state.owned.set(anchor, { path, checksum });
           return anchor;
         });
-        if (!shadow && currentSidecar) {
+        if (!shadow) {
           appendEvent({ kind: "allocate", path, rows: anchors.map((a, i) => [a, checksums[i]!]) });
         }
         return { anchors, freed: [], minted: anchors };
@@ -567,7 +568,7 @@ export function adoptAnchors(path: string, entries: Map<string, string>): void {
 		state.owned.set(anchor, { path, checksum });
 		served.set(anchor, checksum);
 	}
-	if (currentSidecar && entries.size > 0) {
+	if (entries.size > 0) {
 		appendEvent({ kind: "allocate", path, rows: [...entries] });
 	}
 }
