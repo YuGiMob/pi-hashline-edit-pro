@@ -165,6 +165,13 @@ export function mintAnchor(state: SessionState): string {
       return candidate;
     }
   }
+  for (let step = 1; step <= ANCHOR_COUNT; step++) {
+    const candidate = anchorAt((state.probe + step) % ANCHOR_COUNT);
+    if (!state.owned.has(candidate)) {
+      for (const served of state.served.values()) served.delete(candidate);
+      return candidate;
+    }
+  }
   throw new Error(
     `[E_FILE_TOO_LARGE] The session's anchor pool is exhausted; free anchors with /clear-anchors or use write for very large files.`,
   );

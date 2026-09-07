@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { readFile } from "fs/promises";
 import { lineHashes } from "../../src/hashline";
 import { withTempFile, makeFakePiRegistry, setupIntegrationTest, getText, extractHash } from "../support/fixtures";
+import { resolveTarget } from "../../src/fs-write";
+import { toCwd } from "../../src/paths";
 import register from "../../index";
 import { insertPreview, buildInsertToolDef } from "../../src/insert";
 import type { RRState } from "../../src/replace-render";
@@ -164,7 +166,7 @@ describe("insert tool", () => {
       const { ctx, readTool, getTool } = setupIntegrationTest(cwd);
       const insertTool = getTool("insert");
       await readTool.execute("r1", { path: "sample.ts", limit: 2 }, undefined, undefined, ctx);
-      const hashes = await lineHashes("a\nb\nc\nd\n", `${cwd}/sample.ts`);
+      const hashes = await lineHashes("a\nb\nc\nd\n", await resolveTarget(toCwd("sample.ts", cwd)));
 
       await expect(
         insertTool.execute(

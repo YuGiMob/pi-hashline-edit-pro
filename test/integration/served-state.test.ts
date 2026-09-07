@@ -289,7 +289,7 @@ describe("served-state range verification", () => {
   it("applies without verification when the file was never served", async () => {
     await withTempFile("sample.ts", "a\nb\nc\n", async ({ cwd, path }) => {
       const { ctx, editTool } = setupIntegrationTest(cwd);
-      const hashes = await lineHashes("a\nb\nc\n", `${cwd}/sample.ts`);
+      const hashes = await lineHashes("a\nb\nc\n", await resolveTarget(toCwd("sample.ts", cwd)));
 
       const result = await editTool.execute(
         "e1",

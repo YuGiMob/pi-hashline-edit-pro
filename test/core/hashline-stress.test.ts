@@ -1,6 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach } from "vitest";
 import { lineHashes, _lineHashesPure, HASH_SPACE } from "../../src/hashline";
+import { resetRegistryForTests } from "../../src/anchor-registry";
 import { useTestHome } from "../support/fixtures";
+
+beforeEach(() => {
+  resetRegistryForTests();
+});
 
 const home = useTestHome();
 
