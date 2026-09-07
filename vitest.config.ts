@@ -9,6 +9,7 @@ export const mockIsolatedFiles = [
   "test/tools/fs-write-cleanup-on-error.test.ts",
   "test/tools/fs-write.permissions.test.ts",
   "test/core/startup.test.ts",
+  "test/tools/grep-pool-skip.test.ts",
 ];
 
 export const heavyTestFiles = [

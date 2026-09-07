@@ -371,7 +371,7 @@ async function migrateLegacy(db: RawDb): Promise<void> {
   const raw = parsed.snapshots;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return;
 
-  const rows: [string, string, number, string, number][] = [];
+  const rows: [string, string, number, string, string, number][] = [];
   for (const [key, value] of Object.entries(raw)) {
     if (
       isRec(value) &&
@@ -389,6 +389,7 @@ async function migrateLegacy(db: RawDb): Promise<void> {
       contentChecksum(value.content),
       splitLines(value.content).length,
       JSON.stringify(value.hashes),
+      "",
       Date.now(),
     ]);
   }
@@ -399,7 +400,7 @@ async function migrateLegacy(db: RawDb): Promise<void> {
         const stmt = db.prepare(
           "INSERT OR REPLACE INTO snapshots (path, checksum, line_count, hashes, line_checksums, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
         );
-        for (const row of rows) stmt.run(...row, "");
+        for (const row of rows) stmt.run(...row);
         db.exec("COMMIT");
       } catch (e) {
         try { db.exec("ROLLBACK"); } catch {}

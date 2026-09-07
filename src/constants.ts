@@ -13,4 +13,7 @@ export const HASH_STORE_VERSION = 8;
 export const NEW_CONTENT_NOT_ARRAY_MSG =
   `[E_BAD_SHAPE] "replacement_lines" must be an array of strings, one per line (use [] to delete).`;
 
+export const ANCHOR_POOL_EXHAUSTED_PREFIX =
+  "[E_FILE_TOO_LARGE] The session's anchor pool is exhausted";
+
 export const DEDUP_ANCHOR = "dedup";

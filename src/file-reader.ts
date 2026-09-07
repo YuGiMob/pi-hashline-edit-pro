@@ -7,6 +7,7 @@ import { resolveTarget, type FileIdentity } from "./fs-write";
 import { toCwd } from "./paths";
 import { detectEnding, toLF, stripBOM, type LineEnding } from "./normalize";
 import { abortIf, errCode, assertLineLimit } from "./utils";
+import { ANCHOR_POOL_EXHAUSTED_PREFIX } from "./constants";
 import { valKind, valAccess } from "./validation";
 import type { HashStore } from "./hash-store";
 export interface NormFile {
@@ -127,6 +128,7 @@ export async function tryReadNormFile(
     if (code === "EACCES" || code === "EPERM" || code === "ENOENT" || code === "ELOOP") return undefined;
     if (error instanceof Error) {
       const msg = error.message;
+      if (msg.startsWith(ANCHOR_POOL_EXHAUSTED_PREFIX)) throw error;
       if (msg.startsWith("[E_FILE_TOO_LARGE]") || msg.startsWith("[E_NOT_FOUND]") || msg.startsWith("[E_ACCESS]") || msg.startsWith("[E_NOT_TEXT]")) return undefined;
     }
     throw error;

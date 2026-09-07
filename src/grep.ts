@@ -7,7 +7,7 @@ import { spawn, spawnSync } from "child_process";
 import { createInterface } from "readline";
 import { tryReadNormFile } from "./file-reader";
 import { MAX_HASH_LINES, fmtRow, HASH_LEN, HASH_SEP } from "./hashline";
-import { MAX_GREP_LINE_BYTES } from "./constants";
+import { ANCHOR_POOL_EXHAUSTED_PREFIX, MAX_GREP_LINE_BYTES } from "./constants";
 import { toCwd } from "./paths";
 import { loadP, loadGuide } from "./prompts";
 import { normReq } from "./payload-contract";
@@ -18,6 +18,10 @@ const GREP_KS = new Set(["pattern", "path", "glob", "context", "ignoreCase", "li
 
 function cmp(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function isPoolExhaustedError(error: unknown): boolean {
+  return error instanceof Error && error.message.startsWith(ANCHOR_POOL_EXHAUSTED_PREFIX);
 }
 
 export interface GrepReq {
@@ -491,6 +495,16 @@ export function regGrep(pi: ExtensionAPI): void {
       let truncatedBy: "lines" | "bytes" | null = null;
       let linesReplaced = 0;
       let countOnly = false;
+      let poolSkipped = 0;
+      const readGrepFile = async (absPath: string) => {
+        try {
+          return await tryReadNormFile(absPath, ctx.cwd, { maxLines: MAX_HASH_LINES, noPersist: true, allocation: "real", signal });
+        } catch (error) {
+          if (!isPoolExhaustedError(error)) throw error;
+          poolSkipped += 1;
+          return undefined;
+        }
+      };
       const rgMatches = await collectRgMatches(rgPath, req.pattern, base, req, signal);
       const sortedFiles = [...rgMatches.keys()].sort(cmp);
       for (let f = 0; f < sortedFiles.length; f++) {
@@ -506,7 +520,7 @@ export function regGrep(pi: ExtensionAPI): void {
             const globPath = relative(globRoot, absPath).replace(/\\/g, "/");
             if (!globRegex.test(globPath) && !globRegex.test(displayPath)) continue;
           }
-          const norm = await tryReadNormFile(absPath, ctx.cwd, { maxLines: MAX_HASH_LINES, noPersist: true, allocation: "real", signal });
+          const norm = await readGrepFile(absPath);
           if (!norm) continue;
           const hit = makeHitFromIndices(norm, relative(ctx.cwd, absPath).replace(/\\/g, "/"), indices, context, validatedRegex, totalForFile, indices.length);
           const display = displayRowsForHit(hit);
@@ -532,7 +546,7 @@ export function regGrep(pi: ExtensionAPI): void {
           const globPath = relative(globRoot, absPath).replace(/\\/g, "/");
           if (!globRegex.test(globPath) && !globRegex.test(displayPath)) continue;
         }
-        const norm = await tryReadNormFile(absPath, ctx.cwd, { maxLines: MAX_HASH_LINES, noPersist: true, allocation: "real", signal });
+        const norm = await readGrepFile(absPath);
         if (!norm) continue;
         const hit = makeHitFromIndices(norm, relative(ctx.cwd, absPath).replace(/\\/g, "/"), indices, context, validatedRegex, totalForFile, Math.min(totalForFile, remaining));
         if (!hit) continue;
@@ -580,6 +594,7 @@ export function regGrep(pi: ExtensionAPI): void {
       if (rowTruncated) notes.push(`[grep: output truncated at ${DEFAULT_MAX_LINES} rows or ${formatSize(DEFAULT_MAX_BYTES)}; refine the pattern to see more.]`);
       if (limitTruncated) notes.push(`[grep: showing first ${limit} matches; increase limit to see more.]`);
       if (linesReplaced > 0) notes.push(`[grep: ${linesReplaced} line(s) exceed ${formatSize(MAX_GREP_LINE_BYTES)} and are shown as truncated fragments; use read to see the full lines.]`);
+      if (poolSkipped > 0) notes.push(`[grep: ${poolSkipped} file(s) skipped because the session's anchor pool is exhausted; free anchors with /clear-anchors or narrow the search.]`);
       const truncated = limitTruncated || rowTruncated;
       const truncation: TruncationResult | undefined = rowTruncated
         ? {
@@ -596,7 +611,11 @@ export function regGrep(pi: ExtensionAPI): void {
             maxBytes: DEFAULT_MAX_BYTES,
           }
         : undefined;
-      const text = blocks.length > 0 ? `${blocks}${notes.length > 0 ? `\n${notes.join("\n")}` : ""}` : "No matches found.";
+      const text = blocks.length > 0
+        ? `${blocks}${notes.length > 0 ? `\n${notes.join("\n")}` : ""}`
+        : notes.length > 0
+          ? `No matches found.\n${notes.join("\n")}`
+          : "No matches found.";
       return {
         content: [{ type: "text", text }],
         details: {

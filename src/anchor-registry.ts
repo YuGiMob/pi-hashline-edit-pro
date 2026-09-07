@@ -9,6 +9,7 @@ import { errCode, splitLines } from "./utils";
 import { hashSource } from "./hashline";
 import * as Diff from "diff";
 import { getAllocatedState, persistSnapshot, type HashStore } from "./hash-store";
+import { ANCHOR_POOL_EXHAUSTED_PREFIX } from "./constants";
 
 export type RegistryEvent =
   | { kind: "session"; sessionFile: string }
@@ -157,8 +158,10 @@ function fingerprintIndex(state: SessionState, path: string): Map<string, string
   return index;
 }
 
+const MINT_PROBE_LIMIT = 8192;
+
 export function mintAnchor(state: SessionState): string {
-  for (let probe = 0; probe < ANCHOR_COUNT; probe++) {
+  for (let probe = 0; probe < MINT_PROBE_LIMIT; probe++) {
     state.probe = (state.probe + HASH_PROBE_STRIDE) % ANCHOR_COUNT;
     const candidate = anchorAt(state.probe);
     if (!state.owned.has(candidate) && !state.everMinted.has(candidate)) {
@@ -173,7 +176,7 @@ export function mintAnchor(state: SessionState): string {
     }
   }
   throw new Error(
-    `[E_FILE_TOO_LARGE] The session's anchor pool is exhausted; free anchors with /clear-anchors or use write for very large files.`,
+    `${ANCHOR_POOL_EXHAUSTED_PREFIX}; free anchors with /clear-anchors or use write for very large files.`,
   );
 }
 

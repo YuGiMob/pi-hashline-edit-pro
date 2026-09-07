@@ -325,6 +325,14 @@ describe("hash-store - migration from legacy hash-store.json", () => {
 
       expect(getSnapshot(store, "/valid.ts", "ok\n")).toEqual(["Ifms"]);
       expect(getSnapshot(store, "/also.ts", "good\nmore\n")).toEqual(["HDtm", "MEyo"]);
+      const migrated = new DatabaseSync(sqlitePath(home), { defensive: false } as any);
+      try {
+        const row = migrated.prepare("SELECT line_checksums, updated_at FROM snapshots WHERE path = ?").get("/also.ts") as { line_checksums: unknown; updated_at: unknown } | undefined;
+        expect(row?.line_checksums).toBe("");
+        expect(Number(row?.updated_at)).toBeGreaterThan(0);
+      } finally {
+        migrated.close();
+      }
       expect(existsSync(legacyPath(home))).toBe(false);
       expect(existsSync(`${legacyPath(home)}.bak`)).toBe(true);
     });
