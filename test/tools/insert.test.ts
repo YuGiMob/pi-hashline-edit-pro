@@ -280,7 +280,7 @@ describe("insert tool", () => {
       const { ctx, readTool, getTool } = setupIntegrationTest(cwd);
       const insertTool = getTool("insert");
       const editTool = getTool("replace");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", `${cwd}/sample.ts`);
+      const hashes = await lineHashes("aaa\nbbb\nccc\n", await resolveTarget(toCwd("sample.ts", cwd)));
       await readTool.execute("r1", { path: "sample.ts" }, undefined, undefined, ctx);
       const payload = {
         remove_from: hashes[1]!,
