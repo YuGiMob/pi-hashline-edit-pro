@@ -22,7 +22,7 @@ describe("insert tool", () => {
     register(pi);
     const schema = getTool("insert").parameters as any;
     expect(schema.type).toBe("object");
-    expect(schema.properties.path).toBeUndefined();
+    expect(schema.properties.path).toBeDefined();
     expect(schema.properties.anchor).toBeDefined();
     expect(schema.properties.direction).toBeDefined();
     expect(schema.properties.lines).toBeDefined();

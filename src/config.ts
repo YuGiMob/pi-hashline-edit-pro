@@ -6,11 +6,13 @@ import { writeAtomic } from "./fs-write";
 export interface Config {
   autoRead: boolean;
   anchorGrepEnabled: boolean;
+  requirePath?: boolean;
 }
 
 const DEFAULT_CONFIG: Config = {
   autoRead: true,
-  anchorGrepEnabled: false
+  anchorGrepEnabled: false,
+  requirePath: false
 };
 
 function parseConfig(content: string): Config {
@@ -20,9 +22,11 @@ function parseConfig(content: string): Config {
     throw new Error("config.json must be an object with a boolean autoRead field");
   }
   const anchorGrepEnabled = isRec(parsed) ? parsed.anchorGrepEnabled : undefined;
+  const requirePath = isRec(parsed) ? parsed.requirePath : undefined;
   return {
     autoRead,
     anchorGrepEnabled: typeof anchorGrepEnabled === "boolean" ? anchorGrepEnabled : DEFAULT_CONFIG.anchorGrepEnabled,
+    requirePath: typeof requirePath === "boolean" ? requirePath : DEFAULT_CONFIG.requirePath,
   };
 }
 
@@ -55,4 +59,11 @@ export async function toggleAnchorGrep(): Promise<boolean> {
   config.anchorGrepEnabled = !config.anchorGrepEnabled;
   await writeConfig(config);
   return config.anchorGrepEnabled;
+}
+
+export async function toggleRequirePath(): Promise<boolean> {
+  const config = await readConfig();
+  config.requirePath = !config.requirePath;
+  await writeConfig(config);
+  return config.requirePath;
 }

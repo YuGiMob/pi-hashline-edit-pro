@@ -13,10 +13,10 @@ describe("assertReq", () => {
 			.toThrow("[E_BAD_SHAPE]");
 	});
 
-	it("throws for a passed path", () => {
-		expect(() => assertReq({ path: "test.txt", remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"] }))
-			.toThrow("[E_BAD_SHAPE]");
-	});
+  it("allows an optional path hint for require-path mode", () => {
+    expect(() => assertReq({ path: "test.txt", remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"] }))
+      .not.toThrow();
+  });
 
 	it("throws for a passed file_path", () => {
 		expect(() => assertReq({ file_path: "test.txt", remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"] }))

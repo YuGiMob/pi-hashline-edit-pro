@@ -21,9 +21,14 @@ const removeToSchema = Type.String({
   description:
     "Bare 4-char anchor from a read row (the text before the `│` separator), never the row content. Marks the LAST line to remove (inclusive)",
 });
+const pathSchema = Type.Optional(Type.String({
+  description:
+    "Path to the file the anchors were served for; required when require-path mode is on (/toggle-require-path), forbidden otherwise. Anchors still resolve the target.",
+}));
 
 export const editToolSchema = Type.Object(
   {
+    path: pathSchema,
     remove_from: removeFromSchema,
     remove_to: removeToSchema,
     replacement_lines: replacementLinesSchema,
@@ -32,18 +37,21 @@ export const editToolSchema = Type.Object(
 );
 
 export type ReqParams = {
+  path?: string;
   remove_from: string;
   remove_to: string;
   replacement_lines: string[];
 };
 
-const ROOT_KS = new Set(["remove_from", "remove_to", "replacement_lines"]);
-
+const ROOT_KS = new Set(["path", "remove_from", "remove_to", "replacement_lines"]);
 export function assertReq(request: unknown): asserts request is ReqParams {
   if (!isRec(request)) {
     throw new Error("[E_BAD_SHAPE] Edit request must be an object.");
   }
   rejectUnknownFields(request, ROOT_KS, "Edit request");
+  if (request.path !== undefined && typeof request.path !== "string") {
+    throw new Error('[E_BAD_SHAPE] Edit request field "path" must be a string when provided.');
+  }
   if (
     typeof request.remove_from !== "string" ||
     typeof request.remove_to !== "string" ||

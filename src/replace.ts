@@ -33,7 +33,7 @@ import { adoptAnchors, servedForPath } from "./anchor-registry";
 import { resolveTarget } from "./fs-write";
 import { toCwd } from "./paths";
 import { noopPayloadKey, markBoundaryNoop, consumeBoundaryBypass, clearBoundaryBypass } from "./boundary-bypass";
-import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper, resolveEditTarget } from "./edit-common";
+import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper, resolveEditTargetWithRequirement } from "./edit-common";
 
 export { editToolSchema, type ReqParams, assertReq };
 
@@ -221,7 +221,12 @@ export async function compPreview(
   try {
     const normalized = normReq(request);
     assertReq(normalized);
-    const targetPath = resolveEditTarget(normalized.remove_from, normalized.remove_to);
+    const targetPath = await resolveEditTargetWithRequirement({
+      removeFrom: (normalized as ReqParams).remove_from,
+      removeTo: (normalized as ReqParams).remove_to,
+      providedPath: (normalized as ReqParams).path,
+      cwd,
+    });
     const pipe = await execPipeline(
       targetPath,
       normalized,
@@ -260,7 +265,12 @@ export function buildToolDef(): ToolDef {
       const canonical = normReq(params);
       assertReq(canonical);
       const normalizedParams = canonical;
-      const targetPath = resolveEditTarget(normalizedParams.remove_from, normalizedParams.remove_to);
+      const targetPath = await resolveEditTargetWithRequirement({
+        removeFrom: normalizedParams.remove_from,
+        removeTo: normalizedParams.remove_to,
+        providedPath: normalizedParams.path,
+        cwd: ctx.cwd,
+      });
       return queuedEdit(targetPath, ctx.cwd, signal, async (absolutePath, mutationTargetPath) => {
         const noopPayload = noopPayloadKey(mutationTargetPath, normalizedParams.remove_from, normalizedParams.remove_to, normalizedParams.replacement_lines);
         const boundaryBypass = consumeBoundaryBypass(mutationTargetPath, noopPayload);

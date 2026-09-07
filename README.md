@@ -40,7 +40,7 @@ Replace a line by its anchor:
 
 The result is the post-edit diff with fresh anchors, so you can keep editing without re-reading. Lines you did not touch keep their anchors. After a `write`, an auto-read block gives you the new anchors. The most recent `replace` or `insert` on a file can be reverted, even after a restart.
 
-The extension registers five tools: `read`, `replace`, `insert`, `anchor_grep`, and `undo_last_change`. The built-in `edit` tool is disabled. `replace` and `insert` take no `path` parameter: the file is resolved from the anchors' session ownership alone, so an edit can only land on the file the anchors were served for.
+The extension registers five tools: `read`, `replace`, `insert`, `anchor_grep`, and `undo_last_change`. The built-in `edit` tool is disabled. `replace` and `insert` take no `path` parameter by default: the file is resolved from the anchors' session ownership alone, so an edit can only land on the file the anchors were served for. Opt in with `/toggle-require-path` to require `path` in `replace` and `insert` for RPC visibility (for example pimacs.el); anchors still resolve the target and `path` must match.
 
 ### read
 
@@ -172,6 +172,7 @@ All five tools return machine-readable metadata in `details` alongside the model
 | --- | --- |
 | `/toggle-auto-read` | Toggle auto-read anchors after `write` and post-edit diffs after `replace`, `insert`, and `undo_last_change`. Persists across sessions. |
 | `/toggle-anchor-grep` | Enable or disable the `anchor_grep` tool. The built-in grep is disabled while `anchor_grep` is on. Persists across sessions. |
+| `/toggle-require-path` | Require `path` in `replace` and `insert` requests (opt-in, off by default; for RPC clients such as pimacs.el). Anchors still resolve the target. Persists across sessions. |
 | `/clear-anchors` | Clear the session's anchor claims. Anchors are re-claimed on the next `read`. |
 
 Settings live in `~/.config/pi-hashline-edit-pro/config.json`, created when a setting is first toggled:
@@ -179,7 +180,8 @@ Settings live in `~/.config/pi-hashline-edit-pro/config.json`, created when a se
 ```json
 {
   "autoRead": true,
-  "anchorGrepEnabled": false
+  "anchorGrepEnabled": false,
+  "requirePath": false
 }
 ```
 

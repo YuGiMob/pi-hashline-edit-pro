@@ -11,7 +11,7 @@ describe("editToolSchema", () => {
     const schema = editToolSchema as any;
     expect(schema.type).toBe("object");
     const props = schema.properties;
-    expect(props.path).toBeUndefined();
+    expect(props.path).toBeDefined();
     expect(props.remove_from).toBeDefined();
     expect(props.remove_to).toBeDefined();
     expect(props.replacement_lines).toBeDefined();

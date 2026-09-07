@@ -10,13 +10,13 @@ import { loadP, loadGuide } from "./prompts";
 import { normReq } from "./payload-contract";
 import { decodeStringArray, isRec, rejectUnknownFields, splitLines } from "./utils";
 import { clearBoundaryBypass } from "./boundary-bypass";
-import { resolveEditTarget } from "./edit-common";
+import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper, resolveEditTargetWithRequirement } from "./edit-common";
 import type { RPreview, RRState } from "./replace-render";
-import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper } from "./edit-common";
 
-const INSERT_KS = new Set(["anchor", "direction", "lines"]);
+const INSERT_KS = new Set(["path", "anchor", "direction", "lines"]);
 
 export interface InsertReq {
+  path?: string;
   anchor: string;
   direction: "before" | "after";
   lines: string[];
@@ -27,6 +27,9 @@ export function assertInsertReq(request: unknown): asserts request is InsertReq 
     throw new Error("[E_BAD_SHAPE] Insert request must be an object.");
   }
   rejectUnknownFields(request, INSERT_KS, "Insert request");
+  if (request.path !== undefined && typeof request.path !== "string") {
+    throw new Error('[E_BAD_SHAPE] Insert request field "path" must be a string when provided.');
+  }
   if (typeof request.anchor !== "string" || request.anchor.length === 0) {
     throw new Error('[E_BAD_SHAPE] Insert request requires an "anchor" string (4-char anchor from read output).');
   }
@@ -40,25 +43,24 @@ export function assertInsertReq(request: unknown): asserts request is InsertReq 
 
 const insertToolSchema = Type.Object(
   {
+    path: Type.Optional(Type.String({
+      description:
+        "Path to the file the anchor was served for; required when require-path mode is on (/toggle-require-path), forbidden otherwise. The anchor still resolves the target.",
+    })),
     anchor: Type.String({
       description:
         'Bare 4-char anchor from a read row (the text before the `│` separator), never the row content. A pasted diff row or `anchor│` prefix is stripped with a warning. The anchor line is preserved; lines go after or before it.',
     }),
     direction: Type.Union(
-      [
-        Type.Literal("after"),
-        Type.Literal("before"),
-      ],
+      [Type.Literal("after"), Type.Literal("before")],
       { description: '"after" or "before"' },
     ),
     lines: Type.Array(
       Type.String({
-        description:
-          "One line to insert; never embed \\n inside an element.",
+        description: "One line to insert; never embed \\n inside an element.",
       }),
       {
-        description:
-          'One string per line; [""] is a blank line; never include the anchor line.',
+        description: 'One string per line; [""] is a blank line; never include the anchor line.',
       }
     ),
   },
@@ -102,8 +104,12 @@ export async function insertPreview(request: unknown, cwd: string, signal?: Abor
       if (expanded) normalized.lines = expanded;
     }
     assertInsertReq(normalized);
-    const { ref } = parseInsertAnchor(normalized.anchor);
-    const targetPath = resolveEditTarget(normalized.anchor);
+    const { ref } = parseInsertAnchor((normalized as InsertReq).anchor);
+    const targetPath = await resolveEditTargetWithRequirement({
+      anchor: (normalized as InsertReq).anchor,
+      providedPath: (normalized as InsertReq).path,
+      cwd,
+    });
     const preload = await readNormFile(targetPath, cwd, {
       accessMode: constants.R_OK,
       maxLines: MAX_HASH_LINES,
@@ -175,7 +181,11 @@ export function buildInsertToolDef(): InsertToolDef {
       }
       assertInsertReq(canonical);
       const req = canonical;
-      const targetPath = resolveEditTarget(req.anchor);
+      const targetPath = await resolveEditTargetWithRequirement({
+        anchor: req.anchor,
+        providedPath: req.path,
+        cwd: ctx.cwd,
+      });
       const { ref, warnings: anchorWarnings } = parseInsertAnchor(req.anchor);
       return queuedEdit(targetPath, ctx.cwd, signal, async (absolutePath, mutationTargetPath) => {
         const preload = await readNormFile(targetPath, ctx.cwd, {

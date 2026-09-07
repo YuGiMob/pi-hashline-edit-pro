@@ -14,6 +14,7 @@ import {
   readConfig,
   toggleAutoRead,
   toggleAnchorGrep,
+  toggleRequirePath,
 } from "./src/config";
 import { loadHashStore, persistSnapshot, pruneMissing } from "./src/hash-store";
 import { initRegistry, gcRegistrySidecars, clearRegistry, freeAnchors, markServed as markServedScoped } from "./src/anchor-registry";
@@ -92,6 +93,14 @@ export default function (pi: ExtensionAPI): void {
     },
   });
 
+  pi.registerCommand("toggle-require-path", {
+    description: "Require path in replace and insert requests (opt-in RPC visibility; anchors still resolve the target)",
+    handler: async (_args, ctx) => {
+      const enabled = await toggleRequirePath();
+      const state = enabled ? "enabled" : "disabled";
+      ctx.ui.notify(`require-path mode ${state}`, "info");
+    },
+  });
 
   pi.registerCommand("clear-anchors", {
     description: "Clear the session's anchor claims (path-free resolution state); anchors are re-claimed on the next read",

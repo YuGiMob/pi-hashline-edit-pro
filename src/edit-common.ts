@@ -3,9 +3,9 @@ import { resolveInCwd } from "./fs-write";
 import { abortIf, makePrepareArguments } from "./utils";
 import { ownerOf } from "./anchor-registry";
 import { parseHashRef, stripAnchorRow } from "./hashline";
+import { readConfig } from "./config";
 import { makeRenderCall, renderEditResult, type RPreview, type FgT } from "./replace-render";
 import type { ReplaceDetails } from "./replace";
-
 export const editPrepare = makePrepareArguments();
 
 export function resolveEditTarget(removeFrom: string, removeTo?: string): string {
@@ -33,6 +33,34 @@ export function tryResolveEditTarget(removeFrom: string | undefined, removeTo?: 
   } catch {
     return undefined;
   }
+}
+
+export interface PathRequirementInput {
+  removeFrom?: string;
+  removeTo?: string;
+  anchor?: string;
+  providedPath?: unknown;
+  cwd: string;
+}
+
+export async function resolveEditTargetWithRequirement(input: PathRequirementInput): Promise<string> {
+  const { requirePath } = await readConfig();
+  if (!requirePath && input.providedPath !== undefined) {
+    throw new Error("[E_BAD_SHAPE] Edit request contains unknown or unsupported fields: path. Path resolution is anchor-only; run /toggle-require-path to require it.");
+  }
+  if (requirePath && (typeof input.providedPath !== "string" || input.providedPath.length === 0)) {
+    throw new Error('[E_BAD_SHAPE] Edit request requires a non-empty "path" string when require-path mode is on (run /toggle-require-path to disable).');
+  }
+  const anchorTarget = typeof input.anchor === "string"
+    ? resolveEditTarget(input.anchor)
+    : resolveEditTarget(input.removeFrom as string, input.removeTo);
+  if (requirePath) {
+    const { resolved } = await resolveInCwd(input.providedPath as string, input.cwd);
+    if (resolved !== anchorTarget) {
+      throw new Error(`[E_BAD_SHAPE] Provided "path" "${input.providedPath}" does not match anchor ownership "${anchorTarget}".`);
+    }
+  }
+  return anchorTarget;
 }
 
 export function editRenderCallWrapper(

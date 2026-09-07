@@ -1,1 +1,2 @@
 - `insert`: the anchor must have been shown by `read`, a post-edit diff (`+anchor│`/` anchor│`), or any served `anchor│content` row. Empty file: `read` shows one `anchor│` row — insert `after` it.
+- `insert`: when require-path mode is on (/toggle-require-path), include `path` matching the file the anchor was served for.
