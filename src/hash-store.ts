@@ -535,7 +535,8 @@ async function statMissing(rows: { path: string }[]): Promise<string[]> {
           await stat(row.path);
           return undefined;
         } catch (error: unknown) {
-          if (errCode(error) !== "ENOENT") {
+          const code = errCode(error);
+          if (code !== "ENOENT" && code !== "ENOTDIR") {
             console.error("Failed to stat hash store path:", row.path, error);
             return undefined;
           }

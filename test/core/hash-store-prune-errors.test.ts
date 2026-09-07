@@ -92,4 +92,17 @@ describe("hash-store - pruneMissing error handling", () => {
 
     expect(getSnapshot(store, gone, "gone\n")).toBeUndefined();
   });
+
+  it("still prunes paths that stat reports as ENOTDIR", async () => {
+    const { loadHashStore, shutdownHashStore, pruneMissing, getSnapshot } = await import("../../src/hash-store");
+    shutdownHashStore();
+    const store = await loadHashStore();
+    const blocked = join(tmpHome, "blocked.ts");
+    await putSnapshot(store, blocked, "blocked\n", ["EdgA"]);
+
+    state.statErrors.set(blocked, statError("ENOTDIR", "not a directory"));
+    await pruneMissing(store);
+
+    expect(getSnapshot(store, blocked, "blocked\n")).toBeUndefined();
+  });
 });
