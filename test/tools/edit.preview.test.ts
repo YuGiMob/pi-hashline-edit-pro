@@ -1,3 +1,4 @@
+import { join } from "path";
 import { describe, expect, it, vi } from "vitest";
 import { lineHashes } from "../../src/hashline";
 import { compPreview, buildToolDef } from "../../src/replace";
@@ -7,15 +8,15 @@ import { mkMdTheme, reuseText, reuseMarkdown } from "../../src/replace-render";
 import { Text, Markdown } from "@earendil-works/pi-tui";
 import { makeFakePiRegistry, withTempFile, useTestHome } from "../support/fixtures";
 
-const home = useTestHome();
+useTestHome();
 
 describe("compPreview", () => {
   it("returns a diff for strict hashline edits before execution", async () => {
     await withTempFile("sample.ts", "aaa\nbbb\nccc\n", async ({ cwd }) => {
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await lineHashes("aaa\nbbb\nccc\n", join(cwd, "sample.ts"));
 
       const preview = await compPreview(
-        { path: "sample.ts", remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BeSR"] },
+        { remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BeSR"] },
         cwd,
       );
       expect(preview).toHaveProperty("diff");
@@ -25,10 +26,10 @@ describe("compPreview", () => {
 
   it("returns a diff for a hash-anchored replace before execution", async () => {
     await withTempFile("sample.ts", "alpha\nbeta\ngamma\n", async ({ cwd }) => {
-      const hashes = await lineHashes("alpha\nbeta\ngamma\n", home.testPath);
+      const hashes = await lineHashes("alpha\nbeta\ngamma\n", join(cwd, "sample.ts"));
 
       const preview = await compPreview(
-        { path: "sample.ts", remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BETA"] },
+        { remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BETA"] },
         cwd,
       );
       expect(preview).toHaveProperty("diff");
@@ -38,10 +39,10 @@ describe("compPreview", () => {
 
   it("still computes a preview diff for read-only files", async () => {
     await withTempFile("sample.ts", "aaa\nbbb\nccc\n", async ({ cwd }) => {
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await lineHashes("aaa\nbbb\nccc\n", join(cwd, "sample.ts"));
 
       const preview = await compPreview(
-        { path: "sample.ts", remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BeSR"] },
+        { remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BeSR"] },
         cwd,
       );
       expect(preview).toHaveProperty("diff");
@@ -50,10 +51,10 @@ describe("compPreview", () => {
 
   it("uses the shared text loader for preview instead of classifying then re-reading text", async () => {
     await withTempFile("sample.ts", "aaa\nbbb\nccc\n", async ({ cwd }) => {
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await lineHashes("aaa\nbbb\nccc\n", join(cwd, "sample.ts"));
 
       const preview = await compPreview(
-        { path: "sample.ts", remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BeSR"] },
+        { remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BeSR"] },
         cwd,
       );
       expect(preview).toHaveProperty("diff");
@@ -62,10 +63,10 @@ describe("compPreview", () => {
 
   it("does not let a delayed preview resurrect after a settled result", async () => {
     await withTempFile("sample.ts", "aaa\nbbb\nccc\n", async ({ cwd }) => {
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await lineHashes("aaa\nbbb\nccc\n", join(cwd, "sample.ts"));
 
       const preview = await compPreview(
-        { path: "sample.ts", remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BeSR"] },
+        { remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BeSR"] },
         cwd,
       );
       expect(preview).toHaveProperty("diff");
@@ -74,7 +75,7 @@ describe("compPreview", () => {
 
   it("preview rejects a bulk changes array", async () => {
     await withTempFile("sample.ts", "aaa\nbbb\nccc\n", async ({ cwd }) => {
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await lineHashes("aaa\nbbb\nccc\n", join(cwd, "sample.ts"));
       const preview = await compPreview(
         { path: "sample.ts", changes: [{ remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BeSR"] }] },
         cwd,
@@ -86,9 +87,9 @@ describe("compPreview", () => {
 
   it("preview still accepts flat-format requests", async () => {
     await withTempFile("sample.ts", "aaa\nbbb\nccc\n", async ({ cwd }) => {
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await lineHashes("aaa\nbbb\nccc\n", join(cwd, "sample.ts"));
       const preview = await compPreview(
-        { path: "sample.ts", remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BeSR"] },
+        { remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BeSR"] },
         cwd,
       );
       expect(preview).toHaveProperty("diff");
@@ -134,11 +135,11 @@ describe("renderCall preview", () => {
       const { pi, getTool } = makeFakePiRegistry();
       register(pi);
       const tool = getTool("replace");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await lineHashes("aaa\nbbb\nccc\n", join(cwd, "sample.ts"));
 
       const harness = makeHarness(cwd);
       tool.renderCall(
-        { path: "sample.ts", remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BeSR"] },
+        { remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BeSR"] },
         harness.theme,
         harness.context,
       );
@@ -154,7 +155,7 @@ describe("renderCall preview", () => {
       const { pi, getTool } = makeFakePiRegistry();
       register(pi);
       const tool = getTool("replace");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await lineHashes("aaa\nbbb\nccc\n", join(cwd, "sample.ts"));
 
       const harness = makeHarness(cwd);
       tool.renderCall(
@@ -173,19 +174,19 @@ describe("renderCall preview", () => {
       const { pi, getTool } = makeFakePiRegistry();
       register(pi);
       const tool = getTool("replace");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await lineHashes("aaa\nbbb\nccc\n", join(cwd, "sample.ts"));
 
       vi.useFakeTimers();
       try {
         const harness = makeHarness(cwd);
         tool.renderCall(
-          { path: "sample.ts", remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BeSR"] },
+          { remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BeSR"] },
           harness.theme,
           harness.context,
         );
         expect(harness.state.preview).toBeUndefined();
         tool.renderCall(
-          { path: "sample.ts", remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["DAfo"] },
+          { remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["DAfo"] },
           harness.theme,
           harness.context,
         );
@@ -206,9 +207,9 @@ describe("renderCall preview", () => {
 describe("compPreview - noop", () => {
   it("returns a noop error when the edit produces identical content", async () => {
     await withTempFile("sample.ts", "aaa\nbbb\nccc\n", async ({ cwd }) => {
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await lineHashes("aaa\nbbb\nccc\n", join(cwd, "sample.ts"));
       const preview = await compPreview(
-        { path: "sample.ts", remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["bbb"] },
+        { remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["bbb"] },
         cwd,
       );
       expect(preview).toEqual({
@@ -246,7 +247,7 @@ describe("renderCall state transitions", () => {
     state.preview = { diff: "stale diff" };
     state.previewGeneration = 7;
     const component = tool.renderCall!(
-      { path: "x.ts", remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["x"] },
+      { remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["x"] },
       theme as any,
       context as any,
     ) as Text;
@@ -264,7 +265,7 @@ describe("renderCall state transitions", () => {
     state.preview = { diff: "stale diff" };
     state.previewGeneration = 2;
     tool.renderCall!(
-      { path: "x.ts", remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["x"] },
+      { remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["x"] },
       theme as any,
       context as any,
     );

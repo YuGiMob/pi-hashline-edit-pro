@@ -1,1 +1,1 @@
-Replace lines via bare 4-char anchor `Hasu` from `Hasu│content`: `remove_from`/`remove_to` are `Hasu` only, `replacement_lines` is bare lines without `│`; one edit per call
+Replace lines by anchor: bare anchors in `remove_from`/`remove_to`, bare lines in `replacement_lines` without `│`, one edit per call

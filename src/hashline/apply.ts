@@ -167,7 +167,10 @@ export function applyEdit(
 	abortIf(signal);
 
 	const lineIndex = buildIdx(content);
-	const fileHashes = precomputedHashes ?? _lineHashesPure(content);
+	if (precomputedHashes === undefined) {
+		throw new Error("[E_BAD_SHAPE] applyEdit requires the file's allocated anchors; derive them via lineHashes(content, path) first.");
+	}
+	const fileHashes = precomputedHashes;
 	const warnings: string[] = [];
 
 	const rangeFixed = swapReversedRanges(edit, fileHashes, warnings);

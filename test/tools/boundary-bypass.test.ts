@@ -1,26 +1,28 @@
 import { describe, expect, it } from "vitest";
 import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
-import { lineHashes } from "../../src/hashline";
 import { compPreview } from "../../src/replace";
 import {
   withTempFile,
   setupIntegrationTest,
   makeFakePiRegistry,
   getText,
+  extractHash,
 } from "../support/fixtures";
 import register from "../../index";
 
 const NOOP_LINE_1 = "bbb";
 
 async function readSample(ctx: any, readTool: any): Promise<string[]> {
-  await readTool.execute("r1", { path: "sample.ts" }, undefined, undefined, ctx);
-  return lineHashes("aaa\nbbb\nccc\n");
+  const result = await readTool.execute("r1", { path: "sample.ts" }, undefined, undefined, ctx);
+  return getText(result)
+    .split("\n")
+    .filter((line) => /^[A-Za-z0-9]{4}│/.test(line))
+    .map((line) => extractHash(line));
 }
 
 function cutPayload(hashes: string[]) {
   return {
-    path: "sample.ts",
     remove_from: hashes[1]!,
     remove_to: hashes[1]!,
     replacement_lines: [NOOP_LINE_1, "ccc"],
@@ -68,7 +70,6 @@ describe("boundary dedup noop bypass", () => {
       await editTool.execute(
         "e2",
         {
-          path: "sample.ts",
           remove_from: hashes[0]!,
           remove_to: hashes[0]!,
           replacement_lines: ["ATIm"],
@@ -91,36 +92,11 @@ describe("boundary dedup noop bypass", () => {
     });
   });
 
-  it("a missing-path resend shares the bypass with the explicit-path form", async () => {
-    await withTempFile("sample.ts", "aaa\nbbb\nccc\n", async ({ cwd, path }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
-      const hashes = await readSample(ctx, readTool);
-
-      await editTool.execute("e1", cutPayload(hashes), undefined, undefined, ctx);
-
-      const missingPath = await editTool.execute(
-        "e2",
-        {
-          remove_from: hashes[1]!,
-          remove_to: hashes[1]!,
-          replacement_lines: [NOOP_LINE_1, "ccc"],
-        },
-        undefined,
-        undefined,
-        ctx,
-      );
-      expect(getText(missingPath)).toContain("Successfully replaced");
-      expect(getText(missingPath)).toContain("[W_BOUNDARY_BYPASS]");
-      expect(await readFile(path, "utf-8")).toBe("aaa\nbbb\nccc\nccc\n");
-    });
-  });
-
   it("repeated plain noops are allowed and do not touch the bypass", async () => {
     await withTempFile("sample.ts", "aaa\nbbb\nccc\n", async ({ cwd, path }) => {
       const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
       const hashes = await readSample(ctx, readTool);
       const plain = {
-        path: "sample.ts",
         remove_from: hashes[1]!,
         remove_to: hashes[1]!,
         replacement_lines: [NOOP_LINE_1],
@@ -167,16 +143,19 @@ describe("boundary dedup noop bypass", () => {
       await writeFile(join(cwd, "other.ts"), "aaa\nbbb\nccc\n", "utf-8");
 
       const hashes = await readSample(ctx, readTool);
-      await readTool.execute("r1", { path: "other.ts" }, undefined, undefined, ctx);
+      const otherRead = await readTool.execute("r2", { path: "other.ts" }, undefined, undefined, ctx);
+      const otherHashes = getText(otherRead)
+        .split("\n")
+        .filter((line) => /^[A-Za-z0-9]{4}│/.test(line))
+        .map((line) => extractHash(line));
 
       await editTool.execute("a1", cutPayload(hashes), undefined, undefined, ctx);
 
       const other = await editTool.execute(
         "b1",
         {
-          path: "other.ts",
-          remove_from: hashes[1]!,
-          remove_to: hashes[1]!,
+          remove_from: otherHashes[1]!,
+          remove_to: otherHashes[1]!,
           replacement_lines: [NOOP_LINE_1, "ccc"],
         },
         undefined,
@@ -235,7 +214,6 @@ describe("boundary dedup noop bypass", () => {
       const result = await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: hashes[1]!,
           remove_to: hashes[1]!,
           replacement_lines: ["aaa", "BBB"],
@@ -263,7 +241,6 @@ describe("boundary dedup noop bypass", () => {
       const result = await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: hashes[1]!,
           remove_to: hashes[1]!,
           replacement_lines: ["BBB", "ccc"],

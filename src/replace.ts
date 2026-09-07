@@ -3,13 +3,14 @@ import type {
   ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import { constants } from "fs";
+import { relative } from "path";
 import {
   genDiff,
   type LineEnding,
 } from "./replace-diff";
 import { readNormFile, type NormFile } from "./file-reader";
 import { editToolSchema, type ReqParams, assertReq, normReq } from "./payload-contract";
-import { decodeStringArray, isRec } from "./utils";
+import { decodeStringArray } from "./utils";
 import { loadP, loadGuide } from "./prompts";
 import { type FileIdentity } from "./fs-write";
 import { applyEdit,
@@ -28,10 +29,11 @@ import {
   type RRState,
 } from "./replace-render";
 import { loadHashStore, type HashStore } from "./hash-store";
-import { resolveReplacePath } from "./missing-path";
-import { getServed, recordServedSafe } from "./served";
+import { adoptAnchors, servedForPath } from "./anchor-registry";
+import { resolveTarget } from "./fs-write";
+import { toCwd } from "./paths";
 import { noopPayloadKey, markBoundaryNoop, consumeBoundaryBypass, clearBoundaryBypass } from "./boundary-bypass";
-import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper } from "./edit-common";
+import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper, resolveEditTarget } from "./edit-common";
 
 export { editToolSchema, type ReqParams, assertReq };
 
@@ -79,7 +81,7 @@ export interface ExecPipelineOptions {
   preloadedNorm?: NormFile;
 }
 
-function hashSpan(hashes: string[], from: string, to: string): [number, number] | undefined {
+export function hashSpan(hashes: string[], from: string, to: string): [number, number] | undefined {
   const a = hashes.indexOf(from);
   const b = hashes.indexOf(to);
   if (a < 0 || b < 0) return undefined;
@@ -87,20 +89,11 @@ function hashSpan(hashes: string[], from: string, to: string): [number, number] 
 }
 async function noteAnchorError(absolutePath: string, error: unknown, scopeHashes: string[], noPersist?: boolean): Promise<void> {
   if (noPersist === true) return;
-  if (error instanceof RangeStaleError) await recordServedSafe(absolutePath, error.rangeServedMap, "range-stale feedback", new Set(scopeHashes));
-  else if (error instanceof AnchorMismatchError) await recordServedSafe(absolutePath, error.feedbackMap, "anchor-mismatch feedback", new Set(scopeHashes));
-}
-
-function collectRemovedHashes(
-  edit: HEdit,
-  originalHashes: string[],
-): Set<string> {
-  const span = hashSpan(originalHashes, edit.hash_bounds[0].hash, edit.hash_bounds[1].hash);
-  const removedHashes = new Set<string>();
-  if (span) {
-    for (let i = span[0]; i <= span[1]; i++) removedHashes.add(originalHashes[i]!);
+  if (error instanceof RangeStaleError) {
+    adoptAnchors(absolutePath, error.rangeServedMap);
+  } else if (error instanceof AnchorMismatchError) {
+    adoptAnchors(absolutePath, error.feedbackMap);
   }
-  return removedHashes;
 }
 
 function countLineChanges(
@@ -119,12 +112,11 @@ function countLineChanges(
 }
 
 export async function execPipeline(
+  targetPath: string,
   params: ReqParams,
   cwd: string,
   options?: ExecPipelineOptions,
 ): Promise<PipelineResult> {
-
-  const path = params.path;
 
   const editWarnings: string[] = [];
   let replacementLines = params.replacement_lines;
@@ -143,11 +135,13 @@ export async function execPipeline(
   );
 
   const hashStore = options?.store ?? await loadHashStore();
+  const preResolvedPath = await resolveTarget(toCwd(targetPath, cwd));
+  const served = servedForPath(preResolvedPath);
   const { normalized: originalNormalized, bom, originalEnding, fileHashes: originalHashes, hadUtf8DecodeErrors, absolutePath, identity } = await readNormFile(
-    path, cwd, { signal: options?.signal, accessMode: options?.accessMode, maxLines: MAX_HASH_LINES, store: hashStore, noPersist: options?.noPersist, preloadedNorm: options?.preloadedNorm },
+    targetPath, cwd, { signal: options?.signal, accessMode: options?.accessMode, maxLines: MAX_HASH_LINES, store: hashStore, noPersist: options?.noPersist, allocation: options?.noPersist ? "shadow" : "real", preloadedNorm: options?.preloadedNorm },
   );
+  const displayPath = relative(cwd, absolutePath).replace(/\\/g, "/") || targetPath;
 
-  const served = await getServed(hashStore, absolutePath);
   let anchorResult: ReturnType<typeof applyEdit>;
   try {
     anchorResult = applyEdit(
@@ -155,7 +149,7 @@ export async function execPipeline(
       edit,
       options?.signal,
       originalHashes,
-      path,
+      displayPath,
       served,
       options?.skipBoundaryDedup,
     );
@@ -167,17 +161,12 @@ export async function execPipeline(
   const result = anchorResult.content;
   const isNoop = result === originalNormalized;
 
-  const noPersist = options?.noPersist;
-  const removedHashes = isNoop
-    ? undefined
-    : collectRemovedHashes(edit, originalHashes);
   const resultHashes = isNoop
     ? originalHashes
     : await lineHashes(result, absolutePath, {
         content: originalNormalized,
         hashes: originalHashes,
-        removedHashes,
-      }, hashStore, noPersist !== true);
+      }, hashStore, false, true);
   const warnings = [...editWarnings, ...(anchorResult.warnings ?? [])];
   const { totalAddedLines, totalRemovedLines } = countLineChanges(
     edit, originalHashes, isNoop, anchorResult.autoFixes?.length ?? 0,
@@ -187,7 +176,7 @@ export async function execPipeline(
   const aboveFixes = sortedFixes.filter((fix) => fix.kind === "leading" || fix.kind === "last-new-before");
   const belowFixes = sortedFixes.filter((fix) => fix.kind === "trailing" || fix.kind === "first-new-after");
   return {
-    path,
+    path: displayPath,
     originalNormalized,
     result,
     bom,
@@ -230,12 +219,10 @@ export async function compPreview(
 ): Promise<RPreview> {
   try {
     const normalized = normReq(request);
-    if (isRec(normalized)) {
-      const resolution = await resolveReplacePath(normalized);
-      if (resolution) normalized.path = resolution.path;
-    }
     assertReq(normalized);
+    const targetPath = resolveEditTarget(normalized.remove_from, normalized.remove_to);
     const pipe = await execPipeline(
+      targetPath,
       normalized,
       cwd,
       { accessMode: constants.R_OK, noPersist: true, signal },
@@ -270,17 +257,14 @@ export function buildToolDef(): ToolDef {
     renderResult: editRenderResultWrapper,
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const canonical = normReq(params);
-      const resolution = isRec(canonical) ? await resolveReplacePath(canonical) : undefined;
-      if (resolution && isRec(canonical)) {
-        canonical.path = resolution.path;
-      }
       assertReq(canonical);
       const normalizedParams = canonical;
-      const path = normalizedParams.path;
-      return queuedEdit(path, ctx.cwd, signal, async (absolutePath, mutationTargetPath) => {
+      const targetPath = resolveEditTarget(normalizedParams.remove_from, normalizedParams.remove_to);
+      return queuedEdit(targetPath, ctx.cwd, signal, async (absolutePath, mutationTargetPath) => {
         const noopPayload = noopPayloadKey(mutationTargetPath, normalizedParams.remove_from, normalizedParams.remove_to, normalizedParams.replacement_lines);
         const boundaryBypass = consumeBoundaryBypass(mutationTargetPath, noopPayload);
         const pipe = await execPipeline(
+          targetPath,
           normalizedParams,
           ctx.cwd,
           { accessMode: constants.R_OK | constants.W_OK, signal, skipBoundaryDedup: boundaryBypass },
@@ -289,11 +273,11 @@ export function buildToolDef(): ToolDef {
           ? ["[W_BOUNDARY_BYPASS] Boundary dedup was off for this call and is back on."]
           : [];
         return commitEdit(pipe, {
-          path,
+          path: pipe.path,
           absolutePath,
           mutationTargetPath,
+          editAnchors: [normalizedParams.remove_from, normalizedParams.remove_to],
           signal,
-          prefixWarnings: resolution ? [resolution.warning] : [],
           appliedWarnings,
           onApplied: () => clearBoundaryBypass(mutationTargetPath),
           onNoopDedup: () => markBoundaryNoop(mutationTargetPath, noopPayload),

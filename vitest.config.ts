@@ -22,6 +22,7 @@ export const heavyTestFiles = [
 export function buildTestConfig(extraExcludes: string[] = []) {
   return defineConfig({
     test: {
+      setupFiles: ["./test/support/registry-cleanup.ts"],
       testTimeout: 15000,
       projects: [
         {

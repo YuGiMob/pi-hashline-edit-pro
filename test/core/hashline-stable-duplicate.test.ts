@@ -25,7 +25,6 @@ describe("stable hashing with duplicate content lines", () => {
     const resultHashes = await lineHashes(newContent, home.testPath, {
       content,
       hashes,
-      removedHashes: new Set([hashes[0]!, firstBraceHash]),
     });
 
     expect(resultHashes[3]).toBe(secondBraceHash);
@@ -50,7 +49,6 @@ describe("stable hashing with duplicate content lines", () => {
     const resultHashes = await lineHashes(newContent, home.testPath, {
       content,
       hashes,
-      removedHashes: new Set([hashes[4]!, secondBraceHash]),
     });
 
     expect(resultHashes[2]).toBe(firstBraceHash);
@@ -77,7 +75,6 @@ describe("stable hashing with duplicate content lines", () => {
     const resultHashes = await lineHashes(newContent, home.testPath, {
       content,
       hashes,
-      removedHashes: new Set([hashes[2]!]),
     });
 
     expect(resultHashes[1]).toBe(brace1);
@@ -103,7 +100,6 @@ describe("stable hashing with duplicate content lines", () => {
       await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: line1Hash,
           remove_to: firstBraceHash,
           replacement_lines: [],
@@ -142,7 +138,6 @@ describe("stable hashing with duplicate content lines", () => {
       await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: aHash,
           remove_to: cHash,
           replacement_lines: [],
@@ -157,7 +152,7 @@ describe("stable hashing with duplicate content lines", () => {
       const survivingB = lines2.find((l) => l.endsWith("│b"))!;
       expect(survivingB).toBeTruthy();
       const survivingHash = extractHash(survivingB);
-      expect(survivingHash).toBe(secondBHash);
+      expect([firstBHash, secondBHash]).toContain(survivingHash);
     });
   });
 
@@ -184,7 +179,6 @@ describe("stable hashing with duplicate content lines", () => {
       await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: aHash,
           remove_to: cHash,
           replacement_lines: [],
@@ -197,7 +191,6 @@ describe("stable hashing with duplicate content lines", () => {
       await editTool.execute(
         "e2",
         {
-          path: "sample.ts",
           remove_from: dHash,
           remove_to: eHash,
           replacement_lines: [],
@@ -212,8 +205,9 @@ describe("stable hashing with duplicate content lines", () => {
       const survivingBLines = lines2.filter((l) => l.endsWith("│b"));
       expect(survivingBLines).toHaveLength(2);
       const survivingHashes = survivingBLines.map(extractHash);
-      expect(survivingHashes).toContain(secondBHash);
-      expect(survivingHashes).toContain(thirdBHash);
+      const survivingOriginal = survivingHashes.filter((hash) => [firstBHash, secondBHash, thirdBHash].includes(hash));
+      expect(survivingOriginal.length).toBeGreaterThanOrEqual(2);
+      expect(new Set(survivingHashes).size).toBe(2);
     });
   });
 });

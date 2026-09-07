@@ -1,20 +1,27 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { readFile, writeFile } from "fs/promises";
 import { lineHashes } from "../../src/hashline";
-import { loadHashStore, shutdownHashStore } from "../../src/hash-store";
-import { getServed } from "../../src/served";
+import { shutdownHashStore } from "../../src/hash-store";
+import { ownersForPath, initRegistry, resetRegistryForTests } from "../../src/anchor-registry";
 import { withTempFile, setupIntegrationTest, getText, extractHash } from "../support/fixtures";
 import { toCwd } from "../../src/paths";
 import { resolveTarget } from "../../src/fs-write";
 
 async function servedFor(cwd: string, name: string): Promise<Map<string, string> | undefined> {
-  const store = await loadHashStore();
-  return getServed(store, await resolveTarget(toCwd(name, cwd)));
+  return ownersForPath(await resolveTarget(toCwd(name, cwd)));
 }
 
 function feedbackRows(message: string): string[] {
   return message.split("\n").filter((line) => /^[A-Za-z0-9]{4}│/.test(line));
 }
+
+beforeEach(async () => {
+  await initRegistry(undefined);
+});
+
+afterEach(() => {
+  resetRegistryForTests();
+});
 
 describe("served-state range verification", () => {
   it("rejects an interior modification with valid boundaries, returning the current range with fresh anchors", async () => {
@@ -32,7 +39,7 @@ describe("served-state range verification", () => {
       try {
         await editTool.execute(
           "e1",
-          { path: "sample.ts", remove_from: aHash, remove_to: dHash, replacement_lines: ["a", "x", "d"] },
+          { remove_from: aHash, remove_to: dHash, replacement_lines: ["a", "x", "d"] },
           undefined,
           undefined,
           ctx,
@@ -67,7 +74,7 @@ describe("served-state range verification", () => {
       try {
         await editTool.execute(
           "e1",
-          { path: "sample.ts", remove_from: aHash, remove_to: dHash, replacement_lines: ["a", "x", "d"] },
+          { remove_from: aHash, remove_to: dHash, replacement_lines: ["a", "x", "d"] },
           undefined,
           undefined,
           ctx,
@@ -81,7 +88,7 @@ describe("served-state range verification", () => {
 
       const retry = await editTool.execute(
         "e2",
-        { path: "sample.ts", remove_from: freshA, remove_to: freshD, replacement_lines: ["a", "x", "d"] },
+        { remove_from: freshA, remove_to: freshD, replacement_lines: ["a", "x", "d"] },
         undefined,
         undefined,
         ctx,
@@ -106,7 +113,7 @@ describe("served-state range verification", () => {
       try {
         await editTool.execute(
           "e1",
-          { path: "sample.ts", remove_from: aHash, remove_to: dHash, replacement_lines: ["x"] },
+          { remove_from: aHash, remove_to: dHash, replacement_lines: ["x"] },
           undefined,
           undefined,
           ctx,
@@ -126,7 +133,7 @@ describe("served-state range verification", () => {
 
       const retry = await editTool.execute(
         "e2",
-        { path: "sample.ts", remove_from: contextHash, remove_to: contextHash, replacement_lines: ["c"] },
+        { remove_from: contextHash, remove_to: contextHash, replacement_lines: ["c"] },
         undefined,
         undefined,
         ctx,
@@ -149,7 +156,7 @@ describe("served-state range verification", () => {
 
       const result = await editTool.execute(
         "e1",
-        { path: "sample.ts", remove_from: bHash, remove_to: cHash, replacement_lines: ["x"] },
+        { remove_from: bHash, remove_to: cHash, replacement_lines: ["x"] },
         undefined,
         undefined,
         ctx,
@@ -173,7 +180,7 @@ describe("served-state range verification", () => {
 
       const result = await editTool.execute(
         "e1",
-        { path: "sample.ts", remove_from: aHash, remove_to: dHash, replacement_lines: ["a", "x", "d"] },
+        { remove_from: aHash, remove_to: dHash, replacement_lines: ["a", "x", "d"] },
         undefined,
         undefined,
         ctx,
@@ -196,7 +203,7 @@ describe("served-state range verification", () => {
       try {
         await editTool.execute(
           "e1",
-          { path: "sample.ts", remove_from: aHash, remove_to: fHash, replacement_lines: ["x"] },
+          { remove_from: aHash, remove_to: fHash, replacement_lines: ["x"] },
           undefined,
           undefined,
           ctx,
@@ -223,7 +230,7 @@ describe("served-state range verification", () => {
       const aHash = extractHash(headLines.find((l: string) => l.includes("│a"))!);
       const first = await editTool.execute(
         "e1",
-        { path: "sample.ts", remove_from: aHash, remove_to: aHash, replacement_lines: ["A"] },
+        { remove_from: aHash, remove_to: aHash, replacement_lines: ["A"] },
         undefined,
         undefined,
         ctx,
@@ -234,7 +241,7 @@ describe("served-state range verification", () => {
       const jHash = extractHash(getText(tail).split("\n").find((l: string) => l.includes("│j"))!);
       const second = await editTool.execute(
         "e2",
-        { path: "sample.ts", remove_from: jHash, remove_to: jHash, replacement_lines: ["J"] },
+        { remove_from: jHash, remove_to: jHash, replacement_lines: ["J"] },
         undefined,
         undefined,
         ctx,
@@ -248,7 +255,7 @@ describe("served-state range verification", () => {
       await expect(
         editTool.execute(
           "e3",
-          { path: "sample.ts", remove_from: aHashAfter, remove_to: jHashAfter, replacement_lines: ["X"] },
+          { remove_from: aHashAfter, remove_to: jHashAfter, replacement_lines: ["X"] },
           undefined,
           undefined,
           ctx,
@@ -269,7 +276,7 @@ describe("served-state range verification", () => {
 
       const result = await editTool.execute(
         "e1",
-        { path: "sample.ts", remove_from: aHash, remove_to: bHash, replacement_lines: ["x"] },
+        { remove_from: aHash, remove_to: bHash, replacement_lines: ["x"] },
         undefined,
         undefined,
         ctx,
@@ -286,7 +293,7 @@ describe("served-state range verification", () => {
 
       const result = await editTool.execute(
         "e1",
-        { path: "sample.ts", remove_from: hashes[0]!, remove_to: hashes[0]!, replacement_lines: ["A"] },
+        { remove_from: hashes[0]!, remove_to: hashes[0]!, replacement_lines: ["A"] },
         undefined,
         undefined,
         ctx,
@@ -319,7 +326,7 @@ describe("served-state range verification", () => {
 
       const result = await editTool.execute(
         "e1",
-        { path: "sample.ts", remove_from: bHash, remove_to: bHash, replacement_lines: ["B"] },
+        { remove_from: bHash, remove_to: bHash, replacement_lines: ["B"] },
         undefined,
         undefined,
         ctx,
@@ -344,7 +351,7 @@ describe("served-state range verification", () => {
 
       const edited = await editTool.execute(
         "e1",
-        { path: "sample.ts", remove_from: bHash, remove_to: bHash, replacement_lines: ["B"] },
+        { remove_from: bHash, remove_to: bHash, replacement_lines: ["B"] },
         undefined,
         undefined,
         ctx,
@@ -358,7 +365,7 @@ describe("served-state range verification", () => {
 
       const retry = await editTool.execute(
         "e2",
-        { path: "sample.ts", remove_from: bHash, remove_to: bHash, replacement_lines: ["B"] },
+        { remove_from: bHash, remove_to: bHash, replacement_lines: ["B"] },
         undefined,
         undefined,
         ctx,
@@ -370,8 +377,24 @@ describe("served-state range verification", () => {
 
   it("clears served state on write and re-serves via the auto-read block", async () => {
     await withTempFile("sample.ts", "a\nb\nc\n", async ({ cwd }) => {
-      const { ctx, readTool } = setupIntegrationTest(cwd);
-      const readResult = await readTool.execute("r1", { path: "sample.ts" }, undefined, undefined, ctx);
+      const { default: register } = await import("../../index");
+      const handlers = new Map<string, (event: unknown, ctx: unknown) => Promise<unknown>>();
+      const tools = new Map<string, { execute: (...args: unknown[]) => Promise<any> }>();
+      const pi = {
+        registerTool(tool: { name: string; execute: (...args: unknown[]) => Promise<any> }) {
+          tools.set(tool.name, tool);
+        },
+        registerCommand() {},
+        getActiveTools: () => [],
+        setActiveTools() {},
+        on(event: string, handler: unknown) {
+          handlers.set(event, handler as (event: unknown, ctx: unknown) => Promise<unknown>);
+        },
+      } as never;
+      register(pi as never);
+      await handlers.get("session_start")!({}, { cwd, ui: { notify() {} } });
+      const ctx = { cwd, ui: { notify() {} } };
+      const readResult = await tools.get("read")!.execute("r1", { path: "sample.ts" }, undefined, undefined, ctx);
       const lines = getText(readResult).split("\n");
       const aHash = extractHash(lines.find((l: string) => l.includes("│a"))!);
 
@@ -384,19 +407,6 @@ describe("served-state range verification", () => {
         input: { path: "sample.ts" },
         content: [{ type: "text", text: "File written." }],
       };
-      const { default: register } = await import("../../index");
-      const handlers = new Map<string, (event: unknown, ctx: unknown) => Promise<unknown>>();
-      const pi = {
-        registerTool() {},
-        registerCommand() {},
-        getActiveTools: () => [],
-        setActiveTools() {},
-        on(event: string, handler: unknown) {
-          handlers.set(event, handler as (event: unknown, ctx: unknown) => Promise<unknown>);
-        },
-      } as never;
-      register(pi as never);
-      await handlers.get("session_start")!({}, { cwd, ui: { notify() {} } });
       const result = await handlers.get("tool_result")!(writeEvent, { cwd });
       expect(result).toBeDefined();
 
@@ -420,7 +430,7 @@ describe("served-state range verification", () => {
 
       await editTool.execute(
         "e1",
-        { path: "sample.ts", remove_from: bHash, remove_to: bHash, replacement_lines: ["B"] },
+        { remove_from: bHash, remove_to: bHash, replacement_lines: ["B"] },
         undefined, undefined, ctx,
       );
       await writeFile(path, "a\nb\nc\nd\n", "utf-8");
@@ -429,22 +439,23 @@ describe("served-state range verification", () => {
       try {
         await editTool.execute(
           "e2",
-          { path: "sample.ts", remove_from: bHash, remove_to: bHash, replacement_lines: ["B2"] },
+          { remove_from: bHash, remove_to: bHash, replacement_lines: ["B2"] },
           undefined, undefined, ctx,
         );
       } catch (error) {
         caught = error as Error;
       }
       expect(caught).toBeDefined();
-      expect(caught!.message).toMatch(/E_RANGE_STALE/);
+      expect(caught!.message).toMatch(/E_STALE_ANCHOR/);
+      expect(await readFile(path, "utf-8")).toBe("a\nb\nc\nd\n");
 
-      const rows = feedbackRows(caught!.message);
-      const freshB = extractHash(rows.find((r: string) => r.endsWith("│b"))!);
-      expect(freshB).toBe(bHash);
+      const reread = await readTool.execute("r2", { path: "sample.ts" }, undefined, undefined, ctx);
+      const freshB = extractHash(getText(reread).split("\n").find((l: string) => l.includes("│b"))!);
+      expect(freshB).not.toBe(bHash);
 
       const retry = await editTool.execute(
         "e3",
-        { path: "sample.ts", remove_from: freshB, remove_to: freshB, replacement_lines: ["B2"] },
+        { remove_from: freshB, remove_to: freshB, replacement_lines: ["B2"] },
         undefined, undefined, ctx,
       );
       expect(retry.content[0].text).toContain("Successfully replaced");

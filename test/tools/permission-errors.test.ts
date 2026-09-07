@@ -57,19 +57,31 @@ describe.skipIf(isRoot || isWindows)("permission errors", () => {
     it("throws 'File is not writable' when file has no permissions", async () => {
       const filePath = join(tempDir, "unwritable.txt");
       writeFileSync(filePath, "original content\n", "utf-8");
-      chmodSync(filePath, 0o000);
 
       try {
         const { pi, getTool } = makeFakePiRegistry();
         register(pi);
+        const readTool = getTool("read");
         const editTool = getTool("replace");
+
+        const read = await readTool.execute(
+          "r1",
+          { path: filePath },
+          undefined,
+          undefined,
+          { cwd: tempDir } as any,
+        );
+        const anchor = (read.content[0] as { text: string }).text
+          .split("\n")[0]!
+          .split("\u2502")[0]!;
+
+        chmodSync(filePath, 0o000);
 
         await expect(
           editTool.execute(
             "e1",
             {
-              path: filePath,
-              remove_from: "Hasu", remove_to: "Hasu", replacement_lines: ["new content"],
+              remove_from: anchor, remove_to: anchor, replacement_lines: ["new content"],
             },
             undefined,
             undefined,

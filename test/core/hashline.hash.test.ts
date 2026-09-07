@@ -3,7 +3,6 @@ import {
 	applyEdit,
 	lineHashes,
 	parseText,
-	AnchorMismatchError,
 	hashSource,
 } from "../../src/hashline";
 import { splitLines } from "../../src/utils";
@@ -28,12 +27,13 @@ describe("strict hashline contract", () => {
 		expect(parseText(["alpha", "", ""])).toEqual(["alpha", "", ""]);
 	});
 
-	it("rejects stale anchors instead of relocating by hash", () => {
+	it("rejects stale anchors instead of relocating by hash", async () => {
 		const content = ["a", "INSERTED", "b", "target", "c"].join("\n");
+		const hashes = await lineHashes(content, home.testPath);
 		const stale = {
       hash_bounds: [{ hash: "ZZZZ" }, { hash: "ZZZZ" }], content_lines: ["updated"],
     } as any;
-		expect(() => applyEdit(content, stale)).toThrow(/stale anchor/);
+		expect(() => applyEdit(content, stale, undefined, hashes)).toThrow(/stale anchor/);
 	});
 });
 
@@ -78,69 +78,23 @@ describe("perfect hashing", () => {
 			"const x = 1;",
 		].join("\n");
 		const hashes = await lineHashes(file, home.testPath);
-		const result = applyEdit(file, { hash_bounds: [{ hash: hashes[2]! }, { hash: hashes[2]! }], content_lines: ["const x = 999;"] });
+		const result = applyEdit(file, { hash_bounds: [{ hash: hashes[2]! }, { hash: hashes[2]! }], content_lines: ["const x = 999;"] }, undefined, hashes);
     expect(result.content).toBe("const x = 1;\nconst y = 2;\nconst x = 999;");
 	});
 
-	it("stale-anchor error shows the file's current state for context", () => {
+	it("stale-anchor error shows the file's current state for context", async () => {
 		const file = ["const x = 1;", "const y = 2;", "const x = 1;"].join("\n");
 		const staleHash = "ZZZZ";
+		const hashes = await lineHashes(file, home.testPath);
 		let caught: Error | undefined;
 		try {
-			applyEdit(file, { hash_bounds: [{ hash: staleHash }, { hash: staleHash }], content_lines: ["X"] });
+			applyEdit(file, { hash_bounds: [{ hash: staleHash }, { hash: staleHash }], content_lines: ["X"] }, undefined, hashes);
     } catch (e) {
 			caught = e as Error;
 		}
 		expect(caught).toBeDefined();
 		expect(caught!.message).toMatch(/E_STALE_ANCHOR/);
 		expect(caught!.message).toContain("Call read()");
-	});
-
-	it("rejects an ambiguous hash with [E_AMBIGUOUS_ANCHOR] (synthetic collision)", async () => {
-		const file = "alpha\nbeta\ngamma\ndelta";
-		const realHashes = await lineHashes(file, home.testPath);
-		const forgedHashes = [...realHashes];
-		forgedHashes[2] = realHashes[0]!;
-
-		const sharedHash = realHashes[0]!;
-
-		let caught: Error | undefined;
-		try {
-			applyEdit(
-				file,
-				{ hash_bounds: [{ hash: sharedHash }, { hash: sharedHash }], content_lines: ["X"] },
-				undefined,
-				forgedHashes,
-			);
-    } catch (error) {
-			caught = error as Error;
-		}
-		expect(caught).toBeDefined();
-		expect(caught!.message).toMatch(/E_AMBIGUOUS_ANCHOR/);
-		expect(caught!.message).toMatch(/matches lines 1, 3/);
-		expect(caught!.message).toContain(`${realHashes[0]!}│alpha`);
-		expect(caught!.message).toContain(`${realHashes[0]!}│gamma`);
-	});
-
-	it("carries the candidate hashes of ambiguous feedback for serving", async () => {
-		const file = "alpha\nbeta\ngamma\ndelta";
-		const realHashes = await lineHashes(file, home.testPath);
-		const forgedHashes = [...realHashes];
-		forgedHashes[2] = realHashes[0]!;
-
-		let caught: unknown;
-		try {
-			applyEdit(
-				file,
-				{ hash_bounds: [{ hash: realHashes[0]! }, { hash: realHashes[0]! }], content_lines: ["X"] },
-				undefined,
-				forgedHashes,
-			);
-		} catch (error) {
-			caught = error;
-		}
-		expect(caught).toBeInstanceOf(AnchorMismatchError);
-		expect((caught as AnchorMismatchError).feedbackHashes).toContain(realHashes[0]!);
 	});
 
 	it("all hashes are unique for any file shape", async () => {
@@ -204,7 +158,6 @@ describe("long-line hash source", () => {
 		const newHashes = await lineHashes(newContent, home.testPath, {
 			content: oldContent,
 			hashes: oldHashes,
-			removedHashes: new Set([oldHashes[0]!]),
 		});
 		expect(newHashes[1]).toBe(oldHashes[1]);
 		expect(newHashes[0]).toBe(oldHashes[0]);

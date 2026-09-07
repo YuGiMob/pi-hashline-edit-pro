@@ -49,7 +49,7 @@ describe("prompts/read.md (model-facing contract)", () => {
 
   it("documents file-kind handling", () => {
     expect(readPrompt).toMatch(/Images/);
-    expect(readPrompt).toMatch(/Binary/);
+    expect(readPrompt).toMatch(/binary/i);
     expect(readPrompt).toMatch(/directory/);
   });
 });

@@ -24,7 +24,6 @@ describe("noop replace hash stability", () => {
       const result = await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: hashBefore, remove_to: hashBefore,
           replacement_lines: ["bbb"],
         },
@@ -54,7 +53,6 @@ describe("noop replace hash stability", () => {
         await editTool.execute(
           `e${i}`,
           {
-            path: "sample.ts",
             remove_from: hashBefore, remove_to: hashBefore,
             replacement_lines: ["bbb"],
           },
@@ -84,7 +82,6 @@ describe("noop replace hash stability", () => {
       const noop = await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: bbbHash, remove_to: bbbHash,
           replacement_lines: ["bbb"],
         },
@@ -97,7 +94,6 @@ describe("noop replace hash stability", () => {
       const result = await editTool.execute(
         "e2",
         {
-          path: "sample.ts",
           remove_from: dddHash, remove_to: dddHash,
           replacement_lines: ["DDD"],
         },
@@ -127,7 +123,6 @@ describe("noop replace hash stability", () => {
       const noop = await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: hashBefore, remove_to: hashBefore,
           replacement_lines: ["bbb"],
         },
@@ -140,7 +135,6 @@ describe("noop replace hash stability", () => {
       const followUp = await editTool.execute(
         "e2",
         {
-          path: "sample.ts",
           remove_from: hashBefore, remove_to: hashBefore,
           replacement_lines: ["BBB"],
         },

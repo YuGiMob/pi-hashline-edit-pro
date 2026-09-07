@@ -1,1 +1,1 @@
-Insert `lines` after/before bare anchor `Hasu` from `Hasu│content`: anchor stays, lines are bare without `│`, one per element
+Insert `lines` after or before an anchor line: the anchor line stays, `lines` are bare without `│`, one per element

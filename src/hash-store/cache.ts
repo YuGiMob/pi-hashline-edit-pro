@@ -26,10 +26,6 @@ export function touchSession(path: string): void {
   sessionTouched.set(path, sessionSeq);
 }
 
-export function sessionRank(path: string): number | undefined {
-  return sessionTouched.get(path);
-}
-
 export function clearSession(): void {
   sessionTouched.clear();
   sessionSeq = 0;

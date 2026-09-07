@@ -24,7 +24,6 @@ describe("served state across an external shrink", () => {
       const result = await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: dHash,
           remove_to: eHash,
           replacement_lines: [],
@@ -53,7 +52,6 @@ describe("served state across an external shrink", () => {
         editTool.execute(
           "e1",
           {
-            path: "sample.ts",
             remove_from: aHash,
             remove_to: aHash,
             replacement_lines: ["x"],

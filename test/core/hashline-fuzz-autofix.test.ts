@@ -214,9 +214,12 @@ async function runStep(
   } else {
     expect(result.autoFixes).toBeUndefined();
   }
-  const removedHashes = new Set(hashes.slice(s - 1, e));
-  const resultHashes = await lineHashes(expected, path, { content, hashes, removedHashes });
   const newLines = splitLines(expected);
+    const resultHashes = await lineHashes(expected, path, {
+      content,
+      hashes,
+      spans: [{ start: s - 1, end: e - 1, replacementCount: newLines.length - (lines.length - (e - s + 1)) }],
+    });
   expect(resultHashes).toHaveLength(newLines.length);
   expect(new Set(resultHashes).size).toBe(resultHashes.length);
   const shift = newLines.length - lines.length;

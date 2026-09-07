@@ -43,7 +43,7 @@ describe("getPreviewInput", () => {
 	});
 
 	it("returns request for valid input", () => {
-		const input = { path: "test.txt", remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"] };
+		const input = { remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"] };
 		const result = getPreviewInput(input);
 		expect(result).toEqual(input);
 	});
@@ -135,22 +135,22 @@ describe("fmtResult", () => {
 });
 
 describe("fmtCall", () => {
-	it("formats call with path", () => {
-		const args = { path: "test.txt", remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"] };
+	it("formats call with the anchor range when no path is shown", () => {
+		const args = { remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"] };
 		const state = { preview: undefined };
 		const result = fmtCall(args, state, false, mockTheme);
-		expect(result).toContain("test.txt");
+		expect(result).toContain("ATIm→BeSR");
 	});
 
 	it("formats call with error preview", () => {
-		const args = { path: "test.txt", remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"] };
+		const args = { remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"] };
 		const state = { preview: { error: "test error" } };
 		const result = fmtCall(args, state, false, mockTheme);
 		expect(result).toContain("test error");
 	});
 
 	it("formats call with diff preview", () => {
-		const args = { path: "test.txt", remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"] };
+		const args = { remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"] };
 		const state = { preview: { diff: "+added\n-removed" } };
 		const result = fmtCall(args, state, false, mockTheme);
 		expect(result).toContain("+added");

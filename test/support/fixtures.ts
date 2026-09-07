@@ -1,11 +1,16 @@
 import { mkdtemp, mkdir, rm, writeFile } from "fs/promises";
 import { join } from "path";
-import { beforeAll, afterAll, vi } from "vitest";
+import { beforeAll, afterAll, afterEach, vi } from "vitest";
 import { initHasher } from "../../src/hashline";
 import { Compile } from "typebox/compile";
 import register from "../../index";
 import { shutdownHashStore } from "../../src/hash-store";
+import { initRegistry, resetRegistryForTests } from "../../src/anchor-registry";
 import { errCode } from "../../src/utils";
+afterEach(() => {
+  resetRegistryForTests();
+});
+
 export async function getWritableTempRoot(): Promise<string> {
   const fallback = join(process.cwd(), ".tmp");
   await mkdir(fallback, { recursive: true });
@@ -186,6 +191,8 @@ export function makeFakePiRegistry() {
   };
 }
 export function setupIntegrationTest(cwd: string) {
+  resetRegistryForTests();
+  initRegistry(undefined);
   const { pi, getTool } = makeFakePiRegistry();
   register(pi);
   const ctx = { cwd, ui: { notify() {} } } as any;

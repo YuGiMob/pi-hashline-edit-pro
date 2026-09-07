@@ -48,6 +48,13 @@ describe("hash probe stride", () => {
     }
   });
 
+  it("spreads fresh anchors across leading characters in the store path", async () => {
+    const content = Array.from({ length: 48 }, (_, i) => `line ${i}`).join("\n");
+    const hashes = await lineHashes(content, `${home.testPath}-spread`);
+    expect(new Set(hashes.map((h) => h[0]!)).size).toBeGreaterThanOrEqual(24);
+    expect(new Set(hashes.map((h) => h.slice(0, 2))).size).toBe(hashes.length);
+  });
+
   it("keeps blank-line hashes distinct from neighboring content lines", async () => {
     const content = [
       "const a = 1;",

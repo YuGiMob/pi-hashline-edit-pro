@@ -20,7 +20,7 @@ import {
   retriedWrite,
   openDbWithBusyRetryAsync,
 } from "./hash-store/retry";
-import { snapshotCache, cacheSnapshot, SNAPSHOT_CACHE_LIMIT, touchSession, sessionRank, clearSession, forgetSession } from "./hash-store/cache";
+import { snapshotCache, cacheSnapshot, SNAPSHOT_CACHE_LIMIT, touchSession, clearSession, forgetSession } from "./hash-store/cache";
 
 export { isValidHashList, isValidServedMap, parseHashList, parseServedMap, parseStoredHashes, parseStoredServed, isCorruptionError };
 export { SNAPSHOT_CACHE_LIMIT };
@@ -84,20 +84,16 @@ if (typeof process !== "undefined" && (process.versions as Record<string, string
 
 interface Prepared {
   get: (...params: SqlParams) => Record<string, unknown> | undefined;
+  getState: (...params: SqlParams) => Record<string, unknown> | undefined;
   allPaths: (...params: SqlParams) => Record<string, unknown>[];
   allHashes: (...params: SqlParams) => Record<string, unknown>[];
-  allServed: (...params: SqlParams) => Record<string, unknown>[];
   deleteOne: (...params: SqlParams) => void;
   upsert: (...params: SqlParams) => void;
   undoUpsert: (...params: SqlParams) => void;
   undoGet: (...params: SqlParams) => Record<string, unknown> | undefined;
   undoDelete: (...params: SqlParams) => void;
-  servedGet: (...params: SqlParams) => Record<string, unknown> | undefined;
-  servedUpsert: (...params: SqlParams) => void;
-  servedDelete: (...params: SqlParams) => void;
   snapshotTime: (...params: SqlParams) => Record<string, unknown> | undefined;
   undoTime: (...params: SqlParams) => Record<string, unknown> | undefined;
-  servedTime: (...params: SqlParams) => Record<string, unknown> | undefined;
 }
 
 export interface HashStore {
@@ -158,31 +154,26 @@ function buildStore(db: RawDb): { db: RawDb; stmts: Prepared } {
       "updated_at INTEGER NOT NULL" +
     ")"
   );
-  db.exec(
-    "CREATE TABLE IF NOT EXISTS served (" +
-      "path TEXT PRIMARY KEY, " +
-      "hashes TEXT NOT NULL, " +
-      "updated_at INTEGER NOT NULL" +
-    ")"
-  );
+  try {
+    db.exec("ALTER TABLE snapshots ADD COLUMN line_checksums TEXT");
+  } catch {}
   const versionRow = db.prepare("SELECT value FROM meta WHERE key = 'version'").get() as { value?: string } | undefined;
   if (versionRow && versionRow.value !== String(HASH_STORE_VERSION)) {
     db.exec("DELETE FROM snapshots");
     db.exec("DELETE FROM undo");
-    db.exec("DELETE FROM served");
   }
   db.prepare(
     "INSERT INTO meta (key, value) VALUES ('version', ?) " +
     "ON CONFLICT(key) DO UPDATE SET value = excluded.value"
   ).run(String(HASH_STORE_VERSION));
   const getStmt = db.prepare("SELECT hashes FROM snapshots WHERE path = ? AND checksum = ? AND line_count = ?");
-  const allStmt = db.prepare("SELECT path FROM snapshots UNION SELECT path FROM undo UNION SELECT path FROM served");
+  const getStateStmt = db.prepare("SELECT checksum, hashes, line_checksums FROM snapshots WHERE path = ?");
+  const allStmt = db.prepare("SELECT path FROM snapshots UNION SELECT path FROM undo");
   const allHashesStmt = db.prepare("SELECT path, hashes FROM snapshots");
-  const allServedStmt = db.prepare("SELECT path, hashes FROM served");
   const delStmt = db.prepare("DELETE FROM snapshots WHERE path = ?");
   const upsertStmt = db.prepare(
-    "INSERT INTO snapshots (path, checksum, line_count, hashes, updated_at) VALUES (?, ?, ?, ?, ?) " +
-    "ON CONFLICT(path) DO UPDATE SET checksum = excluded.checksum, line_count = excluded.line_count, hashes = excluded.hashes, updated_at = excluded.updated_at"
+    "INSERT INTO snapshots (path, checksum, line_count, hashes, line_checksums, updated_at) VALUES (?, ?, ?, ?, ?, ?) " +
+    "ON CONFLICT(path) DO UPDATE SET checksum = excluded.checksum, line_count = excluded.line_count, hashes = excluded.hashes, line_checksums = excluded.line_checksums, updated_at = excluded.updated_at"
   );
   const undoUpsertStmt = db.prepare(
     "INSERT INTO undo (path, content, bom, ending, hashes, result_content, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) " +
@@ -192,31 +183,20 @@ function buildStore(db: RawDb): { db: RawDb; stmts: Prepared } {
     "SELECT content, bom, ending, hashes, result_content FROM undo WHERE path = ?"
   );
   const undoDelStmt = db.prepare("DELETE FROM undo WHERE path = ?");
-  const servedGetStmt = db.prepare("SELECT hashes FROM served WHERE path = ?");
-  const servedUpsertStmt = db.prepare(
-    "INSERT INTO served (path, hashes, updated_at) VALUES (?, ?, ?) " +
-    "ON CONFLICT(path) DO UPDATE SET hashes = excluded.hashes, updated_at = excluded.updated_at"
-  );
-  const servedDelStmt = db.prepare("DELETE FROM served WHERE path = ?");
   const snapshotTimeStmt = db.prepare("SELECT updated_at FROM snapshots WHERE path = ?");
   const undoTimeStmt = db.prepare("SELECT updated_at FROM undo WHERE path = ?");
-  const servedTimeStmt = db.prepare("SELECT updated_at FROM served WHERE path = ?");
   const stmts: Prepared = {
     get: (...params) => getStmt.get(...params) as Record<string, unknown> | undefined,
+    getState: (...params) => getStateStmt.get(...params) as Record<string, unknown> | undefined,
     allPaths: (...params) => allStmt.all(...params) as Record<string, unknown>[],
     allHashes: (...params) => allHashesStmt.all(...params) as Record<string, unknown>[],
-    allServed: (...params) => allServedStmt.all(...params) as Record<string, unknown>[],
     deleteOne: retriedWrite(delStmt),
     upsert: retriedWrite(upsertStmt),
     undoUpsert: retriedWrite(undoUpsertStmt),
     undoGet: (...params) => undoGetStmt.get(...params) as Record<string, unknown> | undefined,
     undoDelete: retriedWrite(undoDelStmt),
-    servedGet: (...params) => servedGetStmt.get(...params) as Record<string, unknown> | undefined,
-    servedUpsert: retriedWrite(servedUpsertStmt),
-    servedDelete: retriedWrite(servedDelStmt),
     snapshotTime: (...params) => snapshotTimeStmt.get(...params) as Record<string, unknown> | undefined,
     undoTime: (...params) => undoTimeStmt.get(...params) as Record<string, unknown> | undefined,
-    servedTime: (...params) => servedTimeStmt.get(...params) as Record<string, unknown> | undefined,
   };
   return { db, stmts };
 }
@@ -417,9 +397,9 @@ async function migrateLegacy(db: RawDb): Promise<void> {
       db.exec("BEGIN IMMEDIATE");
       try {
         const stmt = db.prepare(
-          "INSERT OR REPLACE INTO snapshots (path, checksum, line_count, hashes, updated_at) VALUES (?, ?, ?, ?, ?)"
+          "INSERT OR REPLACE INTO snapshots (path, checksum, line_count, hashes, line_checksums, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
         );
-        for (const row of rows) stmt.run(...row);
+        for (const row of rows) stmt.run(...row, "");
         db.exec("COMMIT");
       } catch (e) {
         try { db.exec("ROLLBACK"); } catch {}
@@ -465,8 +445,9 @@ export function upsertSnapshot(
   checksum: string,
   lineCount: number,
   hashes: string[],
+  lineChecksums?: string[],
 ): void {
-  store.stmts.upsert(path, checksum, lineCount, JSON.stringify(hashes), Date.now());
+  store.stmts.upsert(path, checksum, lineCount, JSON.stringify(hashes), lineChecksums ? JSON.stringify(lineChecksums) : "", Date.now());
   cacheSnapshot(path, checksum, lineCount, hashes);
   touchSession(path);
 }
@@ -475,8 +456,39 @@ export function persistSnapshot(
   path: string,
   content: string,
   hashes: string[],
+  lineChecksums?: string[],
 ): void {
-  upsertSnapshot(store, path, contentChecksum(content), splitLines(content).length, hashes);
+  upsertSnapshot(store, path, contentChecksum(content), splitLines(content).length, hashes, lineChecksums);
+}
+
+export interface AllocatedState {
+  anchors: string[];
+  checksums: string[] | undefined;
+  contentChecksum: string;
+}
+
+export function getAllocatedState(store: HashStore, path: string, deleteCorrupt = true): AllocatedState | undefined {
+  const row = withBusyRetry(() => store.stmts.getState(path)) as
+    | { checksum?: unknown; hashes?: unknown; line_checksums?: unknown }
+    | undefined;
+  if (!row || typeof row.checksum !== "string") return undefined;
+  const parsedAnchors = parseStoredHashes({ hashes: row.hashes }, () => {
+    if (deleteCorrupt) store.stmts.deleteOne(path);
+    snapshotCache.delete(path);
+  });
+  if (!parsedAnchors) return undefined;
+  let checksums: string[] | undefined;
+  if (typeof row.line_checksums === "string" && row.line_checksums.length > 0) {
+    try {
+      const parsed = JSON.parse(row.line_checksums) as unknown;
+      if (Array.isArray(parsed) && parsed.every((c) => typeof c === "string")) {
+        checksums = parsed as string[];
+      }
+    } catch {
+      checksums = undefined;
+    }
+  }
+  return { anchors: parsedAnchors, checksums, contentChecksum: row.checksum };
 }
 
 export function upsertUndo(store: HashStore, path: string, entry: UndoRecord): void {
@@ -537,119 +549,19 @@ async function statMissing(rows: { path: string }[]): Promise<string[]> {
   return missing;
 }
 
-export async function pruneMissing(store: HashStore): Promise<void> {
+export async function pruneMissing(store: HashStore): Promise<string[]> {
   const rows = store.stmts.allPaths() as { path: string }[];
   const missing = await statMissing(rows);
-  if (missing.length === 0) return;
+  if (missing.length === 0) return [];
   withStore(() => {
     for (const path of missing) {
       store.stmts.deleteOne(path);
-      store.stmts.servedDelete(path);
     }
   });
   for (const path of missing) snapshotCache.delete(path);
   for (const path of missing) forgetSession(path);
+  return missing;
 }
 
-function matchPathsByHashes(
-  rows: { path: string; hashes: string }[],
-  hashes: string[],
-): string[] {
-  const needed = new Set(hashes);
-  if (needed.size === 0) return [];
-  const matches: string[] = [];
-  for (const row of rows) {
-    try {
-      const parsed = JSON.parse(row.hashes) as unknown;
-      if (!isValidHashList(parsed)) continue;
-      const parsedSet = new Set(parsed);
-      let ok = true;
-      for (const h of needed) {
-        if (!parsedSet.has(h)) {
-          ok = false;
-          break;
-        }
-      }
-      if (ok) matches.push(row.path);
-    } catch {
-      continue;
-    }
-  }
-  return matches;
-}
 
-function matchPathsByServed(
-  rows: { path: string; hashes: string }[],
-  hashes: string[],
-): string[] {
-  const needed = new Set(hashes);
-  if (needed.size === 0) return [];
-  const matches: string[] = [];
-  for (const row of rows) {
-    try {
-      const parsed = JSON.parse(row.hashes) as unknown;
-      if (!isValidServedMap(parsed)) continue;
-      const keySet = new Set(Object.keys(parsed as Record<string, unknown>));
-      let ok = true;
-      for (const h of needed) {
-        if (!keySet.has(h)) {
-          ok = false;
-          break;
-        }
-      }
-      if (ok) matches.push(row.path);
-    } catch {
-      continue;
-    }
-  }
-  return matches;
-}
 
-export function findSnapshotPaths(store: HashStore, hashes: string[]): string[] {
-  return matchPathsByHashes(store.stmts.allHashes() as { path: string; hashes: string }[], hashes);
-}
-
-export function findServedPaths(store: HashStore, hashes: string[]): string[] {
-  return matchPathsByServed(store.stmts.allServed() as { path: string; hashes: string }[], hashes);
-}
-
-export function pathActivity(store: HashStore, path: string): number {
-  let activity = 0;
-  try {
-    const snap = withBusyRetry(() => store.stmts.snapshotTime(path)) as { updated_at?: unknown } | undefined;
-    const snapTime = typeof snap?.updated_at === "number" ? snap.updated_at : 0;
-    if (snapTime > activity) activity = snapTime;
-  } catch {
-  }
-  try {
-    const undo = withBusyRetry(() => store.stmts.undoTime(path)) as { updated_at?: unknown } | undefined;
-    const undoTime = typeof undo?.updated_at === "number" ? undo.updated_at : 0;
-    if (undoTime > activity) activity = undoTime;
-  } catch {
-  }
-  try {
-    const served = withBusyRetry(() => store.stmts.servedTime(path)) as { updated_at?: unknown } | undefined;
-    const servedTime = typeof served?.updated_at === "number" ? served.updated_at : 0;
-    if (servedTime > activity) activity = servedTime;
-  } catch {
-  }
-  return activity;
-}
-
-export function rankRecentPaths(store: HashStore, candidates: string[]): string[] {
-  const scored = candidates.map((candidate) => {
-    const rank = sessionRank(candidate) ?? -1;
-    const activity = rank < 0 ? pathActivity(store, candidate) : -1;
-    return { candidate, rank, activity };
-  });
-  scored.sort((a, b) => {
-    if (a.rank !== b.rank) return b.rank - a.rank;
-    if (a.activity !== b.activity) return b.activity - a.activity;
-    return a.candidate < b.candidate ? -1 : a.candidate > b.candidate ? 1 : 0;
-  });
-  return scored.map((entry) => entry.candidate);
-}
-
-export function pickRecentPath(store: HashStore, candidates: string[]): string {
-  return rankRecentPaths(store, candidates)[0]!;
-}

@@ -1,10 +1,55 @@
 import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { resolveInCwd } from "./fs-write";
 import { abortIf, makePrepareArguments } from "./utils";
+import { ownerOf } from "./anchor-registry";
+import { parseHashRef, stripAnchorRow } from "./hashline";
 import { makeRenderCall, renderEditResult, type RPreview, type FgT } from "./replace-render";
 import type { ReplaceDetails } from "./replace";
 
 export const editPrepare = makePrepareArguments();
+
+export function resolveEditTarget(removeFrom: string, removeTo?: string): string {
+  const refs = [removeFrom, removeTo].filter((value): value is string => typeof value === "string");
+  const owners = refs.map((ref) => ownerOf(parseHashRef(stripAnchorRow(ref.trim(), "anchor entry")).hash));
+  const missing = owners.findIndex((owner) => !owner);
+  if (missing >= 0) {
+    throw new Error(
+      `[E_STALE_ANCHOR] "${refs[missing]!}" is not owned in this session. Call read() on the target file first.`,
+    );
+  }
+  const paths = new Set(owners.map((owner) => owner!.path));
+  if (paths.size > 1) {
+    throw new Error(
+      `[E_BAD_SHAPE] The anchors are owned by different files (${owners.map((owner) => owner!.path).join(", ")}); edit one file per call.`,
+    );
+  }
+  return owners[0]!.path;
+}
+
+export function tryResolveEditTarget(removeFrom: string | undefined, removeTo?: string): string | undefined {
+  if (typeof removeFrom !== "string") return undefined;
+  try {
+    return resolveEditTarget(removeFrom, removeTo);
+  } catch {
+    return undefined;
+  }
+}
+
+export function editRenderCallWrapper(
+  preview: (args: unknown, cwd: string, signal?: AbortSignal) => Promise<RPreview>,
+  getInput?: (args: unknown) => { path?: string } | null,
+  toolName?: string,
+) {
+  return makeRenderCall(preview, {
+    getInput,
+    toolName,
+    resolveTarget: (input) => {
+      if (typeof input.remove_from === "string") return tryResolveEditTarget(input.remove_from, input.remove_to);
+      if (typeof input.anchor === "string") return tryResolveEditTarget(input.anchor);
+      return undefined;
+    },
+  });
+}
 
 export function editRenderResultWrapper(
   result: { content?: Array<{ type: string; text?: string }>; details?: ReplaceDetails },
@@ -13,14 +58,6 @@ export function editRenderResultWrapper(
   context: any,
 ) {
   return renderEditResult(result, opts, theme, context);
-}
-
-export function editRenderCallWrapper(
-  preview: (args: unknown, cwd: string, signal?: AbortSignal) => Promise<RPreview>,
-  getInput?: (args: unknown) => { path?: string } | null,
-  toolName?: string,
-) {
-  return makeRenderCall(preview, { getInput, toolName });
 }
 
 export const editToolBase = {

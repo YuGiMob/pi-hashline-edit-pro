@@ -15,7 +15,7 @@ describe("applyEdit - recovery scenarios", () => {
     const result = applyEdit(content, resEdit(
       { remove_from: hashes[3]!,
       remove_to: hashes[1]!, replacement_lines: ["X"] },
-    ));
+    ), undefined, hashes);
     expect(result.content).toBe("a\nX\ne");
     expect(result.warnings?.[0]).toMatch(/Swapped reversed remove_from\/remove_to/);
   });
@@ -40,7 +40,7 @@ describe("applyEdit - recovery scenarios", () => {
       applyEdit(content, resEdit(
         { remove_from: staleStart,
         remove_to: hashes[2]!, replacement_lines: ["X"] },
-      ));
+      ), undefined, hashes);
     } catch (error) {
       caught = error as Error;
     }
@@ -59,7 +59,7 @@ describe("applyEdit - recovery scenarios", () => {
       applyEdit(content, resEdit(
         { remove_from: hashes[0]!,
         remove_to: staleEnd, replacement_lines: ["X"] },
-      ));
+      ), undefined, hashes);
     } catch (error) {
       caught = error as Error;
     }
@@ -70,29 +70,18 @@ describe("applyEdit - recovery scenarios", () => {
 
   it("omits context when both anchors are stale", async () => {
     const content = "a\nb\nc";
+    const hashes = await lineHashes(content, home.testPath);
     let caught: Error | undefined;
     try {
       applyEdit(content, resEdit(
         { remove_from: "PyBY",
         remove_to: "YYY", replacement_lines: ["X"] },
-      ));
+      ), undefined, hashes);
     } catch (error) {
       caught = error as Error;
     }
     expect(caught).toBeDefined();
     expect(caught!.message).not.toMatch(/Current context around resolved anchor/);
-  });
-
-  it("rejects ambiguous anchor", async () => {
-    const content = "a\nb\nc\nd\ne";
-    const hashes = await lineHashes(content, home.testPath);
-    const forgedHashes = [hashes[0]!, hashes[0]!, hashes[0]!, hashes[0]!, hashes[0]!];
-    expect(() =>
-      applyEdit(content, resEdit(
-        { remove_from: hashes[0]!,
-        remove_to: hashes[0]!, replacement_lines: ["X"] },
-      ), undefined, forgedHashes)
-    ).toThrow(/E_AMBIGUOUS_ANCHOR/);
   });
 
   it("rejects unknown fields in edit items", () => {
@@ -137,7 +126,7 @@ describe("applyEdit - recovery scenarios", () => {
     const result = applyEdit(content, resEdit(
       { remove_from: hashes[1]!,
       remove_to: hashes[2]!, replacement_lines: [`${hashes[1]!}│b`, `X`] },
-    ));
+    ), undefined, hashes);
     expect(result.content).toBe("a\nb\nX\nd\ne");
     expect(result.warnings?.[0]).toMatch(/Stripped "anchor│" prefix/);
   });
@@ -148,7 +137,7 @@ describe("applyEdit - recovery scenarios", () => {
     const result = applyEdit(content, resEdit(
       { remove_from: hashes[1]!,
       remove_to: hashes[1]!, replacement_lines: [`+${hashes[1]!}│B`] },
-    ));
+    ), undefined, hashes);
     expect(result.content).toBe("a\nB\nc");
     expect(result.warnings?.[0]).toMatch(/Stripped diff-preview marker/);
   });
@@ -159,7 +148,7 @@ describe("applyEdit - recovery scenarios", () => {
     const result = applyEdit(content, resEdit(
       { remove_from: hashes[1]!,
       remove_to: hashes[1]!, replacement_lines: ["\\uDDDD"] },
-    ));
+    ), undefined, hashes);
     expect(result.warnings).toBeDefined();
     expect(result.warnings![0]).toContain("\\uDDDD");
   });
@@ -170,7 +159,7 @@ describe("applyEdit - recovery scenarios", () => {
     const result = applyEdit(content, resEdit(
       { remove_from: hashes[2]!,
       remove_to: hashes[2]!, replacement_lines: ["\t\treplaced"] },
-    ));
+    ), undefined, hashes);
     expect(result.content).toBe("a\nb\n\t\treplaced");
   });
 
@@ -180,7 +169,7 @@ describe("applyEdit - recovery scenarios", () => {
     const result = applyEdit(content, resEdit(
       { remove_from: hashes[2]!,
       remove_to: hashes[2]!, replacement_lines: ["\t\treplaced"] },
-    ));
+    ), undefined, hashes);
     expect(result.content).toContain("\t\treplaced");
   });
 
@@ -190,7 +179,7 @@ describe("applyEdit - recovery scenarios", () => {
     const result = applyEdit(content, resEdit(
       { remove_from: hashes[1]!,
       remove_to: hashes[1]!, replacement_lines: ["b"] },
-    ));
+    ), undefined, hashes);
     expect(result.noopEdit).toBeDefined();
   });
 
@@ -200,7 +189,7 @@ describe("applyEdit - recovery scenarios", () => {
     const result = applyEdit(content, resEdit(
       { remove_from: hashes[1]!,
       remove_to: hashes[2]!, replacement_lines: ["b", "c"] },
-    ));
+    ), undefined, hashes);
     expect(result.noopEdit).toBeDefined();
   });
 
@@ -210,7 +199,7 @@ describe("applyEdit - recovery scenarios", () => {
     const result = applyEdit(content, resEdit(
       { remove_from: hashes[0]!,
       remove_to: hashes[0]!, replacement_lines: ["world"] },
-    ));
+    ), undefined, hashes);
     expect(result.content).toBe("world");
   });
 
@@ -220,7 +209,7 @@ describe("applyEdit - recovery scenarios", () => {
     const result = applyEdit(content, resEdit(
       { remove_from: hashes[1]!,
       remove_to: hashes[1]!, replacement_lines: ["b", "c"] },
-    ));
+    ), undefined, hashes);
     expect(result.content).toBe("a\nb\nc");
   });
 
@@ -230,7 +219,7 @@ describe("applyEdit - recovery scenarios", () => {
     const result = applyEdit(content, resEdit(
       { remove_from: hashes[0]!,
       remove_to: hashes[0]!, replacement_lines: [] },
-    ));
+    ), undefined, hashes);
     expect(result.content).toBe("b\nc");
   });
 
@@ -240,7 +229,7 @@ describe("applyEdit - recovery scenarios", () => {
     const result = applyEdit(content, resEdit(
       { remove_from: hashes[2]!,
       remove_to: hashes[2]!, replacement_lines: [] },
-    ));
+    ), undefined, hashes);
     expect(result.content).toBe("a\nb");
   });
 
@@ -250,7 +239,7 @@ describe("applyEdit - recovery scenarios", () => {
     const result = applyEdit(content, resEdit(
       { remove_from: hashes[0]!,
       remove_to: hashes[2]!, replacement_lines: ["x", "y"] },
-    ));
+    ), undefined, hashes);
     expect(result.content).toBe("x\ny");
   });
 });

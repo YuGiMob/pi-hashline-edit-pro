@@ -56,18 +56,15 @@ async function putSnapshot(store: HashStore, path: string, content: string, hash
 describe("hash-store - pruneMissing error handling", () => {
   it("keeps the snapshot and served record when stat fails with EACCES", async () => {
     const { loadHashStore, shutdownHashStore, pruneMissing, getSnapshot } = await import("../../src/hash-store");
-    const { recordServed, getServed } = await import("../../src/served");
     shutdownHashStore();
     const store = await loadHashStore();
     const locked = join(tmpHome, "locked.ts");
     await putSnapshot(store, locked, "locked\n", ["ATIm"]);
-    recordServed(store, locked, new Map([["ATIm", "ATIm"]]));
 
     state.statErrors.set(locked, statError("EACCES", "permission denied"));
     await pruneMissing(store);
 
     expect(getSnapshot(store, locked, "locked\n")).toEqual(["ATIm"]);
-    expect(getServed(store, locked)).toEqual(new Map([["ATIm", "ATIm"]]));
   });
 
   it("keeps the snapshot when stat fails with ELOOP", async () => {

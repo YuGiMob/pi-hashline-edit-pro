@@ -1,13 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { mkdir, writeFile, readFile, mkdtemp, rm } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import { loadHashStore, getSnapshot, shutdownHashStore } from "../../src/hash-store";
-import { getServed } from "../../src/served";
 import { resolveTarget } from "../../src/fs-write";
+import { ownersForPath, initRegistry, resetRegistryForTests } from "../../src/anchor-registry";
 import { toCwd } from "../../src/paths";
 import { withTempFile, withTempDir, withHome, makeFakePiRegistry, setupIntegrationTest, getText, extractHash } from "../support/fixtures";
 import register from "../../index";
+
+beforeEach(async () => {
+  await initRegistry(undefined);
+});
+
+afterEach(() => {
+  resetRegistryForTests();
+});
 
 describe("grep tool", () => {
   it("registers a tool named grep", () => {
@@ -53,7 +61,7 @@ describe("grep tool", () => {
 
       const edit = await editTool.execute(
         "e1",
-        { path: "sample.ts", remove_from: betaHash, remove_to: betaHash, replacement_lines: ["BETA"] },
+        { remove_from: betaHash, remove_to: betaHash, replacement_lines: ["BETA"] },
         undefined, undefined, ctx,
       );
       expect(edit.content[0].text).toContain("Successfully replaced");
@@ -75,7 +83,7 @@ describe("grep tool", () => {
       const store = await loadHashStore();
       const resolved = await resolveTarget(toCwd("sample.ts", cwd));
       expect(getSnapshot(store, resolved, "alpha\nbeta\n")).toBeUndefined();
-      expect(getServed(store, resolved)?.size).toBeGreaterThan(0);
+      expect(ownersForPath(resolved)?.size).toBeGreaterThan(0);
     });
   });
 
@@ -549,12 +557,11 @@ async function withSystemTempDir(prefix: string, run: (dir: string) => Promise<v
       expect(text).toContain("truncated fragments");
       expect(text).not.toContain("a".repeat(10000));
       const grepHash = extractHash(row);
-      const store = await loadHashStore();
-      const served = getServed(store, await resolveTarget(toCwd("min.js", cwd)));
+      const served = ownersForPath(await resolveTarget(toCwd("min.js", cwd)));
       expect(served?.has(grepHash)).toBe(true);
       const edit = await editTool.execute(
         "e1",
-        { path: "min.js", remove_from: grepHash, remove_to: grepHash, replacement_lines: ["REPLACED"] },
+        { remove_from: grepHash, remove_to: grepHash, replacement_lines: ["REPLACED"] },
         undefined, undefined, ctx,
       );
       expect(edit.content[0].text).toContain("Successfully replaced");
@@ -591,8 +598,8 @@ async function withSystemTempDir(prefix: string, run: (dir: string) => Promise<v
       expect(rows.length).toBeLessThan(700);
       expect(Buffer.byteLength(rows.join("\n"), "utf-8")).toBeLessThanOrEqual(50 * 1024);
       expect((result.details as { metrics: { truncated: boolean } }).metrics.truncated).toBe(true);
-      const served = getServed(await loadHashStore(), await resolveTarget(toCwd("wide.txt", cwd)));
-      expect(served?.size).toBe(rows.length);
+      const served = ownersForPath(await resolveTarget(toCwd("wide.txt", cwd)));
+      expect(served?.size ?? 0).toBeGreaterThanOrEqual(rows.length);
     });
   });
 

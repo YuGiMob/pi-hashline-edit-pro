@@ -103,6 +103,7 @@ function assertMappingInvariants(
   newHashes: string[],
 ): void {
   expect(new Set(newHashes).size).toBe(newHashes.length);
+  { const seen = new Map<string, number>(); for (const h of newHashes) seen.set(h, (seen.get(h) ?? 0) + 1); for (const [h, n] of seen) if (n > 1) console.log("DUP:", h, n, "idx", newHashes.indexOf(h), newHashes.lastIndexOf(h)); }
   const oldHashToLine = new Map<string, string>();
   for (let i = 0; i < oldHashes.length; i++) {
     oldHashToLine.set(oldHashes[i]!, oldLines[i]!);
@@ -125,11 +126,12 @@ function assertMappingInvariants(
       return j >= 0 && newLines[j] === content;
     });
     if (newCount >= entries.length) {
-      expect(preserved).toHaveLength(entries.length);
+      expect(preserved, `lost: ${JSON.stringify(entries.filter((entry) => !preserved.includes(entry)), null, 1)}\nspans: ${JSON.stringify(spans)}\noldLines: ${JSON.stringify(oldLines)}\noldHashes: ${JSON.stringify(oldHashes)}\nnewLines: ${JSON.stringify(newLines)}\nnewHashes: ${JSON.stringify(newHashes)}`).toHaveLength(entries.length);
     } else {
-      expect(preserved).toHaveLength(newCount);
+      expect(preserved, `dbg old:${JSON.stringify(oldLines)} oldH:${JSON.stringify(oldHashes)} new:${JSON.stringify(newLines)} newH:${JSON.stringify(newHashes)} spans:${JSON.stringify(spans)}`).toHaveLength(newCount);
       const lost = entries.filter((entry) => !preserved.includes(entry));
       for (const entry of lost) {
+        console.log("LOST:", entry.hash, "line", entry.index + 1, "content", JSON.stringify(content), "inResult", newHashes.includes(entry.hash), "spans", JSON.stringify(spans));
         expect(content, `non-empty outside line ${entry.index + 1} lost its hash`).toBe("");
       }
     }
@@ -161,11 +163,10 @@ describe("property: single random edit per call", () => {
         lines, span.s, span.e, replayFixes(span.repl, result.autoFixes), content.endsWith("\n"),
       );
       expect(result.content).toBe(correctedExpected);
-      const removedHashes = new Set(hashes.slice(span.s - 1, span.e));
       const resultHashes = await lineHashes(correctedExpected, home.testPath, {
         content,
         hashes,
-        removedHashes,
+        spans: [{ start: span.s - 1, end: span.e - 1, replacementCount: replayFixes(span.repl, result.autoFixes).length }],
       });
       assertMappingInvariants(
         lines,
@@ -235,7 +236,7 @@ describe("property: sequential random edits", () => {
       const resultHashes = await lineHashes(expected, home.testPath, {
         content,
         hashes,
-        removedHashes,
+        spans: applied.map((sp) => ({ start: sp.s - 1, end: sp.e - 1, replacementCount: sp.repl.length })),
       });
       assertMappingInvariants(
         lines,
@@ -291,11 +292,10 @@ describe("property: chained stable mapping at every step", () => {
           lines, span.s, span.e, replayFixes(span.repl, result.autoFixes), content.endsWith("\n"),
         );
         expect(result.content).toBe(expected);
-        const removedHashes = new Set(hashes.slice(span.s - 1, span.e));
         const nextHashes = await lineHashes(expected, chainPath, {
           content,
           hashes,
-          removedHashes,
+          spans: [{ start: span.s - 1, end: span.e - 1, replacementCount: replayFixes(span.repl, result.autoFixes).length }],
         });
         expect(nextHashes).toHaveLength(splitLines(expected).length);
         assertMappingInvariants(

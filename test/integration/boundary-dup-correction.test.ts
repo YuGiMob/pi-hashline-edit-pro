@@ -18,7 +18,6 @@ describe("boundary duplication auto-fix", () => {
       await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: line2Hash, remove_to: line3Hash,
           replacement_lines: [`  const y = 2;`, `  return y;`, `}`],
         },
@@ -45,7 +44,6 @@ describe("boundary duplication auto-fix", () => {
       const editResult = await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: line2Hash, remove_to: line3Hash,
           replacement_lines: [`  const y = 2;`, `  return y;`, `}`],
         },
@@ -77,7 +75,6 @@ describe("boundary duplication auto-fix", () => {
       await editTool.execute(
         "e1",
         {
-          path: "server.ts",
           remove_from: line2Hash, remove_to: line3Hash,
           replacement_lines: [`  const result = processData();`, `  res.json(result);`, `});`],
         },
@@ -104,7 +101,6 @@ describe("boundary duplication auto-fix", () => {
       await editTool.execute(
         "e1",
         {
-          path: "logic.ts",
           remove_from: line2Hash, remove_to: line3Hash,
           replacement_lines: [`before();`, `if (ok) {`, `  runSafe();`],
         },
@@ -136,7 +132,6 @@ describe("boundary duplication auto-fix", () => {
       await editTool.execute(
         "e1",
         {
-          path: "multi.ts",
           remove_from: line4Hash, remove_to: line5Hash,
           replacement_lines: [`if (b) {`, `  yNew();`, `}`],
         },
@@ -178,7 +173,6 @@ describe("boundary duplication auto-fix", () => {
       const edit1 = await editTool.execute(
         "e1",
         {
-          path: "fourth.ts",
           remove_from: fooHash, remove_to: barHash, replacement_lines: [`foo();`, `bar();`, `}`],
         },
         undefined,
@@ -220,7 +214,6 @@ describe("new-line boundary duplication (auto-fix)", () => {
       const editResult = await editTool.execute(
         "e1",
         {
-          path: "overlay.ts",
           remove_from: classHash, remove_to: blankHash,
           replacement_lines: [
             "export class WorkflowEditorOverlay {",
@@ -259,7 +252,6 @@ describe("new-line boundary duplication (auto-fix)", () => {
       const editResult = await editTool.execute(
         "e1",
         {
-          path: "reorder.ts",
           remove_from: barHash, remove_to: bazHash,
           replacement_lines: ["bar();", "baz();", "foo();"],
         },
@@ -296,7 +288,6 @@ describe("new-line boundary duplication (auto-fix)", () => {
       const editResult = await editTool.execute(
         "e1",
         {
-          path: "multi.ts",
           remove_from: bHash, remove_to: yHash,
           replacement_lines: ["if (b) {", "  yNew();", "}"],
         },
@@ -327,7 +318,6 @@ describe("new-line boundary duplication (auto-fix)", () => {
       const editResult = await editTool.execute(
         "e1",
         {
-          path: "plain.ts",
           remove_from: aHash, remove_to: bHash,
           replacement_lines: ["a", "b", "X"],
         },
@@ -364,7 +354,6 @@ describe("multi-line boundary duplication runs (auto-fix)", () => {
       const editResult = await editTool.execute(
         "e1",
         {
-          path: "imports.ts",
           remove_from: piHash, remove_to: piHash,
           replacement_lines: [
             `import { ScrollableTabContent } from "./scrollable";`,
@@ -409,7 +398,6 @@ describe("multi-line boundary duplication runs (auto-fix)", () => {
       const editResult = await editTool.execute(
         "e1",
         {
-          path: "nested.ts",
           remove_from: bodyHash, remove_to: bodyHash,
           replacement_lines: ["  const x = 2;", "}", "}"],
         },
@@ -436,7 +424,6 @@ describe("multi-line boundary duplication runs (auto-fix)", () => {
       const editResult = await editTool.execute(
         "e1",
         {
-          path: "before-run.ts",
           remove_from: targetHash, remove_to: targetHash,
           replacement_lines: ["NEW();", "before1();", "before2();"],
         },
@@ -463,7 +450,6 @@ describe("multi-line boundary duplication runs (auto-fix)", () => {
       const editResult = await editTool.execute(
         "e1",
         {
-          path: "leading-run.ts",
           remove_from: targetHash, remove_to: targetHash,
           replacement_lines: ["c", "b", "a", "X"],
         },
@@ -490,7 +476,6 @@ describe("multi-line boundary duplication runs (auto-fix)", () => {
       const editResult = await editTool.execute(
         "e1",
         {
-          path: "prefix-copy.ts",
           remove_from: targetHash, remove_to: targetHash,
           replacement_lines: ["a", "b", "c", "X"],
         },
@@ -517,7 +502,6 @@ describe("multi-line boundary duplication runs (auto-fix)", () => {
       const editResult = await editTool.execute(
         "e1",
         {
-          path: "both-edges.ts",
           remove_from: targetHash, remove_to: targetHash,
           replacement_lines: ["X"],
         },
@@ -547,7 +531,6 @@ describe("section-unique boundary duplication (auto-fix)", () => {
       const editResult = await editTool.execute(
         "e1",
         {
-          path: "iface.ts",
           remove_from: blankHash, remove_to: blankHash,
           replacement_lines: ["export interface Foo {", "  x: number;", "}", "", "export function main2() {}"],
         },
@@ -576,7 +559,6 @@ describe("section-unique boundary duplication (auto-fix)", () => {
       const editResult = await editTool.execute(
         "e1",
         {
-          path: "pre-block.ts",
           remove_from: targetHash, remove_to: targetHash,
           replacement_lines: ["NEW", "if (b) {", "  y();", "}"],
         },
@@ -603,7 +585,6 @@ describe("section-unique boundary duplication (auto-fix)", () => {
       const editResult = await editTool.execute(
         "e1",
         {
-          path: "repeat.ts",
           remove_from: xHash, remove_to: xHash,
           replacement_lines: ["X", "Y", "Z"],
         },
@@ -630,7 +611,6 @@ describe("whitespace-only lines next to empty lines (regression)", () => {
       const editResult = await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: secondHash, remove_to: secondHash,
           replacement_lines: ["   ", "second"],
         },
@@ -653,7 +633,6 @@ describe("whitespace-only lines next to empty lines (regression)", () => {
       const editResult = await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: secondHash, remove_to: secondHash,
           replacement_lines: ["second", "   "],
         },

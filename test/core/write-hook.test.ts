@@ -3,8 +3,8 @@ import { mkdtemp, rm, writeFile } from "fs/promises";
 import { join } from "path";
 import { initHasher } from "../../src/hashline";
 import { findServedHashEcho, findEditHashEcho, servedHashEchoDenial, registerWriteHook } from "../../src/write-hook";
-import { loadHashStore, shutdownHashStore } from "../../src/hash-store";
-import { recordServed } from "../../src/served";
+import { shutdownHashStore } from "../../src/hash-store";
+import { initRegistry, adoptAnchors } from "../../src/anchor-registry";
 import { getWritableTempRoot } from "../support/fixtures";
 
 beforeAll(async () => {
@@ -78,8 +78,8 @@ describe("write-hook servedHashEchoDenial", () => {
       try {
         const filePath = join(dir, "test.txt");
         await writeFile(filePath, "hello\n", "utf-8");
-        const store = await loadHashStore();
-        recordServed(store, filePath, new Map([["ATIm", "ATIm"]]));
+        await initRegistry(join(dir, "session.jsonl"));
+        adoptAnchors(filePath, new Map([["ATIm", "ATIm"]]));
         const result = await servedHashEchoDenial("test.txt", "clean content\n", dir);
         expect(result).toBeUndefined();
       } finally {
@@ -93,8 +93,8 @@ describe("write-hook servedHashEchoDenial", () => {
       try {
         const filePath = join(dir, "test.txt");
         await writeFile(filePath, "hello\n", "utf-8");
-        const store = await loadHashStore();
-        recordServed(store, filePath, new Map([["ATIm", "ATIm"]]));
+        await initRegistry(join(dir, "session.jsonl"));
+        adoptAnchors(filePath, new Map([["ATIm", "ATIm"]]));
         const result = await servedHashEchoDenial("test.txt", "ATIm│copied\n", dir);
         expect(result).toContain("[E_WRITE_HASH_ECHO]");
         expect(result).toContain("ATIm│");
@@ -121,8 +121,8 @@ describe("write-hook servedHashEchoDenial", () => {
       try {
         const filePath = join(dir, "empty.txt");
         await writeFile(filePath, "hello\n", "utf-8");
-        const store = await loadHashStore();
-        recordServed(store, filePath, new Map());
+        await initRegistry(join(dir, "session.jsonl"));
+        adoptAnchors(filePath, new Map());
         const result = await servedHashEchoDenial("empty.txt", "ATIm│hello\n", dir);
         expect(result).toBeUndefined();
       } finally {
@@ -170,8 +170,8 @@ describe("write-hook registerWriteHook", () => {
       try {
         const filePath = join(dir, "blocked.txt");
         await writeFile(filePath, "hello\n", "utf-8");
-        const store = await loadHashStore();
-        recordServed(store, filePath, new Map([["ATIm", "ATIm"]]));
+        await initRegistry(join(dir, "session.jsonl"));
+        adoptAnchors(filePath, new Map([["ATIm", "ATIm"]]));
         const { pi, handlers } = makePi();
         registerWriteHook(pi);
         const handler = handlers.get("tool_call") as (event: unknown, ctx: unknown) => Promise<unknown>;
@@ -188,8 +188,8 @@ describe("write-hook registerWriteHook", () => {
       try {
         const filePath = join(dir, "allowed.txt");
         await writeFile(filePath, "hello\n", "utf-8");
-        const store = await loadHashStore();
-        recordServed(store, filePath, new Map([["ATIm", "ATIm"]]));
+        await initRegistry(join(dir, "session.jsonl"));
+        adoptAnchors(filePath, new Map([["ATIm", "ATIm"]]));
         const { pi, handlers } = makePi();
         registerWriteHook(pi);
         const handler = handlers.get("tool_call") as (event: unknown, ctx: unknown) => Promise<unknown>;
@@ -206,8 +206,8 @@ describe("write-hook registerWriteHook", () => {
       try {
         const filePath = join(dir, "alias.txt");
         await writeFile(filePath, "hello\n", "utf-8");
-        const store = await loadHashStore();
-        recordServed(store, filePath, new Map([["ATIm", "ATIm"]]));
+        await initRegistry(join(dir, "session.jsonl"));
+        adoptAnchors(filePath, new Map([["ATIm", "ATIm"]]));
         const { pi, handlers } = makePi();
         registerWriteHook(pi);
         const handler = handlers.get("tool_call") as (event: unknown, ctx: unknown) => Promise<unknown>;

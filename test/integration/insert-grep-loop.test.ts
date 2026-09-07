@@ -25,7 +25,7 @@ describe("insert and grep loop", () => {
 
       const inserted = await insertTool.execute(
         "i1",
-        { path: "sample.ts", anchor: betaHash, direction: "after", lines: ["BETA1"] },
+        { anchor: betaHash, direction: "after", lines: ["BETA1"] },
         undefined, undefined, ctx,
       );
       expect(inserted.content[0].text).toContain("Successfully inserted");
@@ -58,7 +58,7 @@ describe("insert and grep loop", () => {
 
       await insertTool.execute(
         "i1",
-        { path: "lib/b.ts", anchor: betaHash, direction: "after", lines: ["BETA2"] },
+        { anchor: betaHash, direction: "after", lines: ["BETA2"] },
         undefined, undefined, ctx,
       );
       expect(await readFile(join(dir, "lib", "b.ts"), "utf-8")).toBe("beta\nBETA2\n");
@@ -76,7 +76,7 @@ describe("insert and grep loop", () => {
 
       const first = await insertTool.execute(
         "i1",
-        { path: "sample.ts", anchor: alphaHash, direction: "after", lines: ["mid1"] },
+        { anchor: alphaHash, direction: "after", lines: ["mid1"] },
         undefined, undefined, ctx,
       );
       const diff = (first.details as { diff?: string } | undefined)?.diff ?? "";
@@ -84,7 +84,7 @@ describe("insert and grep loop", () => {
 
       const second = await insertTool.execute(
         "i2",
-        { path: "sample.ts", anchor: mid1Row, direction: "after", lines: ["mid2"] },
+        { anchor: mid1Row, direction: "after", lines: ["mid2"] },
         undefined, undefined, ctx,
       );
       expect(second.content[0].text).toContain("Stripped diff-preview marker from anchor entry");

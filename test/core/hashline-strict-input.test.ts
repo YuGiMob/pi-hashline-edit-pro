@@ -14,7 +14,7 @@ describe("edit input validation", () => {
 		const file = "foo\nbar";
 		const hashes = await lineHashes(file, home.testPath);
 		const toolEdit: HTEdit = { remove_from: hashes[0]!, remove_to: hashes[0]!, replacement_lines: [`${hashes[0]!}│FOO`] };
-    const result = applyEdit(file, resEdit(toolEdit));
+    const result = applyEdit(file, resEdit(toolEdit), undefined, hashes);
 		expect(result.content).toBe("FOO\nbar");
 		expect(result.warnings?.[0]).toMatch(/Stripped "anchor│" prefix/);
 		expect(result.warnings?.[0]).toMatch(/replacement_lines line 1/);

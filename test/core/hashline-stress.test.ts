@@ -135,27 +135,6 @@ describe("hash collision stress tests", () => {
     expect(unique.size).toBe(10_000);
   }, 60_000);
 
-  it("correctly maps hashes for 10,000 identical lines with selective removal", async () => {
-    const oldContent = Array.from({ length: 10_000 }, () => "same").join("\n");
-    const oldHashes = _lineHashesPure(oldContent);
-
-    const newContent = Array.from({ length: 5_000 }, () => "same").join("\n");
-    const removedHashes = new Set(
-      oldHashes.filter((_, i) => i % 2 === 0)
-    );
-
-    const result = await lineHashes(newContent, home.testPath, {
-      content: oldContent,
-      hashes: oldHashes,
-      removedHashes,
-    });
-
-    expect(result).toHaveLength(5_000);
-    for (const hash of result) {
-      expect(removedHashes.has(hash)).toBe(false);
-    }
-  }, 120_000);
-
   it("handles 100 identical lines with mixed content types via store", async () => {
     const lines = [
       ...Array.from({ length: 25 }, () => "import { foo } from 'bar';"),
@@ -217,37 +196,14 @@ describe("mapStableHashes - large file stress", () => {
     expect(unique.size).toBe(result.length);
   }, 120_000);
 
-  it("handles 5,000 identical lines with removedHashes covering half the space", async () => {
-    const oldContent = Array.from({ length: 5_000 }, () => "dup").join("\n");
-    const oldHashes = _lineHashesPure(oldContent);
-
-    const removedHashes = new Set(oldHashes.filter((_, i) => i < 2_500));
-    const newContent = Array.from({ length: 3_000 }, () => "dup").join("\n");
-
-    const result = await lineHashes(newContent, home.testPath, {
-      content: oldContent,
-      hashes: oldHashes,
-      removedHashes,
-    });
-
-    expect(result).toHaveLength(3_000);
-    const survivors = result.filter((hash) => !removedHashes.has(hash));
-    const reinserted = result.filter((hash) => removedHashes.has(hash));
-    expect(survivors).toHaveLength(2_500);
-    expect(reinserted).toHaveLength(500);
-    expect(new Set(result).size).toBe(3_000);
-  }, 120_000);
-
   it("does not degrade when every candidate is removed (regression)", async () => {
     const oldContent = Array.from({ length: 100_000 }, () => "dup").join("\n");
     const oldHashes = _lineHashesPure(oldContent);
-    const removedHashes = new Set(oldHashes);
     const newContent = Array.from({ length: 100_000 }, () => "dup").join("\n");
     const start = performance.now();
     const result = await lineHashes(newContent, home.testPath, {
       content: oldContent,
-      hashes: oldHashes,
-      removedHashes,
+      hashes: oldHashes
     });
     const elapsed = performance.now() - start;
     expect(result).toEqual(oldHashes);

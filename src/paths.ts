@@ -31,6 +31,10 @@ export function legacyHashStorePath(): string {
   return join(configDir(), "hash-store.json");
 }
 
+export function sessionClaimsDir(): string {
+  return join(configDir(), "sessions");
+}
+
 export function hashStoreDir(): string {
   return dirname(hashStorePath());
 }

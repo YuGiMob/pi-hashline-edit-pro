@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { readFile, writeFile, rm } from "fs/promises";
 import { join } from "path";
-import { lineHashes } from "../../src/hashline";
 import { loadHashStore, getSnapshot, shutdownHashStore } from "../../src/hash-store";
 import * as hashStoreModule from "../../src/hash-store";
 import * as fsWriteModule from "../../src/fs-write";
@@ -11,10 +10,19 @@ import {
   setupIntegrationTest,
   useTestHome,
   getText,
+  extractHash,
 } from "../support/fixtures";
 import register from "../../index";
 
-const home = useTestHome();
+useTestHome();
+
+async function servedAnchors(getTool: (name: string) => any, ctx: any, name: string): Promise<string[]> {
+  const read = await getTool("read").execute(`srv-${name}`, { path: name }, undefined, undefined, ctx);
+  return getText(read)
+    .split("\n")
+    .filter((line) => /^[A-Za-z0-9]{4}│/.test(line))
+    .map(extractHash);
+}
 
 describe("undo_last_change", () => {
   it("returns error when there is no undo history", async () => {
@@ -40,12 +48,11 @@ describe("undo_last_change", () => {
       const { getTool, ctx } = setupIntegrationTest(cwd);
       const editTool = getTool("replace");
       const undo = getTool("undo_last_change");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await servedAnchors(getTool, ctx, "sample.ts");
 
       await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: hashes[1]!, remove_to: hashes[1]!,
           replacement_lines: ["BBB"],
         },
@@ -78,11 +85,11 @@ describe("undo_last_change", () => {
       const { getTool, ctx } = setupIntegrationTest(cwd);
       const editTool = getTool("replace");
       const undo = getTool("undo_last_change");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await servedAnchors(getTool, ctx, "sample.ts");
 
       await editTool.execute(
         "e1",
-        { path: "sample.ts", remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BBB"] },
+        { remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BBB"] },
         undefined,
         undefined,
         ctx,
@@ -105,12 +112,11 @@ describe("undo_last_change", () => {
       const { getTool, ctx } = setupIntegrationTest(cwd);
       const editTool = getTool("replace");
       const undo = getTool("undo_last_change");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await servedAnchors(getTool, ctx, "sample.ts");
 
       await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: hashes[1]!, remove_to: hashes[1]!,
           replacement_lines: ["BBB"],
         },
@@ -136,12 +142,11 @@ describe("undo_last_change", () => {
       const { getTool, ctx } = setupIntegrationTest(cwd);
       const editTool = getTool("replace");
       const undo = getTool("undo_last_change");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await servedAnchors(getTool, ctx, "sample.ts");
 
       await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: hashes[1]!, remove_to: hashes[1]!,
           replacement_lines: ["BBB"],
         },
@@ -149,7 +154,11 @@ describe("undo_last_change", () => {
         undefined,
         ctx,
       );
-
+      const readPost = await getTool("read").execute("srv-post", { path: "sample.ts" }, undefined, undefined, ctx);
+      const postHashes = getText(readPost)
+        .split("\n")
+        .filter((line) => /^[A-Za-z0-9]{4}│/.test(line))
+        .map(extractHash);
       const undoResult = await undo.execute(
         "u1",
         { path: "sample.ts" },
@@ -160,7 +169,6 @@ describe("undo_last_change", () => {
 
       const diff = undoResult.details?.diff as string | undefined;
       expect(diff).toBeDefined();
-      const postHashes = await lineHashes("aaa\nBBB\nccc\n", home.testPath);
       expect(diff).toContain(`-${postHashes[1]}│BBB`);
       expect(diff).toContain(`+${hashes[1]}│bbb`);
       const patch = undoResult.details?.patch as string | undefined;
@@ -177,12 +185,11 @@ describe("undo_last_change", () => {
       const { getTool, ctx } = setupIntegrationTest(cwd);
       const editTool = getTool("replace");
       const undo = getTool("undo_last_change");
-      const hashes = await lineHashes("aaa\nccc\n", home.testPath);
+      const hashes = await servedAnchors(getTool, ctx, "sample.ts");
 
       await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: hashes[1]!, remove_to: hashes[1]!,
           replacement_lines: ["BBB", "B2"],
         },
@@ -210,12 +217,11 @@ describe("undo_last_change", () => {
       const { getTool, ctx } = setupIntegrationTest(cwd);
       const editTool = getTool("replace");
       const undo = getTool("undo_last_change");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await servedAnchors(getTool, ctx, "sample.ts");
 
       await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: hashes[1]!, remove_to: hashes[1]!,
           replacement_lines: [],
         },
@@ -243,12 +249,11 @@ describe("undo_last_change", () => {
       const { getTool, ctx } = setupIntegrationTest(cwd);
       const editTool = getTool("replace");
       const undo = getTool("undo_last_change");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await servedAnchors(getTool, ctx, "sample.ts");
 
       await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: hashes[1]!, remove_to: hashes[2]!,
           replacement_lines: [`XXX`, `YYY`, `ZZZ`],
         },
@@ -276,12 +281,11 @@ describe("undo_last_change", () => {
       const { getTool, ctx } = setupIntegrationTest(cwd);
       const editTool = getTool("replace");
       const undo = getTool("undo_last_change");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await servedAnchors(getTool, ctx, "sample.ts");
 
       await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: hashes[1]!, remove_to: hashes[1]!,
           replacement_lines: ["BBB"],
         },
@@ -310,12 +314,11 @@ describe("undo_last_change", () => {
       const { getTool, ctx } = setupIntegrationTest(cwd);
       const editTool = getTool("replace");
       const undo = getTool("undo_last_change");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await servedAnchors(getTool, ctx, "sample.ts");
 
       await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: hashes[1]!, remove_to: hashes[1]!,
           replacement_lines: ["BBB"],
         },
@@ -344,7 +347,7 @@ describe("undo_last_change", () => {
     await withTempFile("sample.ts", "aaa\nbbb\nccc\n", async ({ cwd }) => {
       const { getTool, ctx } = setupIntegrationTest(cwd);
       const editTool = getTool("replace");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await servedAnchors(getTool, ctx, "sample.ts");
 
       const spy = vi
         .spyOn(hashStoreModule, "upsertUndo")
@@ -356,7 +359,6 @@ describe("undo_last_change", () => {
           editTool.execute(
             "e1",
             {
-              path: "sample.ts",
               remove_from: hashes[1]!, remove_to: hashes[1]!,
               replacement_lines: ["BBB"],
             },
@@ -375,7 +377,6 @@ describe("undo_last_change", () => {
       const retry = await editTool.execute(
         "e2",
         {
-          path: "sample.ts",
           remove_from: hashes[1]!, remove_to: hashes[1]!,
           replacement_lines: ["BBB"],
         },
@@ -391,12 +392,11 @@ describe("undo_last_change", () => {
       const { getTool, ctx } = setupIntegrationTest(cwd);
       const editTool = getTool("replace");
       const undo = getTool("undo_last_change");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await servedAnchors(getTool, ctx, "sample.ts");
 
       const first = await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: hashes[1]!, remove_to: hashes[1]!,
           replacement_lines: ["BBB"],
         },
@@ -414,7 +414,6 @@ describe("undo_last_change", () => {
           editTool.execute(
             "e2",
             {
-              path: "sample.ts",
               remove_from: hashes[2]!, remove_to: hashes[2]!,
               replacement_lines: ["CCC"],
             },
@@ -440,7 +439,7 @@ describe("undo_last_change", () => {
       const { getTool, ctx } = setupIntegrationTest(cwd);
       const editTool = getTool("replace");
       const undo = getTool("undo_last_change");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await servedAnchors(getTool, ctx, "sample.ts");
 
       const spy = vi
         .spyOn(fsWriteModule, "writeAtomic")
@@ -450,7 +449,6 @@ describe("undo_last_change", () => {
           editTool.execute(
             "e1",
             {
-              path: "sample.ts",
               remove_from: hashes[1]!, remove_to: hashes[1]!,
               replacement_lines: ["BBB"],
             },
@@ -473,12 +471,11 @@ describe("undo_last_change", () => {
       const { getTool, ctx } = setupIntegrationTest(cwd);
       const editTool = getTool("replace");
       const undo = getTool("undo_last_change");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await servedAnchors(getTool, ctx, "sample.ts");
 
       const first = await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: hashes[1]!, remove_to: hashes[1]!,
           replacement_lines: ["BBB"],
         },
@@ -502,7 +499,6 @@ describe("undo_last_change", () => {
           editTool.execute(
             "e2",
             {
-              path: "sample.ts",
               remove_from: hashes[2]!, remove_to: hashes[2]!,
               replacement_lines: ["CCC"],
             },
@@ -528,12 +524,11 @@ describe("undo_last_change", () => {
       const { getTool, ctx } = setupIntegrationTest(cwd);
       const editTool = getTool("replace");
       const undo = getTool("undo_last_change");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await servedAnchors(getTool, ctx, "sample.ts");
 
       await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: hashes[1]!, remove_to: hashes[1]!,
           replacement_lines: ["BBB"],
         },
@@ -568,12 +563,11 @@ describe("undo_last_change", () => {
       const { getTool, ctx } = setupIntegrationTest(cwd);
       const editTool = getTool("replace");
       const undo = getTool("undo_last_change");
-      const hashes = await lineHashes("line1\nline2\n", home.testPath);
+      const hashes = await servedAnchors(getTool, ctx, "sample.ts");
 
       await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: hashes[0]!, remove_to: hashes[0]!,
           replacement_lines: ["LINE1"],
         },
@@ -604,11 +598,11 @@ describe("undo_last_change", () => {
       const { getTool, ctx } = setupIntegrationTest(cwd);
       const editTool = getTool("replace");
       const undo = getTool("undo_last_change");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await servedAnchors(getTool, ctx, "sample.ts");
 
       await editTool.execute(
         "e1",
-        { path: "sample.ts", remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BBB"] },
+        { remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BBB"] },
         undefined, undefined, ctx,
       );
 
@@ -642,11 +636,11 @@ describe("undo_last_change", () => {
       const { getTool, ctx } = setupIntegrationTest(cwd);
       const editTool = getTool("replace");
       const undo = getTool("undo_last_change");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await servedAnchors(getTool, ctx, "sample.ts");
 
       await editTool.execute(
         "e1",
-        { path: "sample.ts", remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BBB"] },
+        { remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BBB"] },
         undefined, undefined, ctx,
       );
 
@@ -666,11 +660,11 @@ describe("undo_last_change", () => {
       const { getTool, ctx } = setupIntegrationTest(cwd);
       const editTool = getTool("replace");
       const undo = getTool("undo_last_change");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await servedAnchors(getTool, ctx, "sample.ts");
 
       await editTool.execute(
         "e1",
-        { path: "sample.ts", remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BBB"] },
+        { remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BBB"] },
         undefined, undefined, ctx,
       );
 
@@ -690,11 +684,11 @@ describe("undo_last_change", () => {
       const { getTool, ctx } = setupIntegrationTest(cwd);
       const editTool = getTool("replace");
       const undo = getTool("undo_last_change");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await servedAnchors(getTool, ctx, "sample.ts");
 
       await editTool.execute(
         "e1",
-        { path: "sample.ts", remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BBB"] },
+        { remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BBB"] },
         undefined, undefined, ctx,
       );
 
@@ -732,7 +726,7 @@ describe("undo_last_change", () => {
 
       await editTool.execute(
         "e1",
-        { path: "sample.ts", remove_from: emptyHash, remove_to: emptyHash, replacement_lines: ["first", "second"] },
+        { remove_from: emptyHash, remove_to: emptyHash, replacement_lines: ["first", "second"] },
         undefined, undefined, ctx,
       );
       expect(await readFile(join(cwd, "sample.ts"), "utf-8")).toBe("first\nsecond");
@@ -780,11 +774,11 @@ describe("undo cleared after write", () => {
       register(pi);
       const editTool = tools.get("replace")!;
       const undo = tools.get("undo_last_change")!;
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await servedAnchors((name) => tools.get(name)!, { cwd } as any, "sample.ts");
 
       await editTool.execute(
         "e1",
-        { path: "sample.ts", remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BBB"] },
+        { remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BBB"] },
         undefined, undefined, { cwd } as any,
       );
 
@@ -806,11 +800,11 @@ describe("undo cleared after write", () => {
       register(pi);
       const editTool = tools.get("replace")!;
       const undo = tools.get("undo_last_change")!;
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await servedAnchors((name) => tools.get(name)!, { cwd } as any, "sample.ts");
 
       await editTool.execute(
         "e1",
-        { path: "sample.ts", remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BBB"] },
+        { remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BBB"] },
         undefined, undefined, { cwd } as any,
       );
 
@@ -832,11 +826,11 @@ describe("undo cleared after write", () => {
       const { getTool, ctx } = setupIntegrationTest(cwd);
       const editTool = getTool("replace");
       const undo = getTool("undo_last_change");
-      const hashes = await lineHashes(`a\n${long}\nb\n`, home.testPath);
+      const hashes = await servedAnchors(getTool, ctx, "min.js");
 
       await editTool.execute(
         "e1",
-        { path: "min.js", remove_from: hashes[0]!, remove_to: hashes[0]!, replacement_lines: ["ALPHA"] },
+        { remove_from: hashes[0]!, remove_to: hashes[0]!, replacement_lines: ["ALPHA"] },
         undefined, undefined, ctx,
       );
 

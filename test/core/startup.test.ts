@@ -29,7 +29,7 @@ describe("startup non-blocking prune", () => {
         const { loadHashStore, shutdownHashStore } = await import("../../src/hash-store");
         const store = await loadHashStore();
         for (let i = 0; i < 120; i++) {
-          store.stmts.upsert(`/tmp/nonexistent-${i}-${Date.now()}`, "chk", 1, JSON.stringify(["abc"]), Date.now());
+          store.stmts.upsert(`/tmp/nonexistent-${i}-${Date.now()}`, "chk", 1, JSON.stringify(["abc"]), "", Date.now());
         }
         shutdownHashStore();
         const { pi, handlers } = makeLifecyclePi();
@@ -66,7 +66,7 @@ describe("hash-store incremental vacuum", () => {
         const store = await loadHashStore();
         const hashes = ["ATIm", "BeSR", "DAfo", "Emno", "HDtm", "Ifms", "MEyo", "ORcy"];
         for (let i = 0; i < 100; i++) {
-          store.stmts.upsert(`p${i}`, "chk", 1, JSON.stringify([hashes[i % hashes.length]]), Date.now());
+          store.stmts.upsert(`p${i}`, "chk", 1, JSON.stringify([hashes[i % hashes.length]]), "", Date.now());
         }
         for (let i = 0; i < 80; i++) {
           store.stmts.deleteOne(`p${i}`);

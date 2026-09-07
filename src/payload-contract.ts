@@ -14,22 +14,16 @@ const replacementLinesSchema = Type.Array(
 
 const removeFromSchema = Type.String({
   description:
-    "Bare 4-char anchor from a read row like `Hasu│content` (the leftmost column), never the row content. Marks the FIRST line to remove (inclusive)",
+    "Bare 4-char anchor from a read row (the text before the `│` separator), never the row content. Marks the FIRST line to remove (inclusive)",
 });
 
 const removeToSchema = Type.String({
   description:
-    "Bare 4-char anchor from a read row like `Hasu│content` (the leftmost column), never the row content. Marks the LAST line to remove (inclusive)",
+    "Bare 4-char anchor from a read row (the text before the `│` separator), never the row content. Marks the LAST line to remove (inclusive)",
 });
 
 export const editToolSchema = Type.Object(
   {
-    path: Type.Optional(
-      Type.String({
-        description:
-          "Path to edit; always provide it explicitly — it is only auto-resolved from the anchors as a fallback.",
-      }),
-    ),
     remove_from: removeFromSchema,
     remove_to: removeToSchema,
     replacement_lines: replacementLinesSchema,
@@ -38,22 +32,18 @@ export const editToolSchema = Type.Object(
 );
 
 export type ReqParams = {
-  path: string;
   remove_from: string;
   remove_to: string;
   replacement_lines: string[];
 };
 
-const ROOT_KS = new Set(["path", "remove_from", "remove_to", "replacement_lines"]);
+const ROOT_KS = new Set(["remove_from", "remove_to", "replacement_lines"]);
 
 export function assertReq(request: unknown): asserts request is ReqParams {
   if (!isRec(request)) {
     throw new Error("[E_BAD_SHAPE] Edit request must be an object.");
   }
   rejectUnknownFields(request, ROOT_KS, "Edit request");
-  if (typeof request.path !== "string" || request.path.length === 0) {
-    throw new Error('[E_BAD_SHAPE] Edit request requires a non-empty "path" string.');
-  }
   if (
     typeof request.remove_from !== "string" ||
     typeof request.remove_to !== "string" ||

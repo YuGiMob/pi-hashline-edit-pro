@@ -4,7 +4,10 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { loadHashStore, persistSnapshot, upsertUndo, getUndoEntry, deleteUndo, type UndoRecord } from "./hash-store";
-import { recordServed, buildServedMap, servedHashesFromDiff } from "./served";
+import { servedHashesFromDiff, buildServedMap } from "./served";
+import { contentChecksum } from "./hashline/hasher";
+import { hashSource } from "./hashline";
+import { markServed as markServedScoped, freeAnchors, adoptAnchors } from "./anchor-registry";
 import { resolveInCwd, writeAtomic, type FileIdentity } from "./fs-write";
 import { toLF, stripBOM, restoreEndings, type LineEnding } from "./normalize";
 import { genDiff, genPatch } from "./replace-diff";
@@ -180,11 +183,18 @@ export function regUndo(pi: ExtensionAPI): void {
 
         try {
           const store = await loadHashStore();
-          persistSnapshot(store, mutationTargetPath, undo.content, undo.hashes);
-          const diffHashes = servedHashesFromDiff(undoDiff);
           const undoLines = splitLines(undo.content);
-          const servedMap = buildServedMap(undo.hashes, undoLines, diffHashes);
-          recordServed(store, mutationTargetPath, servedMap, new Set(undo.hashes));
+          persistSnapshot(store, mutationTargetPath, undo.content, undo.hashes);
+          freeAnchors(mutationTargetPath);
+          adoptAnchors(
+            mutationTargetPath,
+            new Map(undoLines.map((line, i) => [undo.hashes[i]!, contentChecksum(hashSource(line))])),
+          );
+          markServedScoped(
+            mutationTargetPath,
+            buildServedMap(undo.hashes, undoLines, servedHashesFromDiff(undoDiff)),
+            new Set(undo.hashes),
+          );
         } catch (error) {
           console.error("Failed to restore hash store snapshot after undo:", error);
         }

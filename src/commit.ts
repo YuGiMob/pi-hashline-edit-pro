@@ -6,11 +6,14 @@ import { buildChanged, buildNoop, type RMeta, type TResult } from "./replace-res
 import { saveUndo } from "./replace-undo";
 import { safeSnapId } from "./file-reader";
 import { writeAtomic } from "./fs-write";
-import { recordServedSafe, buildServedMap, servedHashesFromDiff } from "./served";
+import { servedHashesFromDiff, buildServedMap } from "./served";
+import { lineHashes } from "./hashline";
+import { hashSpan } from "./replace";
 import { restoreEndings } from "./normalize";
 import { splitLines } from "./utils";
-
+import { markServed as markServedScoped } from "./anchor-registry";
 export interface CommitMeta {
+  editAnchors?: [string, string];
   path: string;
   absolutePath: string;
   mutationTargetPath: string;
@@ -102,12 +105,22 @@ export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promis
     removedLines: pipe.totalRemovedLines,
   };
 
+  const span = meta.editAnchors ? hashSpan(pipe.originalHashes, meta.editAnchors[0], meta.editAnchors[1]) : undefined;
+  const resultCount = splitLines(pipe.result).length;
+  const replacementCount = span ? resultCount - (pipe.originalHashes.length - (span[1] - span[0] + 1)) : 0;
+  const resultHashes = pipe.result === pipe.originalNormalized
+    ? pipe.originalHashes
+    : await lineHashes(pipe.result, mutationTargetPath, {
+        content: pipe.originalNormalized,
+        hashes: pipe.originalHashes,
+        spans: span ? [{ start: span[0], end: span[1], replacementCount }] : undefined,
+      });
   const successInput = {
     path,
     originalNormalized: pipe.originalNormalized,
     originalHashes: pipe.originalHashes,
     result: pipe.result,
-    resultHashes: pipe.resultHashes,
+    resultHashes,
     warnings,
     snapshotId: updatedSnapshotId,
     editMeta,
@@ -116,10 +129,11 @@ export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promis
   };
   const changed = buildChanged(successInput, meta.verb);
   if (changed.details.diff) {
-    const diffHashes = servedHashesFromDiff(changed.details.diff);
-    const resultLines = splitLines(pipe.result);
-    const servedMap = buildServedMap(pipe.resultHashes, resultLines, diffHashes);
-    await recordServedSafe(mutationTargetPath, servedMap, "post-edit diff", new Set(pipe.resultHashes));
+    markServedScoped(
+      mutationTargetPath,
+      buildServedMap(resultHashes, splitLines(pipe.result), servedHashesFromDiff(changed.details.diff)),
+      new Set(resultHashes),
+    );
   }
   return changed;
 }

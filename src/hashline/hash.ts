@@ -1,13 +1,9 @@
 import { splitLines, truncateToBytes, getCached } from "../utils";
 import { MAX_HASH_SOURCE_BYTES } from "../constants";
-import {
-  loadHashStore,
-  type HashStore,
-  getSnapshot,
-  persistSnapshot,
-} from "../hash-store";
+import { loadHashStore, type HashStore } from "../hash-store";
+import { allocateFileAnchors } from "../anchor-registry";
 import { xxh32, initHasher } from "./hasher";
-import { HASH_LEN, ANCHOR_COUNT, anchorAt, anchorIndex, HASH_CLASS, HASH_RUN } from "./alphabet";
+import { HASH_LEN, ANCHOR_COUNT, anchorAt, HASH_CLASS, HASH_RUN } from "./alphabet";
 export { initHasher, HASH_LEN, HASH_CLASS, HASH_RUN };
 
 export const ANCHOR_LEN = HASH_LEN;
@@ -17,7 +13,8 @@ export const HASH_SEP = "│";
 export const HASH_SPACE = ANCHOR_COUNT;
 export const MAX_HASH_LINES = HASH_SPACE;
 
-export const HASH_PROBE_STRIDE = 1347;
+export const HASH_PROBE_STRIDE = 836286;
+
 
 function hashAt(idx: number): string {
   return anchorAt(idx);
@@ -117,179 +114,19 @@ export function _lineHashesPure(content: string): string[] {
 export async function lineHashes(
   content: string,
   path?: string,
-  previous?: { content: string; hashes: string[]; removedHashes?: Set<string> },
+  previous?: { content: string; hashes: string[]; spans?: { start: number; end: number; replacementCount: number }[] },
   store?: HashStore,
   persist?: boolean,
+  shadow?: boolean,
 ): Promise<string[]> {
   await initHasher();
   if (!path) {
     return _lineHashesPure(content);
   }
-
-  const hashStore = store ?? await loadHashStore();
-
-  if (previous) {
-    const newHashes = mapStableHashes(
-      previous.content, previous.hashes,
-      content,
-      previous.removedHashes,
-    );
-    if (persist !== false) {
-      try {
-        persistSnapshot(hashStore, path, content, newHashes);
-      } catch (error) {
-        console.error("Failed to persist hash snapshot:", error);
-      }
-    }
-    return newHashes;
-  }
-
-  let cached: string[] | undefined;
-  try {
-    cached = getSnapshot(hashStore, path, content, persist !== false);
-  } catch (error) {
-    console.error("Failed to read hash store snapshot:", error);
-  }
-  if (cached) {
-    return cached;
-  }
-
-  const newHashes = _lineHashesPure(content);
-  if (persist !== false) {
-    try {
-      persistSnapshot(hashStore, path, content, newHashes);
-    } catch (error) {
-      console.error("Failed to persist hash snapshot:", error);
-    }
-  }
-  return newHashes;
+  return allocateFileAnchors(store ?? (await loadHashStore()), path, content, {
+    persist,
+    shadow,
+    previous,
+  });
 }
 
-function hashToIndex(hash: string): number {
-  return anchorIndex(hash);
-}
-
-function nearestNew(
-  candidates: number[],
-  target: number,
-): number {
-  let lo = 0;
-  let hi = candidates.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >>> 1;
-    if (candidates[mid]! < target) lo = mid + 1;
-    else hi = mid;
-  }
-  const left = lo - 1;
-  const right = lo;
-  if (
-    left >= 0 &&
-    (right >= candidates.length ||
-      target - candidates[left]! <= candidates[right]! - target)
-  ) {
-    return left;
-  }
-  return right < candidates.length ? right : -1;
-}
-
-function mapStableHashes(
-  oldContent: string,
-  oldHashes: string[],
-  newContent: string,
-  removedHashes?: Set<string>,
-): string[] {
-  const oldLines = splitLines(oldContent);
-  const newLines = splitLines(newContent);
-  const newHashes = new Array<string>(newLines.length);
-  const used = new Uint32Array(BITSET_WORDS);
-  const hint = { value: 0 };
-  const hashSourceCache = new Map<string, string>();
-  const removed = removedHashes ?? new Set<string>();
-
-  const oldHashIndex = new Map<string, number>();
-  for (let i = 0; i < oldHashes.length; i++) {
-    const hash = oldHashes[i]!;
-    oldHashIndex.set(hash, i);
-    const idx = hashToIndex(hash);
-    if (idx >= 0) setBit(used, idx);
-  }
-
-  const removedIndexes = new Set<number>();
-  for (const hash of removed) {
-    const idx = oldHashIndex.get(hash);
-    if (idx !== undefined) removedIndexes.add(idx);
-  }
-
-  let spanStart = oldLines.length;
-  let spanEnd = -1;
-  for (const idx of removedIndexes) {
-    if (idx < spanStart) spanStart = idx;
-    if (idx > spanEnd) spanEnd = idx;
-  }
-  const spanLen = spanEnd >= spanStart ? spanEnd - spanStart + 1 : 0;
-  const replacementLen = newLines.length - oldLines.length + spanLen;
-  const shiftAfterSpan = spanEnd >= spanStart ? replacementLen - spanLen : 0;
-
-  const survivors: { index: number; hash: string }[] = [];
-  const removedEntries: { index: number; hash: string }[] = [];
-  for (let i = 0; i < oldLines.length; i++) {
-    const entry = { index: i, hash: oldHashes[i]! };
-    if (removedIndexes.has(i)) removedEntries.push(entry);
-    else survivors.push(entry);
-  }
-
-  const newByContent = new Map<string, number[]>();
-  for (let i = 0; i < newLines.length; i++) {
-    const key = getCached(hashSourceCache, newLines[i]!, hashSource);
-    const list = newByContent.get(key);
-    if (list) list.push(i);
-    else newByContent.set(key, [i]);
-  }
-
-  const markUsed = (hash: string): void => {
-    const idx = hashToIndex(hash);
-    if (idx >= 0) {
-      setBit(used, idx);
-      if (idx + HASH_PROBE_STRIDE > hint.value) hint.value = idx + HASH_PROBE_STRIDE;
-    }
-  };
-
-  for (const entry of survivors) {
-    const candidates = newByContent.get(getCached(hashSourceCache, oldLines[entry.index]!, hashSource));
-    if (!candidates || candidates.length === 0) continue;
-    const target = entry.index > spanEnd ? entry.index + shiftAfterSpan : entry.index;
-    const pos = nearestNew(candidates, target);
-    if (pos < 0) continue;
-    const newIdx = candidates.splice(pos, 1)[0]!;
-    newHashes[newIdx] = entry.hash;
-    markUsed(entry.hash);
-  }
-
-  const removedByContent = new Map<string, { hashes: string[]; pos: number }>();
-  for (const entry of removedEntries) {
-    const key = oldLines[entry.index]!;
-    let queue = removedByContent.get(key);
-    if (!queue) {
-      queue = { hashes: [], pos: 0 };
-      removedByContent.set(key, queue);
-    }
-    queue.hashes.push(entry.hash);
-  }
-
-  for (let i = 0; i < newLines.length; i++) {
-    if (newHashes[i]) continue;
-    const queue = removedByContent.get(newLines[i]!);
-    if (!queue || queue.pos >= queue.hashes.length) continue;
-    newHashes[i] = queue.hashes[queue.pos]!;
-    queue.pos += 1;
-  }
-
-  for (let i = 0; i < newLines.length; i++) {
-    if (newHashes[i]) continue;
-    const c = getCached(hashSourceCache, newLines[i]!, hashSource);
-    const baseIdx = (xxh32(c) >>> 14) % HASH_SPACE;
-    newHashes[i] = assignHash(used, baseIdx, hint);
-  }
-
-  return newHashes;
-}

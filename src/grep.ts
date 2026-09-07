@@ -11,9 +11,9 @@ import { MAX_GREP_LINE_BYTES } from "./constants";
 import { toCwd } from "./paths";
 import { loadP, loadGuide } from "./prompts";
 import { normReq } from "./payload-contract";
-import { recordServedSafe, buildServedMap } from "./served";
 import { abortIf, errCode, isRec, makePrepareArguments, rejectUnknownFields, truncateToBytes, visLines } from "./utils";
-
+import { markServed as markServedScoped } from "./anchor-registry";
+import { buildServedMap } from "./served";
 const GREP_KS = new Set(["pattern", "path", "glob", "context", "ignoreCase", "literal", "limit"]);
 
 function cmp(a: string, b: string): number {
@@ -506,7 +506,7 @@ export function regGrep(pi: ExtensionAPI): void {
             const globPath = relative(globRoot, absPath).replace(/\\/g, "/");
             if (!globRegex.test(globPath) && !globRegex.test(displayPath)) continue;
           }
-          const norm = await tryReadNormFile(absPath, ctx.cwd, { maxLines: MAX_HASH_LINES, noPersist: true, signal });
+          const norm = await tryReadNormFile(absPath, ctx.cwd, { maxLines: MAX_HASH_LINES, noPersist: true, allocation: "real", signal });
           if (!norm) continue;
           const hit = makeHitFromIndices(norm, relative(ctx.cwd, absPath).replace(/\\/g, "/"), indices, context, validatedRegex, totalForFile, indices.length);
           const display = displayRowsForHit(hit);
@@ -532,7 +532,7 @@ export function regGrep(pi: ExtensionAPI): void {
           const globPath = relative(globRoot, absPath).replace(/\\/g, "/");
           if (!globRegex.test(globPath) && !globRegex.test(displayPath)) continue;
         }
-        const norm = await tryReadNormFile(absPath, ctx.cwd, { maxLines: MAX_HASH_LINES, noPersist: true, signal });
+        const norm = await tryReadNormFile(absPath, ctx.cwd, { maxLines: MAX_HASH_LINES, noPersist: true, allocation: "real", signal });
         if (!norm) continue;
         const hit = makeHitFromIndices(norm, relative(ctx.cwd, absPath).replace(/\\/g, "/"), indices, context, validatedRegex, totalForFile, Math.min(totalForFile, remaining));
         if (!hit) continue;
@@ -571,8 +571,7 @@ export function regGrep(pi: ExtensionAPI): void {
       }
       hits.sort((a, b) => cmp(a.displayPath, b.displayPath));
       for (const hit of hits) {
-        const servedMap = buildServedMap(hit.fileHashes, hit.fileLines, hit.hashes);
-        await recordServedSafe(hit.path, servedMap, "anchor_grep", new Set(hit.fileHashes));
+        markServedScoped(hit.path, buildServedMap(hit.fileHashes, hit.fileLines, hit.hashes), new Set(hit.fileHashes));
       }
       const blocks = hits
         .map((hit) => `=== ${hit.displayPath} ===\n${hit.rows.join("\n")}`)

@@ -26,7 +26,6 @@ describe("compPreview no-persist guarantee", () => {
 
       const preview = await compPreview(
         {
-          path: "sample.txt",
           remove_from: bHash, remove_to: cHash,
           replacement_lines: ["B"],
         },
@@ -52,7 +51,6 @@ describe("compPreview no-persist guarantee", () => {
 
       await compPreview(
         {
-          path: "sample.txt",
           remove_from: hashes[1]!, remove_to: hashes[2]!,
           replacement_lines: ["X", "Y"],
         },
@@ -75,7 +73,6 @@ describe("compPreview no-persist guarantee", () => {
 
       const preview = await compPreview(
         {
-          path: "sample.txt",
           remove_from: hashes[0]!, remove_to: hashes[2]!,
           replacement_lines: ["x"],
         },
@@ -101,7 +98,6 @@ describe("compPreview no-persist guarantee", () => {
 
       const preview = await compPreview(
         {
-          path: "sample.txt",
           remove_from: hashes[0]!, remove_to: hashes[1]!,
           replacement_lines: ["X"],
         },

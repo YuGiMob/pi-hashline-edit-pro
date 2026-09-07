@@ -1,13 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { readFile } from "fs/promises";
 import { lineHashes } from "../../src/hashline";
-import { loadHashStore } from "../../src/hash-store";
-import { getServed } from "../../src/served";
+import { ownersForPath, initRegistry, resetRegistryForTests } from "../../src/anchor-registry";
 import { resolveTarget } from "../../src/fs-write";
 import { toCwd } from "../../src/paths";
 import { withTempFile, withTempBytes, setupIntegrationTest, useTestHome, getText, extractHash } from "../support/fixtures";
 
-const home = useTestHome();
+useTestHome();
+
+beforeEach(async () => {
+  await initRegistry(undefined);
+});
+
+afterEach(() => {
+  resetRegistryForTests();
+});
 
 describe("replace tool - end-to-end", () => {
   it("reads a file and replaces a single line", async () => {
@@ -21,7 +28,6 @@ describe("replace tool - end-to-end", () => {
       const editResult = await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: betaHash, remove_to: betaHash,
           replacement_lines: ["BBB"],
         },
@@ -50,7 +56,6 @@ describe("replace tool - end-to-end", () => {
       const editResult = await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: bHash, remove_to: cHash,
           replacement_lines: ["B", "C"],
         },
@@ -79,7 +84,6 @@ describe("replace tool - end-to-end", () => {
       const editResult = await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: bHash, remove_to: cHash,
           replacement_lines: [],
         },
@@ -110,7 +114,6 @@ describe("replace tool - end-to-end", () => {
       await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: betaRef, remove_to: betaRef,
           replacement_lines: ["BBB"],
         },
@@ -123,7 +126,6 @@ describe("replace tool - end-to-end", () => {
         editTool.execute(
           "e2",
           {
-            path: "sample.ts",
             remove_from: betaRef, remove_to: betaRef,
             replacement_lines: ["BBB-AGAIN"],
           },
@@ -131,7 +133,7 @@ describe("replace tool - end-to-end", () => {
           undefined,
           ctx,
         ),
-      ).rejects.toThrow(/stale anchor/);
+      ).rejects.toThrow(/E_STALE_ANCHOR.*not owned in this session/);
     });
   });
 
@@ -146,7 +148,6 @@ describe("replace tool - end-to-end", () => {
       await editTool.execute(
         "e1",
         {
-          path: "empty.ts",
           remove_from: emptyHash, remove_to: emptyHash,
           replacement_lines: ["first", "second"],
         },
@@ -173,7 +174,6 @@ describe("replace tool - end-to-end", () => {
       await editTool.execute(
         "e1",
         {
-          path: "crlf.ts",
           remove_from: betaRef, remove_to: betaRef,
           replacement_lines: ["BETA"],
         },
@@ -201,7 +201,6 @@ describe("replace tool - end-to-end", () => {
       await editTool.execute(
         "e1",
         {
-          path: "cr.ts",
           remove_from: betaRef, remove_to: betaRef,
           replacement_lines: ["BETA"],
         },
@@ -248,7 +247,7 @@ describe("replace tool - end-to-end", () => {
             .split("│")[0]!;
           await editTool.execute(
             "e1",
-            { path: c.fileName, remove_from: betaRef, remove_to: betaRef, replacement_lines: [] },
+            { remove_from: betaRef, remove_to: betaRef, replacement_lines: [] },
             undefined,
             undefined,
             ctx,
@@ -268,7 +267,7 @@ describe("replace tool - end-to-end", () => {
             .split("│")[0]!;
           await editTool.execute(
             "e1",
-            { path: c.fileName, remove_from: betaRef, remove_to: betaRef, replacement_lines: ["beta"] },
+            { remove_from: betaRef, remove_to: betaRef, replacement_lines: ["beta"] },
             undefined,
             undefined,
             ctx,
@@ -282,12 +281,11 @@ describe("replace tool - end-to-end", () => {
   it("accepts top-level remove_from/remove_to and replacement_lines", async () => {
     await withTempFile("sample.ts", "aaa\nbbb\nccc\n", async ({ cwd, path }) => {
       const { ctx, editTool } = setupIntegrationTest(cwd);
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await lineHashes("aaa\nbbb\nccc\n", path);
 
       const editResult = await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: hashes[1]!, remove_to: hashes[1]!,
           replacement_lines: ["BBB"],
         },
@@ -312,7 +310,7 @@ describe("replace tool - end-to-end", () => {
 
       const editResult = await editTool.execute(
         "e1",
-        { path: "sample.ts", remove_from: bHash, remove_to: bHash, replacement_lines: ["BBB"] },
+        { remove_from: bHash, remove_to: bHash, replacement_lines: ["BBB"] },
         undefined, undefined, ctx,
       );
 
@@ -336,7 +334,7 @@ describe("replace tool - end-to-end", () => {
 
       const editResult = await editTool.execute(
         "e1",
-        { path: "min.js", remove_from: aHash, remove_to: aHash, replacement_lines: ["ALPHA"] },
+        { remove_from: aHash, remove_to: aHash, replacement_lines: ["ALPHA"] },
         undefined, undefined, ctx,
       );
       const details = editResult.details as { diff?: string; patch?: string; patchTruncated?: boolean };
@@ -346,7 +344,7 @@ describe("replace tool - end-to-end", () => {
       expect(Buffer.byteLength(details.diff!, "utf-8")).toBeLessThan(5 * 1024);
       const markerRow = details.diff!.split("\n").find((l) => l.includes("│[Row is"))!;
       expect(markerRow).toMatch(/^ [A-Za-z0-9]{4}│\[Row is/);
-      const served = getServed(await loadHashStore(), await resolveTarget(toCwd("min.js", cwd)));
+      const served = ownersForPath(await resolveTarget(toCwd("min.js", cwd)));
       expect(served?.has(markerRow.match(/^ ([A-Za-z0-9]{4})│/)![1]!)).toBe(true);
       expect(details.patchTruncated).toBe(true);
       expect(details.patch).toBeDefined();
@@ -366,7 +364,7 @@ describe("replace tool - end-to-end", () => {
       const markerHash = markerRow.split("│")[0]!;
       const editResult = await editTool.execute(
         "e1",
-        { path: "min.js", remove_from: markerHash, remove_to: markerHash, replacement_lines: ["REPLACED"] },
+        { remove_from: markerHash, remove_to: markerHash, replacement_lines: ["REPLACED"] },
         undefined, undefined, ctx,
       );
       expect(editResult.content[0].text).toContain("Successfully replaced");

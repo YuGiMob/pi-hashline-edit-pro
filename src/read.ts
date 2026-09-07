@@ -14,11 +14,11 @@ import { readNormFile, safeSnapId } from "./file-reader";
 import { lineHashes, fmtRegion, fmtRow, HASH_SEP, MAX_HASH_LINES } from "./hashline";
 import { toCwd } from "./paths";
 import { abortIf, makePrepareArguments, numberedRead, visLines, splitLines } from "./utils";
-import { recordServedSafe, buildServedMap } from "./served";
 import { loadP, loadGuide } from "./prompts";
 import { valAccess } from "./validation";
+import { markServed as markServedScoped } from "./anchor-registry";
+import { buildServedMap } from "./served";
 import { Text } from "@earendil-works/pi-tui";
-
 const R_DESC = loadP("../prompts/read.md");
 
 const R_SNIPPET = loadP("../prompts/read-snippet.md");
@@ -227,6 +227,7 @@ export function regRead(pi: ExtensionAPI): void {
       const { normalized, fileHashes, hadUtf8DecodeErrors, absolutePath: resolvedPath } = await readNormFile(
         rawPath, ctx.cwd, { signal, preloadedFile: file, maxLines: MAX_HASH_LINES },
       );
+			const fileLines = splitLines(normalized);
 			const preview = await fmtReadPreview(
 				normalized,
 				{
@@ -236,9 +237,7 @@ export function regRead(pi: ExtensionAPI): void {
 				fileHashes,
 				resolvedPath,
 			);
-			const fileLines = splitLines(normalized);
-			const servedMap = buildServedMap(fileHashes, fileLines, preview.servedHashes);
-			await recordServedSafe(resolvedPath, servedMap, "read", new Set(fileHashes));
+			markServedScoped(resolvedPath, buildServedMap(fileHashes, fileLines, preview.servedHashes), new Set(fileHashes));
 			const snapshotId = await safeSnapId(absolutePath, "read");
 			const previewText =
 				hadUtf8DecodeErrors

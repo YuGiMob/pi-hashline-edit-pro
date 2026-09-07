@@ -11,7 +11,6 @@ describe("normReq", () => {
 
 	it("returns object input unchanged when no normalization needed", () => {
 		const input = {
-			path: "src/main.ts",
 			remove_from: "ATIm", remove_to: "ATIm",
 			replacement_lines: ["new"],
 		};
@@ -43,7 +42,7 @@ describe("normReq", () => {
 	});
 
 	it("preserves other fields", () => {
-		const input = { path: "test.txt", remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"], custom: "value" };
+		const input = { remove_from: "ATIm", remove_to: "BeSR", replacement_lines: ["new"], custom: "value" };
 		const result = normReq(input) as Record<string, unknown>;
 		expect(result.custom).toBe("value");
 	});
@@ -65,7 +64,6 @@ describe("normReq", () => {
 describe("normReq - top-level shape", () => {
 	it("keeps remove_from/remove_to and replacement_lines at top level", () => {
 		const input = {
-			path: "test.txt",
 			remove_from: "ATIm", remove_to: "BeSR",
 			replacement_lines: ["new line"],
 		};
@@ -101,7 +99,6 @@ describe("normReq - top-level shape", () => {
 
 	it("does not mutate the original flat-format input", () => {
 		const input = {
-			path: "test.txt",
 			remove_from: "ATIm", remove_to: "BeSR",
 			replacement_lines: ["new"],
 		};

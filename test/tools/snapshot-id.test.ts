@@ -19,7 +19,6 @@ describe("snapshotId surface (details-only after W2)", () => {
       const result = await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: betaRef, remove_to: betaRef, replacement_lines: ["BETA"],
         },
         undefined,
@@ -52,7 +51,6 @@ describe("snapshotId surface (details-only after W2)", () => {
         editTool.execute(
           "e1",
           {
-            path: "sample.ts",
             remove_from: alphaRef, remove_to: gammaRef, replacement_lines: ["alpha", "x", "gamma"],
           },
           undefined,
@@ -78,7 +76,6 @@ describe("snapshotId surface (details-only after W2)", () => {
       const result = await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: betaRef, remove_to: betaRef, replacement_lines: ["BETA"],
         },
         undefined,
@@ -103,7 +100,6 @@ describe("snapshotId surface (details-only after W2)", () => {
       await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: betaRef, remove_to: betaRef, replacement_lines: ["BETA"],
         },
         undefined,
@@ -115,14 +111,13 @@ describe("snapshotId surface (details-only after W2)", () => {
         editTool.execute(
           "e2",
           {
-            path: "sample.ts",
             remove_from: betaRef, remove_to: betaRef, replacement_lines: ["BETA-AGAIN"],
           },
           undefined,
           undefined,
           ctx,
         ),
-      ).rejects.toThrow(/stale anchor/);
+      ).rejects.toThrow(/E_STALE_ANCHOR.*not owned in this session/);
     });
   });
 });

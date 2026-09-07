@@ -1,16 +1,17 @@
+import { join } from "path";
 import { describe, expect, it } from "vitest";
 import { readFile } from "fs/promises";
 import { lineHashes } from "../../src/hashline";
 import { compPreview, editToolSchema, regReplace } from "../../src/replace";
 import { makeFakePiRegistry, withTempFile, useTestHome } from "../support/fixtures";
-const home = useTestHome();
+useTestHome();
 
 describe("editToolSchema", () => {
-  it("has path, remove_from, remove_to, and replacement_lines at top level", () => {
+  it("has remove_from, remove_to, and replacement_lines at top level", () => {
     const schema = editToolSchema as any;
     expect(schema.type).toBe("object");
     const props = schema.properties;
-    expect(props.path).toBeDefined();
+    expect(props.path).toBeUndefined();
     expect(props.remove_from).toBeDefined();
     expect(props.remove_to).toBeDefined();
     expect(props.replacement_lines).toBeDefined();
@@ -29,25 +30,11 @@ describe("regReplace", () => {
     expect(tool.parameters).toBe(editToolSchema);
   });
 
-  it("prepareArguments normalizes file_path to path", () => {
-    const { pi, getTool } = makeFakePiRegistry();
-    regReplace(pi);
-    const tool = getTool("replace");
-    const result = tool.prepareArguments({
-      file_path: "test.txt",
-      remove_from: "ATIm", remove_to: "BeSR",
-      replacement_lines: ["new"],
-    });
-    expect(result.path).toBe("test.txt");
-    expect(result.file_path).toBeUndefined();
-  });
-
   it("prepareArguments normalizes replace_from/replace_to to remove_from/remove_to", () => {
     const { pi, getTool } = makeFakePiRegistry();
     regReplace(pi);
     const tool = getTool("replace");
     const result = tool.prepareArguments({
-      path: "test.txt",
       replace_from: "ATIm", replace_to: "BeSR",
       replacement_lines: ["new"],
     });
@@ -64,12 +51,11 @@ describe("regReplace", () => {
       const { pi, getTool } = makeFakePiRegistry();
       regReplace(pi);
       const tool = getTool("replace");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await lineHashes("aaa\nbbb\nccc\n", join(cwd, "sample.txt"));
 
       const result = await tool.execute(
         "e1",
         {
-          path: "sample.txt",
           remove_from: hashes[1]!, remove_to: hashes[1]!,
           replacement_lines: ["BeSR"],
         },
@@ -88,12 +74,11 @@ describe("regReplace", () => {
       const { pi, getTool } = makeFakePiRegistry();
       regReplace(pi);
       const tool = getTool("replace");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await lineHashes("aaa\nbbb\nccc\n", join(cwd, "sample.txt"));
 
       const result = await tool.execute(
         "e1",
         {
-          path: "sample.txt",
           replace_from: hashes[1]!, replace_to: hashes[1]!,
           replacement_lines: ["BeSR"],
         },
@@ -112,12 +97,11 @@ describe("regReplace", () => {
       const { pi, getTool } = makeFakePiRegistry();
       regReplace(pi);
       const tool = getTool("replace");
-      const hashes = await lineHashes("aaa\nbbb\nccc\nddd\n", home.testPath);
+      const hashes = await lineHashes("aaa\nbbb\nccc\nddd\n", join(cwd, "sample.txt"));
 
       const result = await tool.execute(
         "e1",
         {
-          path: "sample.txt",
           remove_from: hashes[1]!, remove_to: hashes[2]!,
           replacement_lines: ["BeSR", "DAfo"],
         },
@@ -136,12 +120,11 @@ describe("regReplace", () => {
       const { pi, getTool } = makeFakePiRegistry();
       regReplace(pi);
       const tool = getTool("replace");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await lineHashes("aaa\nbbb\nccc\n", join(cwd, "sample.txt"));
 
       const result = await tool.execute(
         "e1",
         {
-          path: "sample.txt",
           remove_from: hashes[1]!, remove_to: hashes[1]!,
           replacement_lines: [],
         },
@@ -160,12 +143,11 @@ describe("regReplace", () => {
       const { pi, getTool } = makeFakePiRegistry();
       regReplace(pi);
       const tool = getTool("replace");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await lineHashes("aaa\nbbb\nccc\n", join(cwd, "sample.txt"));
 
       const result = await tool.execute(
         "e1",
         {
-          path: "sample.txt",
           remove_from: hashes[1]!, remove_to: hashes[1]!,
           replacement_lines: ["bbb"],
         },
@@ -189,7 +171,6 @@ describe("regReplace", () => {
         tool.execute(
           "e1",
           {
-            path: "sample.txt",
             remove_from: "PyBY", remove_to: "PyBY",
             replacement_lines: ["x"],
           },
@@ -206,13 +187,12 @@ describe("regReplace", () => {
       const { pi, getTool } = makeFakePiRegistry();
       regReplace(pi);
       const tool = getTool("replace");
-      const hashes = await lineHashes("aaa\nbbb\n", home.testPath);
+      const hashes = await lineHashes("aaa\nbbb\n", join(cwd, "sample.txt"));
 
       await expect(
         tool.execute(
           "e1",
           {
-            path: "sample.txt",
             remove_from: hashes[0]!, remove_to: hashes[1]!,
             replacement_lines: [],
           },
@@ -229,13 +209,12 @@ describe("regReplace", () => {
       const { pi, getTool } = makeFakePiRegistry();
       regReplace(pi);
       const tool = getTool("replace");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await lineHashes("aaa\nbbb\nccc\n", join(cwd, "sample.txt"));
 
       await expect(
         tool.execute(
           "e1",
           {
-            path: "sample.txt",
             remove_from: hashes[1]!, remove_to: hashes[1]!,
             replacement_lines: ["BeSR"],
             unknown_field: "bad",
@@ -253,12 +232,11 @@ describe("regReplace", () => {
       const { pi, getTool } = makeFakePiRegistry();
       regReplace(pi);
       const tool = getTool("replace");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await lineHashes("aaa\nbbb\nccc\n", join(cwd, "sample.txt"));
 
       const result = await tool.execute(
         "e1",
         {
-          path: "sample.txt",
           remove_from: hashes[1]!, remove_to: hashes[1]!,
           replacement_lines: ["BeSR"],
         },
@@ -277,12 +255,11 @@ describe("regReplace", () => {
       const { pi, getTool } = makeFakePiRegistry();
       regReplace(pi);
       const tool = getTool("replace");
-      const hashes = await lineHashes("alpha\nbeta\ngamma\n", home.testPath);
+      const hashes = await lineHashes("alpha\nbeta\ngamma\n", path);
 
       await tool.execute(
         "e1",
         {
-          path: "crlf.txt",
           remove_from: hashes[1]!, remove_to: hashes[1]!,
           replacement_lines: ["BETA"],
         },
@@ -301,12 +278,11 @@ describe("regReplace", () => {
       const { pi, getTool } = makeFakePiRegistry();
       regReplace(pi);
       const tool = getTool("replace");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", home.testPath);
+      const hashes = await lineHashes("aaa\nbbb\nccc\n", path);
 
       const result = await tool.execute(
         "e1",
         {
-          path: "sample.txt",
           remove_from: hashes[1]!, remove_to: hashes[1]!,
           replacement_lines: ['["B1", "B2"]'],
         },
@@ -321,7 +297,7 @@ describe("regReplace", () => {
     });
   });
 
-  it("rejects a missing path with unresolvable anchors", async () => {
+  it("rejects unresolvable anchors before any file I/O", async () => {
     const { pi, getTool } = makeFakePiRegistry();
     regReplace(pi);
     const tool = getTool("replace");
@@ -329,12 +305,23 @@ describe("regReplace", () => {
       "e1",
       { remove_from: "!!!!", remove_to: "!!!!", replacement_lines: ["x"] },
       undefined, undefined, { cwd: "/tmp" } as any,
-    )).rejects.toThrow(/requires a non-empty "path"/);
+    )).rejects.toThrow(/\[E_BAD_REF\]/);
+  });
+
+  it("rejects a passed path", async () => {
+    const { pi, getTool } = makeFakePiRegistry();
+    regReplace(pi);
+    const tool = getTool("replace");
+    await expect(tool.execute(
+      "e1",
+      { path: "sample.ts", remove_from: "PyBY", remove_to: "PyBY", replacement_lines: ["x"] } as any,
+      undefined, undefined, { cwd: "/tmp" } as any,
+    )).rejects.toThrow(/E_BAD_SHAPE/);
   });
 
   it("rethrows aborts from preview computation", async () => {
     const controller = new AbortController();
     controller.abort();
-    await expect(compPreview({ path: "x", remove_from: "!!!!", remove_to: "!!!!", replacement_lines: ["x"] }, "/tmp", controller.signal)).rejects.toThrow();
+    await expect(compPreview({ remove_from: "!!!!", remove_to: "!!!!", replacement_lines: ["x"] }, "/tmp", controller.signal)).rejects.toThrow();
   });
 });

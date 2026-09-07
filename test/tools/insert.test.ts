@@ -15,12 +15,12 @@ describe("insert tool", () => {
     expect(tool.name).toBe("insert");
   });
 
-  it("declares path, anchor, direction, and lines in the schema", () => {
+  it("declares anchor, direction, and lines in the schema", () => {
     const { pi, getTool } = makeFakePiRegistry();
     register(pi);
     const schema = getTool("insert").parameters as any;
     expect(schema.type).toBe("object");
-    expect(schema.properties.path).toBeDefined();
+    expect(schema.properties.path).toBeUndefined();
     expect(schema.properties.anchor).toBeDefined();
     expect(schema.properties.direction).toBeDefined();
     expect(schema.properties.lines).toBeDefined();
@@ -37,7 +37,7 @@ describe("insert tool", () => {
 
       const result = await insertTool.execute(
         "i1",
-        { path: "sample.ts", anchor: betaHash, direction: "after", lines: ["beta1", "beta2"] },
+        { anchor: betaHash, direction: "after", lines: ["beta1", "beta2"] },
         undefined, undefined, ctx,
       );
       expect(result.content[0].text).toContain("Successfully inserted in sample.ts");
@@ -55,7 +55,7 @@ describe("insert tool", () => {
 
       await insertTool.execute(
         "i1",
-        { path: "sample.ts", anchor: betaHash, direction: "before", lines: ["zero"] },
+        { anchor: betaHash, direction: "before", lines: ["zero"] },
         undefined, undefined, ctx,
       );
       expect(await readFile(path, "utf-8")).toBe("alpha\nzero\nbeta\ngamma\n");
@@ -71,7 +71,7 @@ describe("insert tool", () => {
 
       await insertTool.execute(
         "i1",
-        { path: "sample.ts", anchor: alphaHash, direction: "before", lines: ["head"] },
+        { anchor: alphaHash, direction: "before", lines: ["head"] },
         undefined, undefined, ctx,
       );
       expect(await readFile(path, "utf-8")).toBe("head\nalpha\nbeta\n");
@@ -87,7 +87,7 @@ describe("insert tool", () => {
 
       await insertTool.execute(
         "i1",
-        { path: "sample.ts", anchor: betaHash, direction: "after", lines: ["gamma"] },
+        { anchor: betaHash, direction: "after", lines: ["gamma"] },
         undefined, undefined, ctx,
       );
       expect(await readFile(path, "utf-8")).toBe("alpha\nbeta\ngamma");
@@ -104,7 +104,7 @@ describe("insert tool", () => {
 
       await insertTool.execute(
         "i1",
-        { path: "empty.ts", anchor: emptyHash, direction: "after", lines: ["first", "second"] },
+        { anchor: emptyHash, direction: "after", lines: ["first", "second"] },
         undefined, undefined, ctx,
       );
       expect(await readFile(path, "utf-8")).toBe("first\nsecond");
@@ -120,7 +120,7 @@ describe("insert tool", () => {
 
       const result = await insertTool.execute(
         "i1",
-        { path: "sample.ts", anchor: aHash, direction: "after", lines: ["b"] },
+        { anchor: aHash, direction: "after", lines: ["b"] },
         undefined, undefined, ctx,
       );
       expect(result.content[0].text).toContain("Successfully inserted");
@@ -137,7 +137,7 @@ describe("insert tool", () => {
 
       const result = await insertTool.execute(
         "i1",
-        { path: "sample.ts", anchor: alphaHash, direction: "after", lines: [] },
+        { anchor: alphaHash, direction: "after", lines: [] },
         undefined, undefined, ctx,
       );
       expect(result.details.classification).toBe("noop");
@@ -152,7 +152,7 @@ describe("insert tool", () => {
       await expect(
         insertTool.execute(
           "i1",
-          { path: "sample.ts", anchor: "PyBY", direction: "after", lines: ["x"] },
+          { anchor: "PyBY", direction: "after", lines: ["x"] },
           undefined, undefined, ctx,
         ),
       ).rejects.toThrow(/E_STALE_ANCHOR/);
@@ -169,7 +169,7 @@ describe("insert tool", () => {
       await expect(
         insertTool.execute(
           "i",
-          { path: "sample.ts", anchor: hashes[2]!, direction: "after", lines: ["x"] },
+          { anchor: hashes[2]!, direction: "after", lines: ["x"] },
           undefined, undefined, ctx,
         ),
       ).rejects.toThrow(/E_RANGE_STALE/);
@@ -186,7 +186,7 @@ describe("insert tool", () => {
       await expect(
         insertTool.execute(
           "i1",
-          { path: "sample.ts", anchor: alphaHash, direction: "sideways", lines: ["x"] },
+          { anchor: alphaHash, direction: "sideways", lines: ["x"] },
           undefined, undefined, ctx,
         ),
       ).rejects.toThrow(/E_BAD_SHAPE/);
@@ -203,7 +203,7 @@ describe("insert tool", () => {
       await expect(
         insertTool.execute(
           "i1",
-          { path: "sample.ts", anchor: alphaHash, direction: "after" } as any,
+          { anchor: alphaHash, direction: "after" } as any,
           undefined, undefined, ctx,
         ),
       ).rejects.toThrow(/E_BAD_SHAPE/);
@@ -219,26 +219,10 @@ describe("insert tool", () => {
 
       await insertTool.execute(
         "i1",
-        { path: "crlf.ts", anchor: alphaHash, direction: "after", lines: ["mid"] },
+        { anchor: alphaHash, direction: "after", lines: ["mid"] },
         undefined, undefined, ctx,
       );
       expect(await readFile(path, "utf-8")).toBe("alpha\r\nmid\r\nbeta\r\n");
-    });
-  });
-
-  it("supports the file_path alias", async () => {
-    await withTempFile("sample.ts", "alpha\nbeta\n", async ({ cwd, path }) => {
-      const { ctx, readTool, getTool } = setupIntegrationTest(cwd);
-      const insertTool = getTool("insert");
-      const readResult = await readTool.execute("r1", { path: "sample.ts" }, undefined, undefined, ctx);
-      const alphaHash = extractHash(getText(readResult).split("\n").find((l) => l.includes("│alpha"))!);
-
-      await insertTool.execute(
-        "i1",
-        { file_path: "sample.ts", anchor: alphaHash, direction: "after", lines: ["mid"] },
-        undefined, undefined, ctx,
-      );
-      expect(await readFile(path, "utf-8")).toBe("alpha\nmid\nbeta\n");
     });
   });
 
@@ -253,7 +237,7 @@ describe("insert tool", () => {
 
       await insertTool.execute(
         "i1",
-        { path: "sample.ts", anchor: alphaHash, direction: "after", lines: ["mid"] },
+        { anchor: alphaHash, direction: "after", lines: ["mid"] },
         undefined, undefined, ctx,
       );
       expect(await readFile(path, "utf-8")).toBe("alpha\nmid\nbeta\ngamma\n");
@@ -261,7 +245,7 @@ describe("insert tool", () => {
       const editTool = getTool("replace");
       await editTool.execute(
         "e1",
-        { path: "sample.ts", remove_from: gammaHash, remove_to: gammaHash, replacement_lines: ["GAMMA"] },
+        { remove_from: gammaHash, remove_to: gammaHash, replacement_lines: ["GAMMA"] },
         undefined, undefined, ctx,
       );
       expect(await readFile(path, "utf-8")).toBe("alpha\nmid\nbeta\nGAMMA\n");
@@ -278,7 +262,7 @@ describe("insert tool", () => {
 
       await insertTool.execute(
         "i1",
-        { path: "sample.ts", anchor: betaHash, direction: "after", lines: ["B1", "B2"] },
+        { anchor: betaHash, direction: "after", lines: ["B1", "B2"] },
         undefined, undefined, ctx,
       );
       expect(await readFile(path, "utf-8")).toBe("alpha\nbeta\nB1\nB2\ngamma\n");
@@ -297,7 +281,6 @@ describe("insert tool", () => {
       const hashes = await lineHashes("aaa\nbbb\nccc\n", `${cwd}/sample.ts`);
       await readTool.execute("r1", { path: "sample.ts" }, undefined, undefined, ctx);
       const payload = {
-        path: "sample.ts",
         remove_from: hashes[1]!,
         remove_to: hashes[1]!,
         replacement_lines: ["bbb", "ccc"],
@@ -308,7 +291,7 @@ describe("insert tool", () => {
 
       await insertTool.execute(
         "i1",
-        { path: "sample.ts", anchor: hashes[0]!, direction: "after", lines: ["AAA2"] },
+        { anchor: hashes[0]!, direction: "after", lines: ["AAA2"] },
         undefined, undefined, ctx,
       );
       expect(await readFile(path, "utf-8")).toBe("aaa\nAAA2\nbbb\nccc\n");
@@ -329,7 +312,7 @@ describe("insert tool", () => {
 
       const result = await insertTool.execute(
         "i1",
-        { path: "sample.ts", anchor: betaHash, direction: "after", lines: ['["beta1", "beta2"]'] },
+        { anchor: betaHash, direction: "after", lines: ['["beta1", "beta2"]'] },
         undefined, undefined, ctx,
       );
       expect(result.content[0].text).toContain("Successfully inserted in sample.ts");
@@ -343,7 +326,7 @@ describe("insert tool", () => {
       const { ctx, readTool } = setupIntegrationTest(cwd);
       const readResult = await readTool.execute("r1", { path: "sample.ts" }, undefined, undefined, ctx);
       const betaHash = extractHash(getText(readResult).split("\n").find((l) => l.includes("beta"))!);
-      const preview = await insertPreview({ path: "sample.ts", anchor: betaHash, direction: "after", lines: ['["beta1", "beta2"]'] }, cwd);
+      const preview = await insertPreview({ anchor: betaHash, direction: "after", lines: ['["beta1", "beta2"]'] }, cwd);
       expect(preview).toHaveProperty("diff");
       expect((preview as { diff: string }).diff).toContain("beta1");
     });
@@ -351,7 +334,7 @@ describe("insert tool", () => {
 
   it("returns an error preview for an unknown anchor", async () => {
     await withTempFile("sample.ts", "alpha\nbeta\ngamma\n", async ({ cwd }) => {
-      const preview = await insertPreview({ path: "sample.ts", anchor: "!!!!", direction: "after", lines: ["x"] }, cwd);
+      const preview = await insertPreview({ anchor: "!!!!", direction: "after", lines: ["x"] }, cwd);
       expect(preview).toHaveProperty("error");
     });
   });
@@ -363,7 +346,7 @@ describe("insert tool rendering", () => {
       const { ctx, readTool } = setupIntegrationTest(cwd);
       const readResult = await readTool.execute("r1", { path: "sample.ts" }, undefined, undefined, ctx);
       const betaHash = extractHash(getText(readResult).split("\n").find((l) => l.includes("│beta"))!);
-      const preview = await insertPreview({ path: "sample.ts", anchor: betaHash, direction: "after", lines: ["BETA1"] }, cwd);
+      const preview = await insertPreview({ anchor: betaHash, direction: "after", lines: ["BETA1"] }, cwd);
       expect(preview).toHaveProperty("diff");
       expect((preview as { diff: string }).diff).toContain("BETA1");
     });
@@ -412,7 +395,7 @@ describe("insert tool rendering", () => {
         state,
       };
       tool.renderCall!(
-        { path: "sample.ts", anchor: betaHash, direction: "after", lines: ["BETA1"] },
+        { anchor: betaHash, direction: "after", lines: ["BETA1"] },
         theme as any,
         context as any,
       );

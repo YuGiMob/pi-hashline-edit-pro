@@ -20,6 +20,7 @@ export type RRState = {
 	previewGeneration?: number;
 	previewTimer?: ReturnType<typeof setTimeout>;
 	previewAbort?: AbortController;
+	resolvedPath?: string;
 };
 
 type DiffRowKind = "added" | "removed" | "context";
@@ -73,7 +74,7 @@ export function fmtCall(
   toolName = "replace",
 ): string {
   const previewPath = state.preview && "path" in state.preview ? state.preview.path : undefined;
-  const path = args?.path ?? previewPath;
+  const path = args?.path ?? state.resolvedPath ?? previewPath;
   const anchorFallback = typeof args?.remove_from === "string" && typeof args?.remove_to === "string" ? `${args.remove_from}→${args.remove_to}` : typeof args?.anchor === "string" ? args.anchor : undefined;
   const pathDisplay =
     typeof path === "string" && path.length > 0
@@ -239,12 +240,20 @@ export function reuseMarkdown(context: any, content: string, theme: any): Markdo
 
 export function makeRenderCall(
 	preview: (args: unknown, cwd: string, signal?: AbortSignal) => Promise<RPreview>,
-  options: { getInput?: (args: unknown) => { path?: string; remove_from?: string; remove_to?: string; anchor?: string } | null; toolName?: string } = {},
+  options: {
+    getInput?: (args: unknown) => { path?: string; remove_from?: string; remove_to?: string; anchor?: string } | null;
+    toolName?: string;
+    resolveTarget?: (input: { remove_from?: string; remove_to?: string; anchor?: string }) => string | undefined;
+  } = {},
 ) {
 	const getInput = options.getInput ?? getPreviewInput;
 	const toolName = options.toolName ?? "replace";
 	return (args: any, theme: CallT, context: any): Text => {
 		const previewInput = getInput(args);
+		if (!context.executionStarted && previewInput) {
+			const resolved = options.resolveTarget?.(previewInput);
+			context.state.resolvedPath = resolved;
+		}
 		const cancelPendingPreview = () => {
 			if (context.state.previewTimer) {
 				clearTimeout(context.state.previewTimer);

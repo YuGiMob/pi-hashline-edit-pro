@@ -14,8 +14,9 @@ import {
   toggleAutoRead,
   toggleAnchorGrep,
 } from "./src/config";
-import { loadHashStore, pruneMissing } from "./src/hash-store";
-import { recordServedSafe, clearServed, buildServedMap } from "./src/served";
+import { loadHashStore, persistSnapshot, pruneMissing } from "./src/hash-store";
+import { initRegistry, gcRegistrySidecars, clearRegistry, freeAnchors, markServed as markServedScoped } from "./src/anchor-registry";
+import { buildServedMap } from "./src/served";
 import { clearBoundaryBypass } from "./src/boundary-bypass";
 import { registerWriteHook } from "./src/write-hook";
 import { readNormFile } from "./src/file-reader";
@@ -42,14 +43,17 @@ export default function (pi: ExtensionAPI): void {
     pi.setActiveTools(active.filter((t) => t !== "edit"));
     await initHasher();
     loadHashStore()
-      .then(store =>
-        pruneMissing(store).catch(err => {
-          console.error("Failed to prune hash store:", err);
-        }),
-      )
+      .then(async store => {
+        const missing = await pruneMissing(store);
+        for (const path of missing) freeAnchors(path);
+      })
       .catch(err => {
         console.error("Failed to load hash store:", err);
       });
+    const sessionManager = (ctx as { sessionManager?: { getSessionFile?: () => string | undefined } }).sessionManager;
+    const sessionFile = sessionManager?.getSessionFile?.();
+    await initRegistry(sessionFile);
+    await gcRegistrySidecars();
     const config = await readConfig();
     autoRead = config.autoRead;
     pi.setActiveTools(
@@ -87,6 +91,14 @@ export default function (pi: ExtensionAPI): void {
     },
   });
 
+
+  pi.registerCommand("clear-anchors", {
+    description: "Clear the session's anchor claims (path-free resolution state); anchors are re-claimed on the next read",
+    handler: async (_args, ctx) => {
+      clearRegistry();
+      ctx.ui.notify(`Anchor claims cleared for this session`, "info");
+    },
+  });
   pi.on("tool_result", async (event, ctx) => {
     if (event.isError) return;
 
@@ -96,10 +108,9 @@ export default function (pi: ExtensionAPI): void {
       if (typeof writtenPath === "string") {
         try {
           resolvedPath = (await resolveInCwd(writtenPath, ctx.cwd)).resolved;
+          freeAnchors(resolvedPath);
           await clearUndo(resolvedPath);
           clearBoundaryBypass(resolvedPath);
-          const store = await loadHashStore();
-          clearServed(store, resolvedPath);
         } catch (error) {
           console.error("Failed to clear undo after write:", error);
         }
@@ -123,8 +134,8 @@ export default function (pi: ExtensionAPI): void {
           DEFAULT_MAX_LINES,
         );
         const fileLines = splitLines(normalized);
-        const servedMap = buildServedMap(fileHashes, fileLines, preview.servedHashes);
-        await recordServedSafe(absolutePath, servedMap, "auto-read", new Set(fileHashes));
+        persistSnapshot(await loadHashStore(), absolutePath, normalized, fileHashes);
+        markServedScoped(absolutePath, buildServedMap(fileHashes, fileLines, preview.servedHashes), new Set(fileHashes));
         return {
           content: [
             ...(event.content ?? []),

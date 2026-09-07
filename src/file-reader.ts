@@ -66,6 +66,7 @@ export interface ReadNormOptions {
   maxLines?: number;
   store?: HashStore;
   noPersist?: boolean;
+  allocation?: "real" | "shadow";
 }
 
 export async function readNormFile(
@@ -94,7 +95,7 @@ export async function readNormFile(
 
   if (options?.maxLines !== undefined) assertLineLimit(normalized, path, options.maxLines);
 
-  const fileHashes = await lineHashes(normalized, resolvedPath, undefined, options?.store, options?.noPersist !== true);
+  const fileHashes = await lineHashes(normalized, resolvedPath, undefined, options?.store, options?.noPersist !== true, options?.allocation === "shadow");
   let identity = file.identity;
   if (!identity) {
     const { dev, ino } = await stat(resolvedPath);

@@ -398,7 +398,7 @@ describe("auto-read after write", () => {
         {
           toolName: "replace",
           toolCallId: "replace-1",
-          input: { path: "replace.txt", remove_from: "abc", remove_to: "abc", replacement_lines: ["BETA"] },
+          input: { remove_from: "abc", remove_to: "abc", replacement_lines: ["BETA"] },
           content: [{ type: "text", text: "Successfully replaced in replace.txt. Added 1 line(s), removed 1 line(s)." }],
           details: { diff, metrics: { classification: "applied" } },
           isError: false,

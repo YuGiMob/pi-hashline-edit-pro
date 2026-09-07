@@ -269,9 +269,8 @@ describe("coverage boost hash-store and read", () => {
   it("covers insert validation", async () => {
     const { assertInsertReq } = await import("../../src/insert");
     expect(() => assertInsertReq(null)).toThrow("[E_BAD_SHAPE]");
-    expect(() => assertInsertReq({ path: "", anchor: "abc", direction: "after", lines: [] })).toThrow();
-    expect(() => assertInsertReq({ path: "a", anchor: "", direction: "after", lines: [] })).toThrow();
-    expect(() => assertInsertReq({ path: "a", anchor: "abc", direction: "wrong" as never, lines: [] })).toThrow();
-    expect(() => assertInsertReq({ path: "a", anchor: "abc", direction: "after", lines: "x" as never })).toThrow();
+    expect(() => assertInsertReq({ anchor: "", direction: "after", lines: [] })).toThrow();
+    expect(() => assertInsertReq({ anchor: "abc", direction: "wrong" as never, lines: [] })).toThrow();
+    expect(() => assertInsertReq({ anchor: "abc", direction: "after", lines: "x" as never })).toThrow();
   });
 });

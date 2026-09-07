@@ -23,7 +23,6 @@ describe("chained edits on files with duplicated content", () => {
       const edit1 = await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: refs["a"]!,
           remove_to: refs["c"]!,
           replacement_lines: [],
@@ -37,7 +36,6 @@ describe("chained edits on files with duplicated content", () => {
       const edit2 = await editTool.execute(
         "e2",
         {
-          path: "sample.ts",
           remove_from: refs["d"]!,
           remove_to: refs["e"]!,
           replacement_lines: [],
@@ -66,7 +64,6 @@ describe("chained edits on files with duplicated content", () => {
       const edit1 = await editTool.execute(
         "e1",
         {
-          path: "sample.ts",
           remove_from: refs["a"]!,
           remove_to: refs["c"]!,
           replacement_lines: [],
@@ -82,7 +79,6 @@ describe("chained edits on files with duplicated content", () => {
       const edit2 = await editTool.execute(
         "e2",
         {
-          path: "sample.ts",
           remove_from: contextHash,
           remove_to: contextHash,
           replacement_lines: ["B"],
