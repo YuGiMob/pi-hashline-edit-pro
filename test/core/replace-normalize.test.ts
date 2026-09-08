@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normReq } from "../../src/payload-contract";
+import { assertReq, normReq } from "../../src/payload-contract";
 
 describe("normReq", () => {
 	it("returns non-record input as-is", () => {
@@ -109,5 +109,47 @@ describe("normReq - top-level shape", () => {
 		expect(input.remove_from).toBe(origFrom);
 		expect(input.remove_to).toBe(origTo);
 		expect(input.replacement_lines).toBe(origNc);
+	});
+});
+describe("normReq - lone string line fields", () => {
+	it("splits a replacement_lines string on newlines", () => {
+		const result = normReq({
+			remove_from: "ATIm", remove_to: "BeSR",
+			replacement_lines: "first line\nsecond line",
+		}) as Record<string, unknown>;
+		expect(result.replacement_lines).toEqual(["first line", "second line"]);
+	});
+
+	it("drops a single trailing newline", () => {
+		const result = normReq({
+			remove_from: "ATIm", remove_to: "BeSR",
+			replacement_lines: "first line\nsecond line\n",
+		}) as Record<string, unknown>;
+		expect(result.replacement_lines).toEqual(["first line", "second line"]);
+	});
+
+	it("coerces the insert lines field the same way", () => {
+		const result = normReq({
+			anchor: "ATIm", direction: "after",
+			lines: "one\ntwo",
+		}) as Record<string, unknown>;
+		expect(result.lines).toEqual(["one", "two"]);
+	});
+
+	it("leaves array fields untouched", () => {
+		const input = {
+			remove_from: "ATIm", remove_to: "BeSR",
+			replacement_lines: ["kept"],
+		};
+		const result = normReq(input) as Record<string, unknown>;
+		expect(result.replacement_lines).toEqual(["kept"]);
+	});
+
+	it("assertReq accepts the coerced form", () => {
+		const normalized = normReq({
+			remove_from: "ATIm", remove_to: "BeSR",
+			replacement_lines: "a\nb",
+		});
+		expect(() => assertReq(normalized)).not.toThrow();
 	});
 });

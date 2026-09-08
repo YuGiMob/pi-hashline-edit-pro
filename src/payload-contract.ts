@@ -1,7 +1,7 @@
 import { Type } from "typebox";
-import { isRec, normalizeAnchors, normalizeFilePath, rejectUnknownFields } from "./utils";
+import { isRec, normalizeAnchors, normalizeFilePath, rejectUnknownFields, splitLines } from "./utils";
 
-const replacementLinesSchema = Type.Array(
+const replacementLinesArraySchema = Type.Array(
   Type.String({
     description:
       "One replacement line; never embed \\n inside an element.",
@@ -9,6 +9,20 @@ const replacementLinesSchema = Type.Array(
   {
     description:
       "One string per line. Use [] to delete the range.",
+  },
+);
+
+const replacementLinesSchema = Type.Union(
+  [
+    replacementLinesArraySchema,
+    Type.String({
+      description:
+        "Same lines as a single newline-separated string; it is split on newlines. Prefer the array form.",
+    }),
+  ],
+  {
+    description:
+      'Replacement lines as an array (preferred) or a single newline-separated string. Example: {"remove_from":"Ab12","remove_to":"Cd34","replacement_lines":["first line","second line"]}. Use [] to delete the range.',
   },
 );
 
@@ -21,6 +35,7 @@ const removeToSchema = Type.String({
   description:
     "Bare 4-char anchor from a read row (the text before the `│` separator), never the row content. Marks the LAST line to remove (inclusive)",
 });
+
 const pathRequiredSchema = Type.String({
   description:
     "Path to the file the anchors were served for; required and must match anchor ownership. Anchors still resolve the target.",
@@ -56,6 +71,15 @@ export type ReqParams = {
 };
 
 const ROOT_KS = new Set(["path", "remove_from", "remove_to", "replacement_lines"]);
+
+export function coerceLineFields(record: Record<string, unknown>): void {
+  for (const key of ["replacement_lines", "lines"] as const) {
+    if (typeof record[key] === "string") {
+      record[key] = splitLines(record[key]);
+    }
+  }
+}
+
 export function assertReq(request: unknown): asserts request is ReqParams {
   if (!isRec(request)) {
     throw new Error("[E_BAD_SHAPE] Edit request must be an object.");
@@ -71,7 +95,7 @@ export function assertReq(request: unknown): asserts request is ReqParams {
     request.replacement_lines.some((line) => typeof line !== "string")
   ) {
     throw new Error(
-      '[E_BAD_SHAPE] Edit request requires "remove_from", "remove_to", and "replacement_lines" (array of strings, one per line; use [] to delete).',
+      '[E_BAD_SHAPE] Edit request requires "remove_from", "remove_to", and "replacement_lines" (array of strings, one per line, or a single newline-separated string; use [] to delete).',
     );
   }
 }
@@ -83,6 +107,7 @@ export function normReq(input: unknown): unknown {
   const record: Record<string, unknown> = { ...input };
   normalizeFilePath(record);
   normalizeAnchors(record);
+  coerceLineFields(record);
   return record;
 }
 

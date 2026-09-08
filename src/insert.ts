@@ -51,12 +51,26 @@ const insertDirectionSchema = Type.Union(
   { description: '"after" or "before"' },
 );
 
-const insertLinesSchema = Type.Array(
+const insertLinesArraySchema = Type.Array(
   Type.String({
     description: "One line to insert; never embed \\n inside an element.",
   }),
   {
     description: 'One string per line; [""] is a blank line; never include the anchor line.',
+  }
+);
+
+const insertLinesSchema = Type.Union(
+  [
+    insertLinesArraySchema,
+    Type.String({
+      description:
+        "Same lines as a single newline-separated string; it is split on newlines. Prefer the array form.",
+    }),
+  ],
+  {
+    description:
+      'New lines as an array (preferred) or a single newline-separated string. Example: {"anchor":"Ab12","direction":"after","lines":["first line","second line"]}. [""] is a blank line; never include the anchor line.',
   }
 );
 
