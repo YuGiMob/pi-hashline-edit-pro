@@ -103,3 +103,18 @@ describe("noopPayloadKey canonicalization", () => {
     );
   });
 });
+
+describe("boundary bypass eviction", () => {
+  it("evicts the oldest path beyond the tracker limit", () => {
+    const oldest = "/tmp/boundary-bypass-test/evict-oldest.ts";
+    const oldestPayload = noopPayloadKey(oldest, "BeSR", "BeSR", ["b"]);
+    markBoundaryNoop(oldest, oldestPayload);
+    for (let i = 0; i < 256; i++) {
+      const path = `/tmp/boundary-bypass-test/evict-bulk-${i}.ts`;
+      markBoundaryNoop(path, noopPayloadKey(path, "BeSR", "BeSR", ["b"]));
+    }
+    expect(consumeBoundaryBypass(oldest, oldestPayload)).toBe(false);
+    const newest = "/tmp/boundary-bypass-test/evict-bulk-255.ts";
+    expect(consumeBoundaryBypass(newest, noopPayloadKey(newest, "BeSR", "BeSR", ["b"]))).toBe(true);
+  });
+});

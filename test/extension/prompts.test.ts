@@ -2,9 +2,28 @@ import { readFileSync, readdirSync, existsSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { describe, expect, it } from "vitest";
-import { loadGuide } from "../../src/prompts";
+import { loadGuide, loadP } from "../../src/prompts";
+import { withReadPrompts, withReplacePrompts, withInsertPrompts, DEFAULT_EDIT_FLAGS } from "../../src/edit-common";
 import { regRead } from "../../src/read";
 import { makeFakePiRegistry } from "../support/fixtures";
+
+const replaceBase = {
+  description: loadP("../prompts/replace.md"),
+  snippet: loadP("../prompts/replace-snippet.md"),
+  guidelines: loadGuide("../prompts/replace-guidelines.md"),
+};
+
+const insertBase = {
+  description: loadP("../prompts/insert.md"),
+  snippet: loadP("../prompts/insert-snippet.md"),
+  guidelines: loadGuide("../prompts/insert-guidelines.md"),
+};
+
+const readBase = {
+  description: loadP("../prompts/read.md"),
+  snippet: loadP("../prompts/read-snippet.md"),
+  guidelines: loadGuide("../prompts/read-guidelines.md"),
+};
 
 function collectTsFiles(dir: string): string[] {
   const out: string[] = [];
@@ -121,5 +140,53 @@ describe("prompt file packaging", () => {
       }
     }
     expect(refs).toBeGreaterThan(0);
+  });
+});
+
+describe("edit prompt flag variants", () => {
+  it("withReplacePrompts adds the require-path contract", () => {
+    const result = withReplacePrompts(replaceBase, { ...DEFAULT_EDIT_FLAGS, requirePath: true });
+    expect(result.description).toContain("Also give `path` matching the file the anchors were served for");
+    expect(result.snippet).toContain("; include `path` (required)");
+    expect(result.guidelines.some((g) => g.includes("include `path` matching the file the anchors were served for"))).toBe(true);
+  });
+
+  it("withReplacePrompts adds the strict-input notice", () => {
+    const result = withReplacePrompts(replaceBase, { ...DEFAULT_EDIT_FLAGS, strictInput: true });
+    expect(result.description).toContain("Strict-input mode is on: auto-fixable slips are rejected instead of fixed with warnings.");
+    expect(result.guidelines.some((g) => g.includes("strict-input is on"))).toBe(true);
+  });
+
+  it("withReplacePrompts adds the boundary-dedup-off notice", () => {
+    const result = withReplacePrompts(replaceBase, { ...DEFAULT_EDIT_FLAGS, boundaryDedupEnabled: false });
+    expect(result.description).toContain("Boundary dedup is off: edits apply literally.");
+    expect(result.guidelines.some((g) => g.includes("boundary dedup is off"))).toBe(true);
+  });
+
+  it("withReplacePrompts drops the diff-follow hint when auto-read is off", () => {
+    const result = withReplacePrompts(replaceBase, { ...DEFAULT_EDIT_FLAGS, autoRead: false });
+    expect(result.description).not.toContain("Anchor follow-up edits on the `+anchor│`");
+    expect(result.guidelines.some((g) => g.includes("one edit per turn; verify each result"))).toBe(true);
+  });
+
+  it("withInsertPrompts adds the require-path and strict-input notices", () => {
+    const result = withInsertPrompts(insertBase, { ...DEFAULT_EDIT_FLAGS, requirePath: true, strictInput: true });
+    expect(result.description).toContain("Also give `path` matching the file the anchor was served for");
+    expect(result.snippet).toContain("; include `path` (required)");
+    expect(result.guidelines.some((g) => g.startsWith("`insert`: include `path`"))).toBe(true);
+    expect(result.description).toContain("Strict-input mode is on");
+    expect(result.guidelines.some((g) => g.includes("strict-input is on"))).toBe(true);
+  });
+
+  it("withReadPrompts keeps guidelines unchanged when auto-read is on", () => {
+    const result = withReadPrompts(readBase, DEFAULT_EDIT_FLAGS);
+    expect(result.description).toBe(readBase.description);
+    expect(result.snippet).toBe(readBase.snippet);
+    expect(result.guidelines).toEqual(readBase.guidelines);
+  });
+
+  it("withReadPrompts rewrites the re-read note when auto-read is off", () => {
+    const result = withReadPrompts(readBase, { ...DEFAULT_EDIT_FLAGS, autoRead: false });
+    expect(result.guidelines.some((g) => g === "`read`: call again after an edit when you need anchors you lack.")).toBe(true);
   });
 });

@@ -6,12 +6,12 @@ import { isValidHashList } from "../../src/hash-store/validation";
 import { readConfig } from "../../src/config";
 import type { HashlineConfigOverlay } from "../../src/config-ui";
 
-async function openConfigOverlay(commands: Map<string, { handler: (...args: unknown[]) => unknown }>, cwd: string): Promise<HashlineConfigOverlay> {
+async function openConfigOverlay(commands: Map<string, { handler: (...args: unknown[]) => unknown }>, cwd: string, done: () => void = () => undefined): Promise<HashlineConfigOverlay> {
   const command = commands.get("hashline-config")!;
   let overlay: HashlineConfigOverlay | undefined;
   const theme = { fg: (_area: string, text: string) => text, bold: (text: string) => text };
   type OverlayFactory = (tui: unknown, theme: unknown, keybindings: unknown, done: () => void) => Promise<HashlineConfigOverlay>;
-  await command.handler({}, { cwd, hasUI: true, ui: { notify: vi.fn(), custom: async (factory: OverlayFactory) => { overlay = await factory({ requestRender: () => undefined }, theme, {}, () => undefined); } } });
+  await command.handler({}, { cwd, hasUI: true, ui: { notify: vi.fn(), custom: async (factory: OverlayFactory) => { overlay = await factory({ requestRender: () => undefined }, theme, {}, done); } } });
   if (!overlay) throw new Error("hashline-config overlay was not created");
   return overlay;
 }
@@ -264,6 +264,96 @@ describe("anchor_grep default", () => {
         await waitForConfig(async () => (await readConfig()).anchorGrepEnabled === true && getActive().includes("anchor_grep"));
         expect(getActive()).toContain("anchor_grep");
         expect(getActive()).not.toContain("grep");
+      } finally {
+        vi.unstubAllEnvs();
+        const { shutdownHashStore } = await import("../../src/hash-store");
+        shutdownHashStore();
+      }
+    });
+  });
+});
+
+describe("hashline-config overlay rendering", () => {
+  it("renders the settings rows and closes on q", async () => {
+    await withTempDir("config-render-", async dir => {
+      const home = join(dir, "home");
+      await mkdir(join(home, ".config", "pi-hashline-edit-pro"), { recursive: true });
+      vi.stubEnv("HOME", home);
+      vi.stubEnv("XDG_CONFIG_HOME", "");
+      vi.stubEnv("PI_HASHLINE_DEBUG", "1");
+      try {
+        const { pi, commands, handlers } = makeCommandPi(["read", "replace", "insert", "grep", "anchor_grep", "undo_last_change", "edit"]);
+        const { default: register } = await import("../../index");
+        register(pi);
+        const notify = vi.fn();
+        const sessionStart = handlers.get("session_start") as (a: unknown, b: unknown) => Promise<void>;
+        await sessionStart({}, { cwd: dir, ui: { notify } });
+        expect(notify).toHaveBeenCalledWith("Hashline Edit mode active", "info");
+        let closed = false;
+        const overlay = await openConfigOverlay(commands, dir, () => { closed = true; });
+        const lines = overlay.render(60);
+        expect(lines[0]).toBe(`╭${"─".repeat(58)}╮`);
+        expect(lines[lines.length - 1]).toBe(`╰${"─".repeat(58)}╯`);
+        expect(lines.some((line) => line.includes("Hashline Config"))).toBe(true);
+        expect(lines.some((line) => line.includes("↑↓ navigate"))).toBe(true);
+        expect(lines.filter((line) => line.includes("[x]")).length).toBe(3);
+        expect(lines.filter((line) => line.includes("[ ]")).length).toBe(2);
+        overlay.handleInput("k");
+        expect(overlay.render(60).find((line) => line.includes("Boundary dedup"))!).toContain("> ");
+        overlay.handleInput("j");
+        expect(overlay.render(60).find((line) => line.includes("Auto-read"))!).toContain("> ");
+        overlay.invalidate();
+        overlay.handleInput("q");
+        expect(closed).toBe(true);
+      } finally {
+        vi.unstubAllEnvs();
+        const { shutdownHashStore } = await import("../../src/hash-store");
+        shutdownHashStore();
+      }
+    });
+  });
+
+  it("toggles every setting from the overlay", async () => {
+    await withTempDir("toggle-all-settings-", async dir => {
+      const home = join(dir, "home");
+      await mkdir(join(home, ".config", "pi-hashline-edit-pro"), { recursive: true });
+      vi.stubEnv("HOME", home);
+      vi.stubEnv("XDG_CONFIG_HOME", "");
+      try {
+        const { pi, commands, handlers, getActive } = makeCommandPi(["read", "replace", "insert", "grep", "anchor_grep", "undo_last_change"]);
+        const { default: register } = await import("../../index");
+        register(pi);
+        const sessionStart = handlers.get("session_start") as (a: unknown, b: unknown) => Promise<void>;
+        await sessionStart({}, { cwd: dir, ui: { notify: vi.fn() } });
+        const overlay = await openConfigOverlay(commands, dir);
+
+        overlay.handleInput(" ");
+        await waitForConfig(async () => (await readConfig()).autoRead === false);
+
+        overlay.handleInput("j");
+        overlay.handleInput(" ");
+        await waitForConfig(async () => (await readConfig()).anchorGrepEnabled === false);
+
+        overlay.handleInput("j");
+        overlay.handleInput(" ");
+        await waitForConfig(async () => (await readConfig()).requirePath === true);
+
+        overlay.handleInput("j");
+        overlay.handleInput(" ");
+        await waitForConfig(async () => (await readConfig()).strictInput === true);
+
+        overlay.handleInput("j");
+        overlay.handleInput(" ");
+        await waitForConfig(async () => (await readConfig()).boundaryDedupEnabled === false);
+
+        const config = await readConfig();
+        expect(config.autoRead).toBe(false);
+        expect(config.anchorGrepEnabled).toBe(false);
+        expect(config.requirePath).toBe(true);
+        expect(config.strictInput).toBe(true);
+        expect(config.boundaryDedupEnabled).toBe(false);
+        expect(getActive()).toContain("grep");
+        expect(getActive()).not.toContain("anchor_grep");
       } finally {
         vi.unstubAllEnvs();
         const { shutdownHashStore } = await import("../../src/hash-store");

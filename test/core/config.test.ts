@@ -4,6 +4,9 @@ import { join } from "path";
 import {
   toggleAutoRead,
   toggleAnchorGrep,
+  toggleRequirePath,
+  toggleStrictInput,
+  toggleBoundaryDedup,
   readConfig,
   writeConfig,
 } from "../../src/config";
@@ -80,6 +83,57 @@ describe("config - toggleAnchorGrep", () => {
       const config = await readConfig();
       expect(config.autoRead).toBe(false);
       expect(config.anchorGrepEnabled).toBe(false);
+    });
+  });
+});
+
+describe("config - toggleRequirePath", () => {
+  it("toggles from default false to true", async () => {
+    await withTempHome(async () => {
+      expect(await toggleRequirePath()).toBe(true);
+      expect((await readConfig()).requirePath).toBe(true);
+    });
+  });
+
+  it("toggles from true back to false", async () => {
+    await withTempHome(async () => {
+      await writeConfig({ autoRead: true, anchorGrepEnabled: true, requirePath: true });
+      expect(await toggleRequirePath()).toBe(false);
+      expect((await readConfig()).requirePath).toBe(false);
+    });
+  });
+});
+
+describe("config - toggleStrictInput", () => {
+  it("toggles from default false to true", async () => {
+    await withTempHome(async () => {
+      expect(await toggleStrictInput()).toBe(true);
+      expect((await readConfig()).strictInput).toBe(true);
+    });
+  });
+
+  it("toggles from true back to false", async () => {
+    await withTempHome(async () => {
+      await writeConfig({ autoRead: true, anchorGrepEnabled: true, strictInput: true });
+      expect(await toggleStrictInput()).toBe(false);
+      expect((await readConfig()).strictInput).toBe(false);
+    });
+  });
+});
+
+describe("config - toggleBoundaryDedup", () => {
+  it("toggles from default true to false", async () => {
+    await withTempHome(async () => {
+      expect(await toggleBoundaryDedup()).toBe(false);
+      expect((await readConfig()).boundaryDedupEnabled).toBe(false);
+    });
+  });
+
+  it("toggles from false back to true", async () => {
+    await withTempHome(async () => {
+      await writeConfig({ autoRead: true, anchorGrepEnabled: true, boundaryDedupEnabled: false });
+      expect(await toggleBoundaryDedup()).toBe(true);
+      expect((await readConfig()).boundaryDedupEnabled).toBe(true);
     });
   });
 });

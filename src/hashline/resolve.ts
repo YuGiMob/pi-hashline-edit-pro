@@ -1,6 +1,7 @@
 import { abortIf, rejectUnknownFields, firstNonEmptyIndex, lastNonEmptyIndex, clipLine, getCached } from "../utils";
-import { HASH_SEP, HASH_RUN, stripRowPrefix, canon } from "./hash";
 import { parseHashRef, parseText, type Anchor } from "./parse";
+import { HASH_SEP, stripRowPrefix, canon } from "./hash";
+import { HASH_RUN } from "./alphabet";
 import { NEW_CONTENT_NOT_ARRAY_MSG, MAX_RANGE_STALE_LINES } from "../constants";
 import { contentChecksum } from "./hasher";
 import { hashSource } from "./hash";
