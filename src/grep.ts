@@ -472,6 +472,47 @@ export function fmtGrepCall(args: { pattern?: unknown; path?: unknown; glob?: un
   return text;
 }
 
+function highlightRegex(args: unknown): RegExp | undefined {
+  if (!isRec(args) || typeof args.pattern !== "string" || args.pattern.length === 0) return undefined;
+  try {
+    const validated = buildRegex(args.pattern, args.literal === true, args.ignoreCase === true);
+    return new RegExp(validated.source, validated.flags.includes("i") ? "giu" : "gu");
+  } catch {
+    return undefined;
+  }
+}
+
+function highlightMatches(text: string, regex: RegExp, theme: FgT): string {
+  let out = "";
+  let last = 0;
+  regex.lastIndex = 0;
+  for (;;) {
+    const match = regex.exec(text);
+    if (!match || match[0].length === 0) break;
+    out += text.slice(last, match.index) + theme.fg("accent", match[0]);
+    last = match.index + match[0].length;
+  }
+  return out + text.slice(last);
+}
+
+const ANCHORED_ROW_RE = /^[A-Za-z0-9]{4}│/;
+
+function highlightHitRow(row: string, highlight: RegExp, theme: FgT): string {
+  const anchored = row.match(ANCHORED_ROW_RE);
+  if (!anchored) return highlightMatches(row, highlight, theme);
+  return anchored[0] + highlightMatches(row.slice(anchored[0].length), highlight, theme);
+}
+
+function styleGrepLine(line: string, highlight: RegExp | undefined, theme: FgT): string {
+  if (line.startsWith("=== ")) return theme.fg("accent", line);
+  if (line.startsWith("[grep:") || line.startsWith("... ")) return theme.fg("dim", line);
+  if (!highlight) return line;
+  const gutter = line.indexOf(" │ ");
+  if (gutter < 0) return highlightHitRow(line, highlight, theme);
+  const cut = gutter + " │ ".length;
+  return line.slice(0, cut) + highlightHitRow(line.slice(cut), highlight, theme);
+}
+
 export function renderGrepResult(result: { content?: Array<{ type: string; text?: string }> }, options: { isPartial: boolean; expanded?: boolean } | boolean, theme: FgT, context: any): Text {
   const isPartial = typeof options === "boolean" ? options : options.isPartial;
   const expanded = typeof options === "boolean" ? context.expanded === true : options.expanded === true || context.expanded === true;
@@ -481,7 +522,8 @@ export function renderGrepResult(result: { content?: Array<{ type: string; text?
   if (!raw) return new Text("", 0, 0);
   const maxLines = expanded ? GREP_PREVIEW_LINES_EXPANDED : GREP_PREVIEW_LINES;
   const lines = raw.split("\n");
-  const shown = lines.slice(0, maxLines).map((line) => line.startsWith("=== ") ? theme.fg("accent", line) : line);
+  const highlight = highlightRegex((context as { args?: unknown }).args);
+  const shown = lines.slice(0, maxLines).map((line) => styleGrepLine(line, highlight, theme));
   if (lines.length > maxLines) shown.push(theme.fg("muted", `... ${lines.length - maxLines} more grep lines (${expandHint()})`));
   return reuseText(context, shown.join("\n"));
 }
