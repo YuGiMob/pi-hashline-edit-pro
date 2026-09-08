@@ -11,7 +11,7 @@ async function openConfigOverlay(commands: Map<string, { handler: (...args: unkn
   let overlay: HashlineConfigOverlay | undefined;
   const theme = { fg: (_area: string, text: string) => text, bold: (text: string) => text };
   type OverlayFactory = (tui: unknown, theme: unknown, keybindings: unknown, done: () => void) => Promise<HashlineConfigOverlay>;
-  await command.handler({}, { cwd, hasUI: true, ui: { notify: vi.fn(), custom: async (factory: OverlayFactory) => { overlay = await factory({}, theme, {}, () => undefined); } } });
+  await command.handler({}, { cwd, hasUI: true, ui: { notify: vi.fn(), custom: async (factory: OverlayFactory) => { overlay = await factory({ requestRender: () => undefined }, theme, {}, () => undefined); } } });
   if (!overlay) throw new Error("hashline-config overlay was not created");
   return overlay;
 }

@@ -94,6 +94,7 @@ export default function (pi: ExtensionAPI): void {
       }
       await ctx.ui.custom<void>(async (tui, theme, _keybindings, done) => {
         const overlay = new HashlineConfigOverlay({
+          tui,
           theme,
           done,
           onToggle: async (key) => {

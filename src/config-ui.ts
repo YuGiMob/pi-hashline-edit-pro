@@ -30,7 +30,7 @@ export class HashlineConfigOverlay {
   private rows: ConfigRow[];
   private selected = 0;
 
-  constructor(private readonly opts: { theme: Theme; done: () => void; onToggle: (key: ConfigToggleKey) => Promise<void> }) {
+  constructor(private readonly opts: { tui: { requestRender(force?: boolean): void }; theme: Theme; done: () => void; onToggle: (key: ConfigToggleKey) => Promise<void> }) {
     this.rows = [];
   }
 
@@ -41,8 +41,11 @@ export class HashlineConfigOverlay {
   private toggleSelected(): void {
     const row = this.rows[this.selected];
     if (!row) return;
+    row.enabled = !row.enabled;
+    this.opts.tui.requestRender(true);
     void this.opts.onToggle(row.key).then(async () => {
       this.rows = configRows(await readConfig());
+      this.opts.tui.requestRender(true);
     }).catch((error: unknown) => {
       console.error("Failed to toggle hashline setting:", error);
     });
@@ -57,7 +60,7 @@ export class HashlineConfigOverlay {
       this.selected = (this.selected + 1) % this.rows.length;
       return;
     }
-    if (matchesKey(data, Key.space) || matchesKey(data, Key.enter)) {
+    if (matchesKey(data, Key.space) || matchesKey(data, Key.enter) || data === " " || data === "\r" || data === "\n") {
       this.toggleSelected();
       return;
     }
