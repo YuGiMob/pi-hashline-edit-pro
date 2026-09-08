@@ -23,6 +23,7 @@ import { initRegistry, gcRegistrySidecars, clearRegistry, freeAnchors, markServe
 import { buildServedMap } from "./src/served";
 import { clearBoundaryBypass } from "./src/boundary-bypass";
 import { currentEditFlags } from "./src/edit-common";
+import { HashlineConfigOverlay } from "./src/config-ui";
 import { registerWriteHook } from "./src/write-hook";
 import { readNormFile } from "./src/file-reader";
 import { loadFileKindAndText } from "./src/file-kind";
@@ -84,58 +85,36 @@ export default function (pi: ExtensionAPI): void {
     }
   });
 
-  pi.registerCommand("toggle-auto-read", {
-    description: "Toggle auto-read anchors after write and post-edit diffs after replace, insert, and undo_last_change",
+  pi.registerCommand("hashline-config", {
+    description: "Open the hashline settings window (auto-read, grep, path, strict input, dedup)",
     handler: async (_args, ctx) => {
-      autoRead = await toggleAutoRead();
-      await refreshEditTools();
-      const state = autoRead ? "enabled" : "disabled";
-      ctx.ui.notify(`Auto-read anchors after write and post-edit diffs after replace/undo: ${state}`, "info");
-    },
-  });
-
-  pi.registerCommand("toggle-anchor-grep", {
-    description: "Enable or disable the anchor_grep tool (the built-in grep is disabled while anchor_grep is on)",
-    handler: async (_args, ctx) => {
-      const enabled = await toggleAnchorGrep();
-      const active = pi.getActiveTools();
-      pi.setActiveTools(
-        enabled
-          ? [...new Set([...active.filter((t) => t !== "grep"), "anchor_grep"])]
-          : [...new Set([...active.filter((t) => t !== "anchor_grep"), ...(grepWasActive ? ["grep"] : [])])],
-      );
-      const state = enabled ? "enabled" : "disabled";
-      ctx.ui.notify(`anchor_grep tool ${state}`, "info");
-    },
-  });
-
-  pi.registerCommand("toggle-require-path", {
-    description: "Require path in replace and insert requests (opt-in RPC visibility; anchors still resolve the target)",
-    handler: async (_args, ctx) => {
-      const enabled = await toggleRequirePath();
-      await refreshEditTools();
-      const state = enabled ? "enabled" : "disabled";
-      ctx.ui.notify(`require-path mode ${state}`, "info");
-    },
-  });
-
-  pi.registerCommand("toggle-strict-input", {
-    description: "Reject auto-fixable replace and insert input instead of fixing it with warnings (opt-in strict mode)",
-    handler: async (_args, ctx) => {
-      const enabled = await toggleStrictInput();
-      await refreshEditTools();
-      const state = enabled ? "enabled" : "disabled";
-      ctx.ui.notify(`strict-input mode ${state}`, "info");
-    },
-  });
-
-  pi.registerCommand("toggle-boundary-dedup", {
-    description: "Enable or disable boundary dedup in replace (on by default; off applies edits literally)",
-    handler: async (_args, ctx) => {
-      const enabled = await toggleBoundaryDedup();
-      await refreshEditTools();
-      const state = enabled ? "enabled" : "disabled";
-      ctx.ui.notify(`boundary-dedup ${state}`, "info");
+      if (!ctx.hasUI) {
+        ctx.ui.notify("/hashline-config requires interactive mode", "error");
+        return;
+      }
+      await ctx.ui.custom<void>(async (tui, theme, _keybindings, done) => {
+        const overlay = new HashlineConfigOverlay({
+          theme,
+          done,
+          onToggle: async (key) => {
+            if (key === "autoRead") autoRead = await toggleAutoRead();
+            else if (key === "anchorGrepEnabled") {
+              const enabled = await toggleAnchorGrep();
+              const active = pi.getActiveTools();
+              pi.setActiveTools(enabled ? [...new Set([...active.filter((t) => t !== "grep"), "anchor_grep"])] : [...new Set([...active.filter((t) => t !== "anchor_grep"), ...(grepWasActive ? ["grep"] : [])])]);
+            }
+            else if (key === "requirePath") await toggleRequirePath();
+            else if (key === "strictInput") await toggleStrictInput();
+            else await toggleBoundaryDedup();
+            await refreshEditTools();
+          },
+        });
+        await overlay.load();
+        return overlay;
+      }, {
+        overlay: true,
+        overlayOptions: { anchor: "center", width: "90%", minWidth: 60, maxHeight: "90%" },
+      });
     },
   });
 

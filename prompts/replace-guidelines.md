@@ -1,3 +1,4 @@
+- `replace`: edit with `replace`/`insert`, not `sed -i` or heredocs — anchor edits are verified against what was shown and undoable.
 - `replace`: `replacement_lines` takes bare lines without `│`; `[""]` is one blank line; pasted `anchor│` prefixes are stripped automatically (single line: same anchor for `remove_from` and `remove_to`).
 - `replace`: post-edit diff `+anchor│`/` anchor│` rows are fresh anchors for the next edit — no new `read` needed. One edit per turn; check the diff before the next edit on that file.
 - `replace`: if `replacement_lines` re-include the boundary line adjacent to the range, it is deduplicated automatically, shown as `dedup│content` rows in the diff (not editable, never use `dedup` as an anchor).

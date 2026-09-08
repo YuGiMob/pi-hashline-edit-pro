@@ -40,7 +40,7 @@ Replace a line by its anchor:
 
 The result is the post-edit diff with fresh anchors, so you can keep editing without re-reading. Lines you did not touch keep their anchors. After a `write`, an auto-read block gives you the new anchors. The most recent `replace` or `insert` on a file can be reverted, even after a restart.
 
-The extension registers five tools: `read`, `replace`, `insert`, `anchor_grep`, and `undo_last_change`. The built-in `edit` tool is disabled. `replace` and `insert` take no `path` parameter by default: the file is resolved from the anchors' session ownership alone, so an edit can only land on the file the anchors were served for. Opt in with `/toggle-require-path` to require `path` in `replace` and `insert` for RPC visibility (for example pimacs.el); anchors still resolve the target and `path` must match.
+The extension registers five tools: `read`, `replace`, `insert`, `anchor_grep`, and `undo_last_change`. The built-in `edit` tool is disabled. `replace` and `insert` take no `path` parameter by default: the file is resolved from the anchors' session ownership alone, so an edit can only land on the file the anchors were served for. Opt in with `/hashline-config` to require `path` in `replace` and `insert` for RPC visibility (for example pimacs.el); anchors still resolve the target and `path` must match.
 
 ### read
 
@@ -115,7 +115,7 @@ The same safety machinery as `replace` applies: undo is saved before the write (
 
 ### anchor_grep
 
-`anchor_grep` is an anchored search backed by ripgrep. It is disabled by default; enable it with `/toggle-anchor-grep` (or set `anchorGrepEnabled` to `true` in the config file). While it is enabled, the built-in grep is disabled. Disabling it removes the tool and restores the built-in grep only if that was active before the extension loaded.
+`anchor_grep` is an anchored search backed by ripgrep. It is disabled by default; enable it in `/hashline-config` (or set `anchorGrepEnabled` to `true` in the config file). While it is enabled, the built-in grep is disabled. Disabling it removes the tool and restores the built-in grep only if that was active before the extension loaded.
 
 Every matching line, and each requested context line, is returned as `lineNumber │ anchor│content`. The `anchor│content` part is served exactly like `read` output, so you can target it with `replace` or `insert` without a separate `read`; the line-number gutter and `=== path ===` header give filename and line for navigation.
 
@@ -153,7 +153,7 @@ Auto-read is enabled by default. After a successful `write`, the extension reads
 
 After `replace`, `insert`, and `undo_last_change`, the result shows the post-edit diff. The `+anchor│` and ` anchor│` rows carry the current anchors, so follow-up edits can anchor on the diff directly. The `-anchor│` rows show removed lines with their old anchors, which are stale after the edit. When the context line next to a change is blank or whitespace-only, one more context line is shown in that direction, so the change stays anchored to visible content. Call `read` when you want the full file's anchors.
 
-Auto-read keeps the same 50KB and 2000-line budget as `read`. Toggle it at runtime with `/toggle-auto-read`; both settings persist across sessions.
+Auto-read keeps the same 50KB and 2000-line budget as `read`. Change it in `/hashline-config`; both settings persist across sessions.
 
 ## Tool result details
 
@@ -170,14 +170,10 @@ All five tools return machine-readable metadata in `details` alongside the model
 
 | Command | Description |
 | --- | --- |
-| `/toggle-auto-read` | Toggle auto-read anchors after `write` and post-edit diffs after `replace`, `insert`, and `undo_last_change`. Persists across sessions. |
-| `/toggle-anchor-grep` | Enable or disable the `anchor_grep` tool. The built-in grep is disabled while `anchor_grep` is on. Persists across sessions. |
-| `/toggle-require-path` | Require `path` in `replace` and `insert` requests (opt-in, off by default; for RPC clients such as pimacs.el). Anchors still resolve the target. Persists across sessions. |
-| `/toggle-strict-input` | Reject auto-fixable `replace` and `insert` input instead of fixing it with warnings (opt-in strict mode, off by default). Persists across sessions. |
-| `/toggle-boundary-dedup` | Enable or disable boundary dedup in `replace` (on by default; off applies edits literally). Persists across sessions. |
+| `/hashline-config` | Open the settings window: auto-read anchors, `anchor_grep` tool, required `path`, strict input, and boundary dedup. Persists across sessions. |
 | `/clear-anchors` | Clear the session's anchor claims. Anchors are re-claimed on the next `read`. |
 
-Settings live in `~/.config/pi-hashline-edit-pro/config.json`, created when a setting is first toggled:
+Settings live in `~/.config/pi-hashline-edit-pro/config.json`, created when a setting is first changed in `/hashline-config`:
 
 ```json
 {

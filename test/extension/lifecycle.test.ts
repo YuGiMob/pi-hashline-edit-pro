@@ -95,29 +95,28 @@ describe("session_start lifecycle", () => {
   });
 });
 
-describe("toggle-auto-read command", () => {
-  it("toggles the persisted config and notifies", async () => {
-    await withTempDir("lifecycle-toggle-", async (dir) => {
+describe("hashline-config command", () => {
+  it("is registered alongside clear-anchors", async () => {
+    await withTempDir("lifecycle-config-cmd-", async (dir) => {
       const { pi, handlers, commands, notify } = makeLifecyclePi();
       await registerExtension(pi);
       const sessionStart = handlers.get("session_start")!;
       await sessionStart({}, { cwd: dir, ui: { notify } });
+      expect(commands.has("hashline-config")).toBe(true);
+      expect(commands.has("clear-anchors")).toBe(true);
+    });
+  });
 
-      const command = commands.get("toggle-auto-read");
+  it("requires interactive mode", async () => {
+    await withTempDir("lifecycle-config-tty-", async (dir) => {
+      const { pi, handlers, commands, notify } = makeLifecyclePi();
+      await registerExtension(pi);
+      const sessionStart = handlers.get("session_start")!;
+      await sessionStart({}, { cwd: dir, ui: { notify } });
+      const command = commands.get("hashline-config");
       expect(command).toBeDefined();
-      await command!.handler([], { cwd: dir, ui: { notify } });
-      expect((await readConfig()).autoRead).toBe(false);
-      expect(notify).toHaveBeenCalledWith(
-        expect.stringContaining("disabled"),
-        "info",
-      );
-
-      await command!.handler([], { cwd: dir, ui: { notify } });
-      expect((await readConfig()).autoRead).toBe(true);
-      expect(notify).toHaveBeenCalledWith(
-        expect.stringContaining("enabled"),
-        "info",
-      );
+      await command!.handler([], { cwd: dir, hasUI: false, ui: { notify } });
+      expect(notify).toHaveBeenCalledWith(expect.stringContaining("interactive"), "error");
     });
   });
 });

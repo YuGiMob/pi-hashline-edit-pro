@@ -23,7 +23,7 @@ describe("extension registration", () => {
 
     expect(toolNames.sort()).toEqual(["anchor_grep", "insert", "read", "replace", "undo_last_change"]);
 
-    expect(commandNames.sort()).toEqual(["clear-anchors", "toggle-anchor-grep", "toggle-auto-read", "toggle-boundary-dedup", "toggle-require-path", "toggle-strict-input"]);
+    expect(commandNames.sort()).toEqual(["clear-anchors", "hashline-config"]);
     expect(eventNames.sort()).toEqual(["session_start", "tool_call", "tool_result"]);
   });
 });

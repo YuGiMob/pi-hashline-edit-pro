@@ -3,7 +3,26 @@ import { withTempDir } from "../support/fixtures";
 import { mkdir } from "fs/promises";
 import { join } from "path";
 import { isValidHashList } from "../../src/hash-store/validation";
+import { readConfig } from "../../src/config";
+import type { HashlineConfigOverlay } from "../../src/config-ui";
 
+async function openConfigOverlay(commands: Map<string, { handler: (...args: unknown[]) => unknown }>, cwd: string): Promise<HashlineConfigOverlay> {
+  const command = commands.get("hashline-config")!;
+  let overlay: HashlineConfigOverlay | undefined;
+  const theme = { fg: (_area: string, text: string) => text, bold: (text: string) => text };
+  type OverlayFactory = (tui: unknown, theme: unknown, keybindings: unknown, done: () => void) => Promise<HashlineConfigOverlay>;
+  await command.handler({}, { cwd, hasUI: true, ui: { notify: vi.fn(), custom: async (factory: OverlayFactory) => { overlay = await factory({}, theme, {}, () => undefined); } } });
+  if (!overlay) throw new Error("hashline-config overlay was not created");
+  return overlay;
+}
+
+async function waitForConfig(done: () => Promise<boolean>): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (await done()) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error("timed out waiting for config write");
+}
 function makeLifecyclePi() {
   const handlers = new Map<string, (...args: unknown[]) => unknown>();
   const pi = {
@@ -189,7 +208,7 @@ describe("anchor_grep opt-in", () => {
     });
   });
 
-  it("toggle-anchor-grep command swaps between the built-in grep and anchor_grep", async () => {
+  it("hashline-config toggles anchor_grep and the built-in grep", async () => {
     await withTempDir("toggle-anchor-grep-", async dir => {
       const home = join(dir, "home");
       await mkdir(join(home, ".config", "pi-hashline-edit-pro"), { recursive: true });
@@ -203,17 +222,16 @@ describe("anchor_grep opt-in", () => {
         await sessionStart({}, { cwd: dir, ui: { notify: vi.fn() } });
         expect(getActive()).toContain("grep");
         expect(getActive()).not.toContain("anchor_grep");
-        const toggle = commands.get("toggle-anchor-grep")!;
-        const ctx = { ui: { notify: vi.fn() } };
-        await toggle.handler({}, ctx);
+        const overlay = await openConfigOverlay(commands, dir);
+        overlay.handleInput("j");
+        overlay.handleInput(" ");
+        await waitForConfig(async () => (await readConfig()).anchorGrepEnabled === true && getActive().includes("anchor_grep") && !getActive().includes("grep"));
         expect(getActive()).toContain("anchor_grep");
         expect(getActive()).not.toContain("grep");
-        const { readConfig } = await import("../../src/config");
-        expect((await readConfig()).anchorGrepEnabled).toBe(true);
-        await toggle.handler({}, ctx);
+        overlay.handleInput(" ");
+        await waitForConfig(async () => (await readConfig()).anchorGrepEnabled === false && !getActive().includes("anchor_grep") && getActive().includes("grep"));
         expect(getActive()).not.toContain("anchor_grep");
         expect(getActive()).toContain("grep");
-        expect((await readConfig()).anchorGrepEnabled).toBe(false);
       } finally {
         vi.unstubAllEnvs();
         const { shutdownHashStore } = await import("../../src/hash-store");
@@ -222,7 +240,7 @@ describe("anchor_grep opt-in", () => {
     });
   });
 
-  it("toggle-anchor-grep does not enable the built-in grep when it was not active", async () => {
+  it("hashline-config does not enable the built-in grep when it was not active", async () => {
     await withTempDir("toggle-anchor-grep-off-", async dir => {
       const home = join(dir, "home");
       await mkdir(join(home, ".config", "pi-hashline-edit-pro"), { recursive: true });
@@ -236,16 +254,15 @@ describe("anchor_grep opt-in", () => {
         await sessionStart({}, { cwd: dir, ui: { notify: vi.fn() } });
         expect(getActive()).not.toContain("grep");
         expect(getActive()).not.toContain("anchor_grep");
-        const toggle = commands.get("toggle-anchor-grep")!;
-        const ctx = { ui: { notify: vi.fn() } };
-        await toggle.handler({}, ctx);
+        const overlay = await openConfigOverlay(commands, dir);
+        overlay.handleInput("j");
+        overlay.handleInput(" ");
+        await waitForConfig(async () => (await readConfig()).anchorGrepEnabled === true && getActive().includes("anchor_grep"));
         expect(getActive()).toContain("anchor_grep");
-        const { readConfig } = await import("../../src/config");
-        expect((await readConfig()).anchorGrepEnabled).toBe(true);
-        await toggle.handler({}, ctx);
+        overlay.handleInput(" ");
+        await waitForConfig(async () => (await readConfig()).anchorGrepEnabled === false && !getActive().includes("anchor_grep"));
         expect(getActive()).not.toContain("anchor_grep");
         expect(getActive()).not.toContain("grep");
-        expect((await readConfig()).anchorGrepEnabled).toBe(false);
       } finally {
         vi.unstubAllEnvs();
         const { shutdownHashStore } = await import("../../src/hash-store");

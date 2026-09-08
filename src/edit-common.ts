@@ -116,10 +116,10 @@ export interface PathRequirementInput {
 export async function resolveEditTargetWithRequirement(input: PathRequirementInput): Promise<string> {
   const { requirePath } = await readConfig();
   if (!requirePath && input.providedPath !== undefined) {
-    throw new Error("[E_BAD_SHAPE] Edit request contains unknown or unsupported fields: path. Path resolution is anchor-only; run /toggle-require-path to require it.");
+    throw new Error("[E_BAD_SHAPE] Edit request contains unknown or unsupported fields: path. Path resolution is anchor-only; enable require-path in /hashline-config to require it.");
   }
   if (requirePath && (typeof input.providedPath !== "string" || input.providedPath.length === 0)) {
-    throw new Error('[E_BAD_SHAPE] Edit request requires a non-empty "path" string when require-path mode is on (run /toggle-require-path to disable).');
+    throw new Error('[E_BAD_SHAPE] Edit request requires a non-empty "path" string when require-path mode is on (disable it in /hashline-config).');
   }
   const anchorTarget = typeof input.anchor === "string"
     ? resolveEditTarget(input.anchor)
@@ -138,7 +138,7 @@ export async function throwIfStrictInput(warnings: string[]): Promise<void> {
   if (fixes.length === 0) return;
   const { strictInput } = await readConfig();
   if (strictInput === true) {
-    throw new Error(`[E_BAD_SHAPE] Strict-input mode rejects auto-fixable input (run /toggle-strict-input to disable):\n${fixes.join("\n")}`);
+    throw new Error(`[E_BAD_SHAPE] Strict-input mode rejects auto-fixable input (disable it in /hashline-config):\n${fixes.join("\n")}`);
   }
 }
 
