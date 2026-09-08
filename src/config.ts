@@ -7,12 +7,16 @@ export interface Config {
   autoRead: boolean;
   anchorGrepEnabled: boolean;
   requirePath?: boolean;
+  strictInput?: boolean;
+  boundaryDedupEnabled?: boolean;
 }
 
 const DEFAULT_CONFIG: Config = {
   autoRead: true,
   anchorGrepEnabled: false,
-  requirePath: false
+  requirePath: false,
+  strictInput: false,
+  boundaryDedupEnabled: true
 };
 
 function parseConfig(content: string): Config {
@@ -23,10 +27,14 @@ function parseConfig(content: string): Config {
   }
   const anchorGrepEnabled = isRec(parsed) ? parsed.anchorGrepEnabled : undefined;
   const requirePath = isRec(parsed) ? parsed.requirePath : undefined;
+  const strictInput = isRec(parsed) ? parsed.strictInput : undefined;
+  const boundaryDedupEnabled = isRec(parsed) ? parsed.boundaryDedupEnabled : undefined;
   return {
     autoRead,
     anchorGrepEnabled: typeof anchorGrepEnabled === "boolean" ? anchorGrepEnabled : DEFAULT_CONFIG.anchorGrepEnabled,
     requirePath: typeof requirePath === "boolean" ? requirePath : DEFAULT_CONFIG.requirePath,
+    strictInput: typeof strictInput === "boolean" ? strictInput : DEFAULT_CONFIG.strictInput,
+    boundaryDedupEnabled: typeof boundaryDedupEnabled === "boolean" ? boundaryDedupEnabled : DEFAULT_CONFIG.boundaryDedupEnabled,
   };
 }
 
@@ -66,4 +74,19 @@ export async function toggleRequirePath(): Promise<boolean> {
   config.requirePath = !config.requirePath;
   await writeConfig(config);
   return config.requirePath;
+}
+
+export async function toggleStrictInput(): Promise<boolean> {
+  const config = await readConfig();
+  config.strictInput = !(config.strictInput === true);
+  await writeConfig(config);
+  return config.strictInput === true;
+}
+
+export async function toggleBoundaryDedup(): Promise<boolean> {
+  const config = await readConfig();
+  const enabled = config.boundaryDedupEnabled !== false;
+  config.boundaryDedupEnabled = !enabled;
+  await writeConfig(config);
+  return !enabled;
 }

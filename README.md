@@ -173,6 +173,8 @@ All five tools return machine-readable metadata in `details` alongside the model
 | `/toggle-auto-read` | Toggle auto-read anchors after `write` and post-edit diffs after `replace`, `insert`, and `undo_last_change`. Persists across sessions. |
 | `/toggle-anchor-grep` | Enable or disable the `anchor_grep` tool. The built-in grep is disabled while `anchor_grep` is on. Persists across sessions. |
 | `/toggle-require-path` | Require `path` in `replace` and `insert` requests (opt-in, off by default; for RPC clients such as pimacs.el). Anchors still resolve the target. Persists across sessions. |
+| `/toggle-strict-input` | Reject auto-fixable `replace` and `insert` input instead of fixing it with warnings (opt-in strict mode, off by default). Persists across sessions. |
+| `/toggle-boundary-dedup` | Enable or disable boundary dedup in `replace` (on by default; off applies edits literally). Persists across sessions. |
 | `/clear-anchors` | Clear the session's anchor claims. Anchors are re-claimed on the next `read`. |
 
 Settings live in `~/.config/pi-hashline-edit-pro/config.json`, created when a setting is first toggled:
@@ -181,7 +183,9 @@ Settings live in `~/.config/pi-hashline-edit-pro/config.json`, created when a se
 {
   "autoRead": true,
   "anchorGrepEnabled": false,
-  "requirePath": false
+  "requirePath": false,
+  "strictInput": false,
+  "boundaryDedupEnabled": true
 }
 ```
 

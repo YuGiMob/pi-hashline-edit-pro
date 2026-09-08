@@ -9,7 +9,7 @@ import {
   type LineEnding,
 } from "./replace-diff";
 import { readNormFile, type NormFile } from "./file-reader";
-import { editToolSchema, type ReqParams, assertReq, normReq } from "./payload-contract";
+import { editToolSchema, buildEditToolSchema, type ReqParams, assertReq, normReq } from "./payload-contract";
 import { decodeStringArray } from "./utils";
 import { loadP, loadGuide } from "./prompts";
 import { type FileIdentity } from "./fs-write";
@@ -33,7 +33,7 @@ import { adoptAnchors, servedForPath } from "./anchor-registry";
 import { resolveTarget } from "./fs-write";
 import { toCwd } from "./paths";
 import { noopPayloadKey, markBoundaryNoop, consumeBoundaryBypass, clearBoundaryBypass } from "./boundary-bypass";
-import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper, resolveEditTargetWithRequirement } from "./edit-common";
+import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper, resolveEditTargetWithRequirement, throwIfStrictInput, isBoundaryDedupEnabled, withReplacePrompts, DEFAULT_EDIT_FLAGS, type EditToolFlags } from "./edit-common";
 
 export { editToolSchema, type ReqParams, assertReq };
 
@@ -143,6 +143,8 @@ export async function execPipeline(
   );
   const displayPath = relative(cwd, absolutePath).replace(/\\/g, "/") || targetPath;
 
+  const dedupEnabled = await isBoundaryDedupEnabled();
+  const effectiveSkipBoundaryDedup = options?.skipBoundaryDedup === true || !dedupEnabled;
   let anchorResult: ReturnType<typeof applyEdit>;
   try {
     anchorResult = applyEdit(
@@ -152,7 +154,7 @@ export async function execPipeline(
       originalHashes,
       displayPath,
       served,
-      options?.skipBoundaryDedup,
+      effectiveSkipBoundaryDedup,
     );
   } catch (error) {
     await noteAnchorError(absolutePath, error, originalHashes, options?.noPersist);
@@ -169,6 +171,7 @@ export async function execPipeline(
         hashes: originalHashes,
       }, hashStore, false, true);
   const warnings = [...editWarnings, ...(anchorResult.warnings ?? [])];
+  await throwIfStrictInput(warnings);
   const { totalAddedLines, totalRemovedLines } = countLineChanges(
     edit, originalHashes, isNoop, anchorResult.autoFixes?.length ?? 0,
   );
@@ -246,18 +249,20 @@ type ToolDef = ToolDefinition<
   RRState
 > & { renderShell?: "default" | "self" };
 
-export function buildToolDef(): ToolDef {
-  const E_DESC = loadP("../prompts/replace.md");
-  const E_SNIPPET = loadP("../prompts/replace-snippet.md");
-  const E_GUIDE = loadGuide("../prompts/replace-guidelines.md");
-  const parameters = editToolSchema;
+export function buildToolDef(flags: EditToolFlags = DEFAULT_EDIT_FLAGS): ToolDef {
+  const prompted = withReplacePrompts({
+    description: loadP("../prompts/replace.md"),
+    snippet: loadP("../prompts/replace-snippet.md"),
+    guidelines: loadGuide("../prompts/replace-guidelines.md"),
+  }, flags);
+  const parameters = buildEditToolSchema(flags.requirePath);
   return {
     name: "replace",
     label: "Replace",
-    description: E_DESC,
+    description: prompted.description,
     parameters,
-    promptSnippet: E_SNIPPET,
-    promptGuidelines: E_GUIDE,
+    promptSnippet: prompted.snippet,
+    promptGuidelines: prompted.guidelines,
     ...editToolBase,
     renderCall: editRenderCallWrapper(compPreview),
     renderResult: editRenderResultWrapper,
@@ -272,8 +277,9 @@ export function buildToolDef(): ToolDef {
         cwd: ctx.cwd,
       });
       return queuedEdit(targetPath, ctx.cwd, signal, async (absolutePath, mutationTargetPath) => {
+        const dedupOn = await isBoundaryDedupEnabled();
         const noopPayload = noopPayloadKey(mutationTargetPath, normalizedParams.remove_from, normalizedParams.remove_to, normalizedParams.replacement_lines);
-        const boundaryBypass = consumeBoundaryBypass(mutationTargetPath, noopPayload);
+        const boundaryBypass = dedupOn ? consumeBoundaryBypass(mutationTargetPath, noopPayload) : false;
         const pipe = await execPipeline(
           targetPath,
           normalizedParams,
@@ -290,14 +296,14 @@ export function buildToolDef(): ToolDef {
           editAnchors: [normalizedParams.remove_from, normalizedParams.remove_to],
           signal,
           appliedWarnings,
-          onApplied: () => clearBoundaryBypass(mutationTargetPath),
-          onNoopDedup: () => markBoundaryNoop(mutationTargetPath, noopPayload),
+          onApplied: () => { if (dedupOn) clearBoundaryBypass(mutationTargetPath); },
+          onNoopDedup: dedupOn ? () => markBoundaryNoop(mutationTargetPath, noopPayload) : undefined,
         });
       });
     },
   };
 }
 
-export function regReplace(pi: ExtensionAPI): void {
-  pi.registerTool(buildToolDef());
+export function regReplace(pi: ExtensionAPI, flags: EditToolFlags = DEFAULT_EDIT_FLAGS): void {
+  pi.registerTool(buildToolDef(flags));
 }

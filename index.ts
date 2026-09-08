@@ -15,11 +15,14 @@ import {
   toggleAutoRead,
   toggleAnchorGrep,
   toggleRequirePath,
+  toggleStrictInput,
+  toggleBoundaryDedup,
 } from "./src/config";
 import { loadHashStore, persistSnapshot, pruneMissing } from "./src/hash-store";
 import { initRegistry, gcRegistrySidecars, clearRegistry, freeAnchors, markServed as markServedScoped } from "./src/anchor-registry";
 import { buildServedMap } from "./src/served";
 import { clearBoundaryBypass } from "./src/boundary-bypass";
+import { currentEditFlags } from "./src/edit-common";
 import { registerWriteHook } from "./src/write-hook";
 import { readNormFile } from "./src/file-reader";
 import { loadFileKindAndText } from "./src/file-kind";
@@ -38,6 +41,16 @@ export default function (pi: ExtensionAPI): void {
 
   let autoRead = true;
   let grepWasActive = false;
+
+  async function refreshEditTools(): Promise<void> {
+    try {
+      const flags = await currentEditFlags();
+      regReplace(pi, flags);
+      regInsert(pi, flags);
+    } catch (error) {
+      console.error("Failed to refresh edit tools:", error);
+    }
+  }
 
   pi.on("session_start", async (_event, ctx) => {
     const active = pi.getActiveTools();
@@ -58,6 +71,7 @@ export default function (pi: ExtensionAPI): void {
     await gcRegistrySidecars();
     const config = await readConfig();
     autoRead = config.autoRead;
+    await refreshEditTools();
     pi.setActiveTools(
       pi.getActiveTools().filter((t) =>
         config.anchorGrepEnabled ? t !== "grep" : t !== "anchor_grep",
@@ -97,8 +111,29 @@ export default function (pi: ExtensionAPI): void {
     description: "Require path in replace and insert requests (opt-in RPC visibility; anchors still resolve the target)",
     handler: async (_args, ctx) => {
       const enabled = await toggleRequirePath();
+      await refreshEditTools();
       const state = enabled ? "enabled" : "disabled";
       ctx.ui.notify(`require-path mode ${state}`, "info");
+    },
+  });
+
+  pi.registerCommand("toggle-strict-input", {
+    description: "Reject auto-fixable replace and insert input instead of fixing it with warnings (opt-in strict mode)",
+    handler: async (_args, ctx) => {
+      const enabled = await toggleStrictInput();
+      await refreshEditTools();
+      const state = enabled ? "enabled" : "disabled";
+      ctx.ui.notify(`strict-input mode ${state}`, "info");
+    },
+  });
+
+  pi.registerCommand("toggle-boundary-dedup", {
+    description: "Enable or disable boundary dedup in replace (on by default; off applies edits literally)",
+    handler: async (_args, ctx) => {
+      const enabled = await toggleBoundaryDedup();
+      await refreshEditTools();
+      const state = enabled ? "enabled" : "disabled";
+      ctx.ui.notify(`boundary-dedup ${state}`, "info");
     },
   });
 

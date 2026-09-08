@@ -21,20 +21,32 @@ const removeToSchema = Type.String({
   description:
     "Bare 4-char anchor from a read row (the text before the `│` separator), never the row content. Marks the LAST line to remove (inclusive)",
 });
-const pathSchema = Type.Optional(Type.String({
+const pathRequiredSchema = Type.String({
   description:
-    "Path to the file the anchors were served for; required when require-path mode is on (/toggle-require-path), forbidden otherwise. Anchors still resolve the target.",
-}));
+    "Path to the file the anchors were served for; required and must match anchor ownership. Anchors still resolve the target.",
+});
 
 export const editToolSchema = Type.Object(
   {
-    path: pathSchema,
     remove_from: removeFromSchema,
     remove_to: removeToSchema,
     replacement_lines: replacementLinesSchema,
   },
   { additionalProperties: false },
 );
+
+export function buildEditToolSchema(requirePath: boolean): typeof editToolSchema {
+  if (!requirePath) return editToolSchema;
+  return Type.Object(
+    {
+      path: pathRequiredSchema,
+      remove_from: removeFromSchema,
+      remove_to: removeToSchema,
+      replacement_lines: replacementLinesSchema,
+    },
+    { additionalProperties: false },
+  ) as typeof editToolSchema;
+}
 
 export type ReqParams = {
   path?: string;

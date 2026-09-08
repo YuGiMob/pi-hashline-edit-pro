@@ -8,6 +8,62 @@ import { makeRenderCall, renderEditResult, type RPreview, type FgT } from "./rep
 import type { ReplaceDetails } from "./replace";
 export const editPrepare = makePrepareArguments();
 
+export interface EditToolFlags {
+  requirePath: boolean;
+  strictInput: boolean;
+  boundaryDedupEnabled: boolean;
+}
+
+export const DEFAULT_EDIT_FLAGS: EditToolFlags = {
+  requirePath: false,
+  strictInput: false,
+  boundaryDedupEnabled: true
+};
+
+export async function currentEditFlags(): Promise<EditToolFlags> {
+  const config = await readConfig();
+  return {
+    requirePath: config.requirePath === true,
+    strictInput: config.strictInput === true,
+    boundaryDedupEnabled: config.boundaryDedupEnabled !== false
+  };
+}
+
+export function withReplacePrompts(base: { description: string; snippet: string; guidelines: string[] }, flags: EditToolFlags): { description: string; snippet: string; guidelines: string[] } {
+  const descriptionParts = [base.description];
+  const snippetParts = [base.snippet];
+  const guidelines = [...base.guidelines];
+  if (flags.requirePath) {
+    descriptionParts.push("Also give `path` matching the file the anchors were served for; it is required and must match anchor ownership.");
+    snippetParts.push("; include `path` (required)");
+    guidelines.push("`replace`: include `path` matching the file the anchors were served for; it is required.");
+  }
+  if (flags.strictInput) {
+    descriptionParts.push("Strict-input mode is on: auto-fixable slips are rejected instead of fixed with warnings.");
+    guidelines.push("`replace`: strict-input is on: auto-fixable slips are rejected instead of fixed.");
+  }
+  if (!flags.boundaryDedupEnabled) {
+    descriptionParts.push("Boundary dedup is off: edits apply literally.");
+    guidelines.push("`replace`: boundary dedup is off: edits apply literally.");
+  }
+  return { description: descriptionParts.join(" "), snippet: snippetParts.join(""), guidelines };
+}
+
+export function withInsertPrompts(base: { description: string; snippet: string; guidelines: string[] }, flags: EditToolFlags): { description: string; snippet: string; guidelines: string[] } {
+  const descriptionParts = [base.description];
+  const snippetParts = [base.snippet];
+  const guidelines = [...base.guidelines];
+  if (flags.requirePath) {
+    descriptionParts.push("Also give `path` matching the file the anchor was served for; it is required and must match anchor ownership.");
+    snippetParts.push("; include `path` (required)");
+    guidelines.push("`insert`: include `path` matching the file the anchor was served for; it is required.");
+  }
+  if (flags.strictInput) {
+    descriptionParts.push("Strict-input mode is on: auto-fixable slips are rejected instead of fixed with warnings.");
+    guidelines.push("`insert`: strict-input is on: auto-fixable slips are rejected instead of fixed.");
+  }
+  return { description: descriptionParts.join(" "), snippet: snippetParts.join(""), guidelines };
+}
 export function resolveEditTarget(removeFrom: string, removeTo?: string): string {
   const refs = [removeFrom, removeTo].filter((value): value is string => typeof value === "string");
   const owners = refs.map((ref) => ownerOf(parseHashRef(stripAnchorRow(ref.trim(), "anchor entry")).hash));
@@ -61,6 +117,20 @@ export async function resolveEditTargetWithRequirement(input: PathRequirementInp
     }
   }
   return anchorTarget;
+}
+
+export async function throwIfStrictInput(warnings: string[]): Promise<void> {
+  const fixes = warnings.filter((warning) => warning.startsWith("[W_"));
+  if (fixes.length === 0) return;
+  const { strictInput } = await readConfig();
+  if (strictInput === true) {
+    throw new Error(`[E_BAD_SHAPE] Strict-input mode rejects auto-fixable input (run /toggle-strict-input to disable):\n${fixes.join("\n")}`);
+  }
+}
+
+export async function isBoundaryDedupEnabled(): Promise<boolean> {
+  const { boundaryDedupEnabled } = await readConfig();
+  return boundaryDedupEnabled !== false;
 }
 
 export function editRenderCallWrapper(
