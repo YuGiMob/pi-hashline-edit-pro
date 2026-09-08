@@ -155,8 +155,8 @@ function makeCommandPi(initialTools: string[]) {
   return { pi, commands, handlers, getActive: () => [...active] };
 }
 
-describe("anchor_grep opt-in", () => {
-  it("session_start removes anchor_grep by default and keeps the built-in grep", async () => {
+describe("anchor_grep default", () => {
+  it("session_start keeps anchor_grep by default and disables the built-in grep", async () => {
     await withTempDir("startup-grep-on-", async dir => {
       const home = join(dir, "home");
       await mkdir(join(home, ".config", "pi-hashline-edit-pro"), { recursive: true });
@@ -168,8 +168,8 @@ describe("anchor_grep opt-in", () => {
         register(pi);
         const sessionStart = handlers.get("session_start") as (a: unknown, b: unknown) => Promise<void>;
         await sessionStart({}, { cwd: dir, ui: { notify: vi.fn() } });
-        expect(getActive()).toContain("grep");
-        expect(getActive()).not.toContain("anchor_grep");
+        expect(getActive()).not.toContain("grep");
+        expect(getActive()).toContain("anchor_grep");
         expect(getActive()).not.toContain("edit");
         expect(getActive()).toContain("read");
       } finally {
@@ -220,18 +220,18 @@ describe("anchor_grep opt-in", () => {
         register(pi);
         const sessionStart = handlers.get("session_start") as (a: unknown, b: unknown) => Promise<void>;
         await sessionStart({}, { cwd: dir, ui: { notify: vi.fn() } });
-        expect(getActive()).toContain("grep");
-        expect(getActive()).not.toContain("anchor_grep");
+        expect(getActive()).not.toContain("grep");
+        expect(getActive()).toContain("anchor_grep");
         const overlay = await openConfigOverlay(commands, dir);
         overlay.handleInput("j");
-        overlay.handleInput(" ");
-        await waitForConfig(async () => (await readConfig()).anchorGrepEnabled === true && getActive().includes("anchor_grep") && !getActive().includes("grep"));
-        expect(getActive()).toContain("anchor_grep");
-        expect(getActive()).not.toContain("grep");
         overlay.handleInput(" ");
         await waitForConfig(async () => (await readConfig()).anchorGrepEnabled === false && !getActive().includes("anchor_grep") && getActive().includes("grep"));
         expect(getActive()).not.toContain("anchor_grep");
         expect(getActive()).toContain("grep");
+        overlay.handleInput(" ");
+        await waitForConfig(async () => (await readConfig()).anchorGrepEnabled === true && getActive().includes("anchor_grep") && !getActive().includes("grep"));
+        expect(getActive()).toContain("anchor_grep");
+        expect(getActive()).not.toContain("grep");
       } finally {
         vi.unstubAllEnvs();
         const { shutdownHashStore } = await import("../../src/hash-store");
@@ -253,15 +253,16 @@ describe("anchor_grep opt-in", () => {
         const sessionStart = handlers.get("session_start") as (a: unknown, b: unknown) => Promise<void>;
         await sessionStart({}, { cwd: dir, ui: { notify: vi.fn() } });
         expect(getActive()).not.toContain("grep");
-        expect(getActive()).not.toContain("anchor_grep");
+        expect(getActive()).toContain("anchor_grep");
         const overlay = await openConfigOverlay(commands, dir);
         overlay.handleInput("j");
         overlay.handleInput(" ");
-        await waitForConfig(async () => (await readConfig()).anchorGrepEnabled === true && getActive().includes("anchor_grep"));
-        expect(getActive()).toContain("anchor_grep");
-        overlay.handleInput(" ");
         await waitForConfig(async () => (await readConfig()).anchorGrepEnabled === false && !getActive().includes("anchor_grep"));
         expect(getActive()).not.toContain("anchor_grep");
+        expect(getActive()).not.toContain("grep");
+        overlay.handleInput(" ");
+        await waitForConfig(async () => (await readConfig()).anchorGrepEnabled === true && getActive().includes("anchor_grep"));
+        expect(getActive()).toContain("anchor_grep");
         expect(getActive()).not.toContain("grep");
       } finally {
         vi.unstubAllEnvs();

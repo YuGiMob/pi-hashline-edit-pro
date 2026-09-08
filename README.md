@@ -115,7 +115,7 @@ The same safety machinery as `replace` applies: undo is saved before the write (
 
 ### anchor_grep
 
-`anchor_grep` is an anchored search backed by ripgrep. It is disabled by default; enable it in `/hashline-config` (or set `anchorGrepEnabled` to `true` in the config file). While it is enabled, the built-in grep is disabled. Disabling it removes the tool and restores the built-in grep only if that was active before the extension loaded.
+`anchor_grep` is an anchored search backed by ripgrep. It is enabled by default; disable it in `/hashline-config` (or set `anchorGrepEnabled` to `false` in the config file). While it is enabled, the built-in grep is disabled. Disabling it removes the tool and restores the built-in grep only if that was active before the extension loaded.
 
 Every matching line, and each requested context line, is returned as `lineNumber │ anchor│content`. The `anchor│content` part is served exactly like `read` output, so you can target it with `replace` or `insert` without a separate `read`; the line-number gutter and `=== path ===` header give filename and line for navigation.
 
@@ -178,7 +178,7 @@ Settings live in `~/.config/pi-hashline-edit-pro/config.json`, created when a se
 ```json
 {
   "autoRead": true,
-  "anchorGrepEnabled": false,
+  "anchorGrepEnabled": true,
   "requirePath": false,
   "strictInput": false,
   "boundaryDedupEnabled": true
