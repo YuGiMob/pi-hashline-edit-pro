@@ -12,7 +12,7 @@ export const ALPH_RE = new RegExp(`^[${ALNUM}]+$`);
 
 export const HASH_CLASS = `[${ALNUM}]{${HASH_LEN}}`;
 
-export const HASH_RUN = `[${ALNUM}]{1,${HASH_LEN * 2}}`;
+export const HASH_RUN = `[${ALNUM}]{${HASH_LEN},${HASH_LEN + 1}}`;
 
 export const HASH_RE = new RegExp(`^${HASH_CLASS}$`);
 

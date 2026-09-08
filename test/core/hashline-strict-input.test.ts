@@ -84,27 +84,27 @@ describe("partial hash prefixes copied into content (issue #24)", () => {
     expect(result.warnings?.[0]).toMatch(/Stripped "anchor│" prefix/);
 	});
 
-	it("strips bare prefixes even when the hash is not in the file hash set", async () => {
-		const hashes = await lineHashes(file, home.testPath);
-		const anchor = hashes[0]!;
-		const result = applyTool(
+  it("strips bare prefixes even when the hash is not in the file hash set", async () => {
+    const hashes = await lineHashes(file, home.testPath);
+    const anchor = hashes[0]!;
+    const result = applyTool(
       { remove_from: anchor,
-      remove_to: anchor, replacement_lines: ["ZZZ│one", "ZZP│two"] },
+      remove_to: anchor, replacement_lines: ["ZZZZZ│one", "ZZZZP│two"] },
     hashes);
     expect(result.content).toBe("one\ntwo\nbeta\ngamma\ndelta");
     expect(result.warnings?.[0]).toMatch(/Stripped "anchor│" prefix/);
-	});
+  });
 
-	it("reports the replacement_lines line for each stripped line", async () => {
-		const hashes = await lineHashes(file, home.testPath);
-		const anchor = hashes[0]!;
-		const result = applyTool(
+  it("reports the replacement_lines line for each stripped line", async () => {
+    const hashes = await lineHashes(file, home.testPath);
+    const anchor = hashes[0]!;
+    const result = applyTool(
       { remove_from: anchor,
-      remove_to: anchor, replacement_lines: ["ZZZ│one", "real", "ZZP│two"] },
+      remove_to: anchor, replacement_lines: ["ZZZZZ│one", "real", "ZZZZP│two"] },
     hashes);
     expect(result.content).toBe("one\nreal\ntwo\nbeta\ngamma\ndelta");
     expect(result.warnings?.[0]).toMatch(/replacement_lines line 1, replacement_lines line 3/);
-	});
+  });
 
 	it("keeps indentation after the separator while dropping leading prefix whitespace", async () => {
 		const hashes = await lineHashes(file, home.testPath);
@@ -266,47 +266,45 @@ describe("diff-prefix false-positive guards (tightened shapes)", () => {
 		expect(result.warnings?.[0]).toMatch(/Stripped diff-preview marker/);
 	});
 });
-
-describe("truncated hash prefixes copied into content (issue #27)", () => {
+describe("short and long runs before the separator (issue #27)", () => {
 	const file = "alpha\nbeta\ngamma\ndelta";
 
 	function applyTool(toolEdit: HTEdit, precomputedHashes?: string[]) {
 		return applyEdit(file, resEdit(toolEdit), undefined, precomputedHashes);
 	}
 
-	it("strips a 2-char prefix copied from read output", async () => {
-		const hashes = await lineHashes(file, home.testPath);
-		const anchor = hashes[0]!;
-		const result = applyTool(
-			{ remove_from: anchor,
-			remove_to: anchor, replacement_lines: ["L3│                        }"] },
-			hashes);
-		expect(result.content).toBe("                        }\nbeta\ngamma\ndelta");
-		expect(result.content).not.toContain("│");
-		expect(result.warnings?.[0]).toMatch(/Stripped "anchor│" prefix/);
-	});
+  it("leaves a 2-char run before the separator as literal content", async () => {
+    const hashes = await lineHashes(file, home.testPath);
+    const anchor = hashes[0]!;
+    const result = applyTool(
+      { remove_from: anchor,
+      remove_to: anchor, replacement_lines: ["L3│literal"] },
+    hashes);
+    expect(result.content).toBe("L3│literal\nbeta\ngamma\ndelta");
+    expect(result.warnings ?? []).toEqual([]);
+  });
 
-	it("strips a 1-char prefix pasted from read output", async () => {
-		const hashes = await lineHashes(file, home.testPath);
-		const anchor = hashes[0]!;
-		const result = applyTool(
-			{ remove_from: anchor,
-			remove_to: anchor, replacement_lines: ["a│one"] },
-			hashes);
-		expect(result.content).toBe("one\nbeta\ngamma\ndelta");
-		expect(result.warnings?.[0]).toMatch(/Stripped "anchor│" prefix/);
-	});
+  it("leaves a 1-char run before the separator as literal content", async () => {
+    const hashes = await lineHashes(file, home.testPath);
+    const anchor = hashes[0]!;
+    const result = applyTool(
+      { remove_from: anchor,
+      remove_to: anchor, replacement_lines: ["a│one"] },
+    hashes);
+    expect(result.content).toBe("a│one\nbeta\ngamma\ndelta");
+    expect(result.warnings ?? []).toEqual([]);
+  });
 
-	it("strips truncated +HASH│ and -HASH│ diff rows with warning", async () => {
-		const hashes = await lineHashes(file, home.testPath);
-		const anchor = hashes[0]!;
-		const result = applyTool(
-			{ remove_from: anchor,
-			remove_to: anchor, replacement_lines: ["+L3│one", "-L3│two"] },
-			hashes);
-		expect(result.content).toBe("one\ntwo\nbeta\ngamma\ndelta");
-		expect(result.warnings?.[0]).toMatch(/Stripped diff-preview marker/);
-	});
+  it("strips +HASH│ and -HASH│ diff rows with warning", async () => {
+    const hashes = await lineHashes(file, home.testPath);
+    const anchor = hashes[0]!;
+    const result = applyTool(
+      { remove_from: anchor,
+      remove_to: anchor, replacement_lines: ["+abcd│one", "-abcd│two"] },
+    hashes);
+    expect(result.content).toBe("one\ntwo\nbeta\ngamma\ndelta");
+    expect(result.warnings?.[0]).toMatch(/Stripped diff-preview marker/);
+  });
 
 	it("strips a 4-char prefix pasted from read output", async () => {
 		const hashes = await lineHashes(file, home.testPath);
@@ -341,14 +339,14 @@ describe("truncated hash prefixes copied into content (issue #27)", () => {
 		expect(result.warnings ?? []).toEqual([]);
 	});
 
-	it("strips a truncated row prefix pasted into remove_from/remove_to", () => {
-		const warnings: string[] = [];
-		expect(() =>
-			resEdit(
-				{ remove_from: "L3│   }", remove_to: "L3│   }", replacement_lines: ["x"] },
-				warnings,
-			),
-		).toThrow(/E_BAD_REF/);
-		expect(warnings[0]).toMatch(/Stripped "anchor│" prefix/);
-	});
+  it("strips a 5-char row prefix pasted into remove_from/remove_to", () => {
+    const warnings: string[] = [];
+    expect(() =>
+      resEdit(
+        { remove_from: "abcde│   }", remove_to: "abcde│   }", replacement_lines: ["x"] },
+        warnings,
+      ),
+    ).toThrow(/E_BAD_REF/);
+    expect(warnings[0]).toMatch(/Stripped "anchor│" prefix/);
+  });
 });

@@ -731,3 +731,64 @@ async function withSystemTempDir(prefix: string, run: (dir: string) => Promise<v
     });
   });
 });
+
+describe("anchor_grep display", () => {
+  const theme = {
+    fg: (_area: string, text: string) => text,
+    bold: (text: string) => text,
+  } as never;
+  const plainContext = { lastComponent: undefined, expanded: false, isError: false };
+
+  it("registers renderCall and renderResult", async () => {
+    const { pi, getTool } = makeFakePiRegistry();
+    register(pi);
+    const tool = getTool("anchor_grep");
+    expect(typeof tool.renderCall).toBe("function");
+    expect(typeof tool.renderResult).toBe("function");
+  });
+
+  it("renderCall shows pattern and qualifiers", async () => {
+    const { fmtGrepCall } = await import("../../src/grep");
+    expect(fmtGrepCall({ pattern: "beta", path: "src" }, theme)).toContain("beta");
+    expect(fmtGrepCall({ pattern: "beta", path: "src" }, theme)).toContain("src");
+    expect(fmtGrepCall({ pattern: "beta", glob: "*.ts", literal: true }, theme)).toContain("*.ts");
+    expect(fmtGrepCall(undefined, theme)).toContain("anchor_grep");
+  });
+
+  it("renderResult shows hits with a match summary", async () => {
+    const { renderGrepResult } = await import("../../src/grep");
+    const component = renderGrepResult(
+      { content: [{ type: "text", text: "=== a.txt ===\n1 │ ab12│beta" }], details: { metrics: { matches: 1, files: 1 } } },
+      { isPartial: false, expanded: true },
+      theme,
+      plainContext,
+    );
+    expect((component as unknown as { text: string }).text ?? String(component)).toContain("1 match in 1 file");
+  });
+
+  it("renderResult caps collapsed output with a more-lines note", async () => {
+    const { renderGrepResult } = await import("../../src/grep");
+    const rows = Array.from({ length: 30 }, (_, index) => `=== f${index}.txt ===`);
+    const component = renderGrepResult(
+      { content: [{ type: "text", text: rows.join("\n") }], details: { metrics: { matches: 30, files: 30 } } },
+      { isPartial: false, expanded: false },
+      theme,
+      plainContext,
+    );
+    const rendered = String((component as unknown as { getText?: () => string }).getText?.() ?? (component as unknown as { text: string }).text ?? component);
+    expect(rendered).toContain("more grep lines");
+  });
+
+  it("renderResult handles partial and error states", async () => {
+    const { renderGrepResult } = await import("../../src/grep");
+    const partial = renderGrepResult({ content: [] }, { isPartial: true }, theme, plainContext);
+    expect(String((partial as unknown as { text: string }).text ?? partial)).toContain("Searching");
+    const failed = renderGrepResult(
+      { content: [{ type: "text", text: "[E_NOT_FOUND] File not found: x" }] },
+      { isPartial: false },
+      theme,
+      { ...plainContext, isError: true },
+    );
+    expect(String((failed as unknown as { text: string }).text ?? failed)).toContain("E_NOT_FOUND");
+  });
+});

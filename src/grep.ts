@@ -14,6 +14,8 @@ import { normReq } from "./payload-contract";
 import { abortIf, errCode, isRec, makePrepareArguments, rejectUnknownFields, truncateToBytes, visLines } from "./utils";
 import { markServed as markServedScoped } from "./anchor-registry";
 import { buildServedMap } from "./served";
+import { Text } from "@earendil-works/pi-tui";
+import { colorLines, expandHint, getResultText, reuseText, type CallT, type FgT } from "./replace-render";
 const GREP_KS = new Set(["pattern", "path", "glob", "context", "ignoreCase", "literal", "limit"]);
 
 function cmp(a: string, b: string): number {
@@ -452,6 +454,41 @@ const grepToolSchema = Type.Object(
   { additionalProperties: false },
 );
 
+
+const GREP_PREVIEW_LINES = 16;
+const GREP_PREVIEW_LINES_EXPANDED = 40;
+
+export function fmtGrepCall(args: { pattern?: unknown; path?: unknown; glob?: unknown; literal?: unknown; ignoreCase?: unknown; context?: unknown; limit?: unknown } | undefined, theme: CallT): string {
+  const pattern = typeof args?.pattern === "string" && args.pattern.length > 0 ? theme.fg("accent", args.pattern) : theme.fg("toolOutput", "...");
+  const qualifiers: string[] = [];
+  if (typeof args?.path === "string" && args.path.length > 0) qualifiers.push(args.path);
+  if (typeof args?.glob === "string" && args.glob.length > 0) qualifiers.push(args.glob);
+  if (args?.literal === true) qualifiers.push("literal");
+  if (args?.ignoreCase === true) qualifiers.push("case-insensitive");
+  if (typeof args?.context === "number") qualifiers.push(`context ${args.context}`);
+  if (typeof args?.limit === "number") qualifiers.push(`limit ${args.limit}`);
+  let text = `${theme.fg("toolTitle", theme.bold("anchor_grep"))} ${pattern}`;
+  if (qualifiers.length > 0) text += ` ${theme.fg("dim", qualifiers.join(" "))}`;
+  return text;
+}
+
+export function renderGrepResult(result: { content?: Array<{ type: string; text?: string }>; details?: { metrics?: { matches?: unknown; files?: unknown } } }, options: { isPartial: boolean; expanded?: boolean } | boolean, theme: FgT, context: any): Text {
+  const isPartial = typeof options === "boolean" ? options : options.isPartial;
+  const expanded = typeof options === "boolean" ? context.expanded === true : options.expanded === true || context.expanded === true;
+  if (isPartial) return reuseText(context, theme.fg("warning", "Searching..."));
+  const raw = getResultText(result);
+  if (context.isError) return raw ? reuseText(context, `\n${theme.fg("error", raw)}`) : new Text("", 0, 0);
+  if (!raw) return new Text("", 0, 0);
+  const metrics = result.details?.metrics;
+  const matches = typeof metrics?.matches === "number" ? metrics.matches : undefined;
+  const files = typeof metrics?.files === "number" ? metrics.files : undefined;
+  const summary = matches !== undefined && matches > 0 && files !== undefined ? `${matches} match${matches === 1 ? "" : "es"} in ${files} file${files === 1 ? "" : "s"}\n\n` : "";
+  const maxLines = expanded ? GREP_PREVIEW_LINES_EXPANDED : GREP_PREVIEW_LINES;
+  const lines = raw.split("\n");
+  const shown = colorLines(lines.slice(0, maxLines), theme);
+  if (lines.length > maxLines) shown.push(theme.fg("muted", `... ${lines.length - maxLines} more grep lines (${expandHint()})`));
+  return reuseText(context, `${summary}${shown.join("\n")}`);
+}
 export function regGrep(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "anchor_grep",
@@ -462,6 +499,14 @@ export function regGrep(pi: ExtensionAPI): void {
     prepareArguments: makePrepareArguments(),
     parameters: grepToolSchema,
     executionMode: "sequential",
+    renderCall(args: any, theme: CallT, context: any) {
+      const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
+      text.setText(fmtGrepCall(args as { pattern?: unknown; path?: unknown } | undefined, theme));
+      return text;
+    },
+    renderResult(result, opts, theme, context) {
+      return renderGrepResult(result as never, opts as { isPartial: boolean; expanded?: boolean }, theme as never, context as never);
+    },
 
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const canonical = normReq(params);

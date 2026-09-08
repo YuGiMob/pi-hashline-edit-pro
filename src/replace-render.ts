@@ -128,7 +128,7 @@ export function isApplied(
 
 const RESULT_PREVIEW_LINES = 16;
 
-function expandHint(): string {
+export function expandHint(): string {
 	try {
 		return keyHint("app.tools.expand", "to expand");
 	} catch {
