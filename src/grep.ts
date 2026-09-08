@@ -15,7 +15,7 @@ import { abortIf, errCode, isRec, makePrepareArguments, rejectUnknownFields, tru
 import { markServed as markServedScoped } from "./anchor-registry";
 import { buildServedMap } from "./served";
 import { Text } from "@earendil-works/pi-tui";
-import { colorLines, expandHint, getResultText, reuseText, type CallT, type FgT } from "./replace-render";
+import { expandHint, getResultText, reuseText, type CallT, type FgT } from "./replace-render";
 const GREP_KS = new Set(["pattern", "path", "glob", "context", "ignoreCase", "literal", "limit"]);
 
 function cmp(a: string, b: string): number {
@@ -472,22 +472,18 @@ export function fmtGrepCall(args: { pattern?: unknown; path?: unknown; glob?: un
   return text;
 }
 
-export function renderGrepResult(result: { content?: Array<{ type: string; text?: string }>; details?: { metrics?: { matches?: unknown; files?: unknown } } }, options: { isPartial: boolean; expanded?: boolean } | boolean, theme: FgT, context: any): Text {
+export function renderGrepResult(result: { content?: Array<{ type: string; text?: string }> }, options: { isPartial: boolean; expanded?: boolean } | boolean, theme: FgT, context: any): Text {
   const isPartial = typeof options === "boolean" ? options : options.isPartial;
   const expanded = typeof options === "boolean" ? context.expanded === true : options.expanded === true || context.expanded === true;
   if (isPartial) return reuseText(context, theme.fg("warning", "Searching..."));
   const raw = getResultText(result);
   if (context.isError) return raw ? reuseText(context, `\n${theme.fg("error", raw)}`) : new Text("", 0, 0);
   if (!raw) return new Text("", 0, 0);
-  const metrics = result.details?.metrics;
-  const matches = typeof metrics?.matches === "number" ? metrics.matches : undefined;
-  const files = typeof metrics?.files === "number" ? metrics.files : undefined;
-  const summary = matches !== undefined && matches > 0 && files !== undefined ? `${matches} match${matches === 1 ? "" : "es"} in ${files} file${files === 1 ? "" : "s"}\n\n` : "";
   const maxLines = expanded ? GREP_PREVIEW_LINES_EXPANDED : GREP_PREVIEW_LINES;
   const lines = raw.split("\n");
-  const shown = colorLines(lines.slice(0, maxLines), theme);
+  const shown = lines.slice(0, maxLines).map((line) => line.startsWith("=== ") ? theme.fg("accent", line) : line);
   if (lines.length > maxLines) shown.push(theme.fg("muted", `... ${lines.length - maxLines} more grep lines (${expandHint()})`));
-  return reuseText(context, `${summary}${shown.join("\n")}`);
+  return reuseText(context, shown.join("\n"));
 }
 export function regGrep(pi: ExtensionAPI): void {
   pi.registerTool({

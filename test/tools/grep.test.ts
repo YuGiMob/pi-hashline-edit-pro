@@ -755,22 +755,25 @@ describe("anchor_grep display", () => {
     expect(fmtGrepCall(undefined, theme)).toContain("anchor_grep");
   });
 
-  it("renderResult shows hits with a match summary", async () => {
+  it("renderResult shows hits without a summary line", async () => {
     const { renderGrepResult } = await import("../../src/grep");
     const component = renderGrepResult(
-      { content: [{ type: "text", text: "=== a.txt ===\n1 │ ab12│beta" }], details: { metrics: { matches: 1, files: 1 } } },
+      { content: [{ type: "text", text: "=== a.txt ===\n1 │ ab12│beta" }] },
       { isPartial: false, expanded: true },
       theme,
       plainContext,
     );
-    expect((component as unknown as { text: string }).text ?? String(component)).toContain("1 match in 1 file");
+    const rendered = (component as unknown as { text: string }).text ?? String(component);
+    expect(rendered).toContain("=== a.txt ===");
+    expect(rendered).toContain("1 │ ab12│beta");
+    expect(rendered).not.toContain("match in");
   });
 
   it("renderResult caps collapsed output with a more-lines note", async () => {
     const { renderGrepResult } = await import("../../src/grep");
     const rows = Array.from({ length: 30 }, (_, index) => `=== f${index}.txt ===`);
     const component = renderGrepResult(
-      { content: [{ type: "text", text: rows.join("\n") }], details: { metrics: { matches: 30, files: 30 } } },
+      { content: [{ type: "text", text: rows.join("\n") }] },
       { isPartial: false, expanded: false },
       theme,
       plainContext,
