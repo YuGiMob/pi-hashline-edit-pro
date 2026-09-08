@@ -12,12 +12,14 @@ export interface EditToolFlags {
   requirePath: boolean;
   strictInput: boolean;
   boundaryDedupEnabled: boolean;
+  autoRead: boolean;
 }
 
 export const DEFAULT_EDIT_FLAGS: EditToolFlags = {
   requirePath: false,
   strictInput: false,
-  boundaryDedupEnabled: true
+  boundaryDedupEnabled: true,
+  autoRead: true
 };
 
 export async function currentEditFlags(): Promise<EditToolFlags> {
@@ -25,14 +27,20 @@ export async function currentEditFlags(): Promise<EditToolFlags> {
   return {
     requirePath: config.requirePath === true,
     strictInput: config.strictInput === true,
-    boundaryDedupEnabled: config.boundaryDedupEnabled !== false
+    boundaryDedupEnabled: config.boundaryDedupEnabled !== false,
+    autoRead: config.autoRead !== false
   };
 }
 
 export function withReplacePrompts(base: { description: string; snippet: string; guidelines: string[] }, flags: EditToolFlags): { description: string; snippet: string; guidelines: string[] } {
-  const descriptionParts = [base.description];
+  let description = base.description;
   const snippetParts = [base.snippet];
-  const guidelines = [...base.guidelines];
+  let guidelines = [...base.guidelines];
+  if (!flags.autoRead) {
+    description = description.replace(" Anchor follow-up edits on the `+anchor│` and ` anchor│` rows of the post-edit diff instead of re-reading.", "");
+    guidelines = guidelines.map((guideline) => guideline.includes("post-edit diff") ? "`replace`: one edit per turn; verify each result before the next edit on that file." : guideline);
+  }
+  const descriptionParts = [description];
   if (flags.requirePath) {
     descriptionParts.push("Also give `path` matching the file the anchors were served for; it is required and must match anchor ownership.");
     snippetParts.push("; include `path` (required)");
@@ -47,6 +55,12 @@ export function withReplacePrompts(base: { description: string; snippet: string;
     guidelines.push("`replace`: boundary dedup is off: edits apply literally.");
   }
   return { description: descriptionParts.join(" "), snippet: snippetParts.join(""), guidelines };
+}
+
+export function withReadPrompts(base: { description: string; snippet: string; guidelines: string[] }, flags: EditToolFlags): { description: string; snippet: string; guidelines: string[] } {
+  if (flags.autoRead) return { description: base.description, snippet: base.snippet, guidelines: [...base.guidelines] };
+  const guidelines = base.guidelines.map((guideline) => guideline.startsWith("`read`: call again after an edit") ? "`read`: call again after an edit when you need anchors you lack." : guideline);
+  return { description: base.description, snippet: base.snippet, guidelines };
 }
 
 export function withInsertPrompts(base: { description: string; snippet: string; guidelines: string[] }, flags: EditToolFlags): { description: string; snippet: string; guidelines: string[] } {

@@ -45,6 +45,7 @@ export default function (pi: ExtensionAPI): void {
   async function refreshEditTools(): Promise<void> {
     try {
       const flags = await currentEditFlags();
+      regRead(pi, flags);
       regReplace(pi, flags);
       regInsert(pi, flags);
     } catch (error) {
@@ -87,6 +88,7 @@ export default function (pi: ExtensionAPI): void {
     description: "Toggle auto-read anchors after write and post-edit diffs after replace, insert, and undo_last_change",
     handler: async (_args, ctx) => {
       autoRead = await toggleAutoRead();
+      await refreshEditTools();
       const state = autoRead ? "enabled" : "disabled";
       ctx.ui.notify(`Auto-read anchors after write and post-edit diffs after replace/undo: ${state}`, "info");
     },

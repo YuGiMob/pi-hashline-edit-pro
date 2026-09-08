@@ -15,18 +15,16 @@ import { lineHashes, fmtRegion, fmtRow, HASH_SEP, MAX_HASH_LINES } from "./hashl
 import { toCwd } from "./paths";
 import { abortIf, makePrepareArguments, numberedRead, visLines, splitLines } from "./utils";
 import { loadP, loadGuide } from "./prompts";
+import { withReadPrompts, DEFAULT_EDIT_FLAGS, type EditToolFlags } from "./edit-common";
 import { valAccess } from "./validation";
 import { markServed as markServedScoped } from "./anchor-registry";
 import { buildServedMap } from "./served";
 import { Text } from "@earendil-works/pi-tui";
 const R_DESC = loadP("../prompts/read.md");
-
 const R_SNIPPET = loadP("../prompts/read-snippet.md");
-
 function readGuide(): string[] {
-	return loadGuide("../prompts/read-guidelines.md");
+  return loadGuide("../prompts/read-guidelines.md");
 }
-
 function normPosInt(
 	value: number | undefined,
 	name: "offset" | "limit",
@@ -166,13 +164,14 @@ export async function fmtReadPreview(
 	};
 }
 
-export function regRead(pi: ExtensionAPI): void {
-	pi.registerTool({
-		name: "read",
-		label: "Read",
-		description: R_DESC,
-		promptSnippet: R_SNIPPET,
-		promptGuidelines: readGuide(),
+export function regRead(pi: ExtensionAPI, flags: EditToolFlags = DEFAULT_EDIT_FLAGS): void {
+  const prompted = withReadPrompts({ description: R_DESC, snippet: R_SNIPPET, guidelines: readGuide() }, flags);
+  pi.registerTool({
+    name: "read",
+    label: "Read",
+    description: prompted.description,
+    promptSnippet: prompted.snippet,
+    promptGuidelines: prompted.guidelines,
 		prepareArguments: makePrepareArguments(),
 		parameters: Type.Object({
 			path: Type.String({
