@@ -24,7 +24,8 @@ import { assertInsertReq, assertReq, normReq } from "./payload-contract";
 import { saveUndo } from "./replace-undo";
 import { buildChanged, buildNoop, type RMetrics, type TResult } from "./replace-response";
 import { buildServedMap, servedHashesFromDiff } from "./served";
-import { abortIf, errCode, isRec, splitLines } from "./utils";
+import { abortIf, assertLineLimit, errCode, isRec, splitLines } from "./utils";
+import { MAX_BYTES } from "./constants";
 
 export interface PlannedMember {
   batchKey: number;
@@ -52,9 +53,12 @@ interface BatchBase {
 }
 
 export interface BatchPiece {
+  order: number;
   kind: BatchKind;
   start: number;
   end: number;
+  fromHash: string;
+  toHash: string;
   newLines: string[];
   warnings: string[];
   autoFixes: number;
@@ -265,6 +269,17 @@ function batchHeader(member: PlannedMember): string {
   return member.total > 1 ? `batch ${member.display}:` : "batch:";
 }
 
+function formatBatchLines(start: number, end: number): string {
+  return start === end ? `line ${start}` : `lines ${start}-${end}`;
+}
+
+function formatBatchPiece(piece: BatchPiece): string {
+  const lines = formatBatchLines(piece.start, piece.end);
+  if (piece.kind === "insert") return `edit #${piece.order} (insert at ${piece.fromHash}, ${lines})`;
+  if (piece.fromHash === piece.toHash) return `edit #${piece.order} (replace ${piece.fromHash}, ${lines})`;
+  return `edit #${piece.order} (replace ${piece.fromHash}→${piece.toHash}, ${lines})`;
+}
+
 function batchPlaceholder(member: PlannedMember, piece: BatchPiece, snapshotId: string | undefined): TResult {
   const grossAdded = Math.max(0, piece.newLines.length - piece.autoFixes);
   const added = piece.kind === "insert" ? Math.max(0, grossAdded - piece.foldedLines) : grossAdded;
@@ -391,9 +406,12 @@ export async function executeBatchMember(input: BatchMemberInput): Promise<TResu
   const noop = originalSlice.length === newLines.length && originalSlice.every((line, index) => line === newLines[index]);
   const autoFixes = planned.autoFixes?.length ?? 0;
   const piece: BatchPiece = {
+    order: input.member.order,
     kind: input.kind,
     start,
     end,
+    fromHash: input.hedit.hash_bounds[0].hash,
+    toHash: input.hedit.hash_bounds[1].hash,
     newLines: [...newLines],
     warnings: [...input.extraWarnings, ...planned.warnings],
     autoFixes,
@@ -451,7 +469,7 @@ async function finishBatch(member: PlannedMember, signal?: AbortSignal): Promise
     const prev = ordered[i - 1]!;
     const current = ordered[i]!;
     if (current.start <= prev.end) {
-      throw new Error(`[E_BATCH_OVERLAP] Batch ${runtime.display} has overlapping ranges (lines ${prev.start}-${prev.end} and lines ${current.start}-${current.end}); batched edits must target disjoint ranges. Nothing was written.`);
+      throw new Error(`[E_BATCH_OVERLAP] Batch ${runtime.display} has overlapping ranges: ${formatBatchPiece(prev)} overlaps ${formatBatchPiece(current)}`);
     }
   }
   const warnings = [...runtime.warnings];
@@ -461,6 +479,11 @@ async function finishBatch(member: PlannedMember, signal?: AbortSignal): Promise
   await throwIfStrictInput(dedupeWarnings(warnings));
   const composed = composeBatchLines(base.content, appliedPieces);
   assertNotEmpty(base.content, composed);
+  assertLineLimit(composed, paths.displayPath, MAX_HASH_LINES);
+  const finalBytes = base.bom + restoreEndings(composed, base.ending);
+  if (Buffer.byteLength(finalBytes, "utf-8") > MAX_BYTES) {
+    throw new Error(`[E_FILE_TOO_LARGE] File is too large: ${paths.displayPath} (exceeds the ${MAX_BYTES / (1024 * 1024)}MB size limit). For very large files, use write.`);
+  }
   if (composed === base.content) {
     const snapshotId = await safeSnapId(paths.absolutePath, "noop edit");
     return combinedNoop(paths.displayPath, member, runtime, snapshotId);

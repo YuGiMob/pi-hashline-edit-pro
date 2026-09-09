@@ -514,12 +514,8 @@ export async function allocateFileAnchors(
   const lines = splitLines(content);
   const checksums = lines.map((line) => contentChecksum(hashSource(line)));
   if (options?.previous?.spans) {
-    const sessionState = current()!;
     const prevChecksums = splitLines(options.previous.content).map((line) => contentChecksum(hashSource(line)));
     const aligned = alignOwnershipWithSpans(path, options.previous.hashes, prevChecksums, checksums, options.previous.spans, { shadow });
-    for (let i = 0; i < aligned.anchors.length; i++) {
-      sessionState.owned.set(aligned.anchors[i]!, { path, checksum: checksums[i]! });
-    }
     if (!shadow && options.persist !== false) {
       persistSnapshot(store, path, content, aligned.anchors, checksums);
     }
