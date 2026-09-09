@@ -65,6 +65,7 @@ export function foldRegistryEvents(events: RegistryEvent[]): SessionState {
     } else if (event.kind === "allocate") {
       for (const [anchor, checksum] of event.rows) {
         state.owned.set(anchor, { path: event.path, checksum });
+        state.everMinted.add(anchor);
       }
     } else if (event.kind === "free") {
       if (event.anchors) {
@@ -541,9 +542,12 @@ export async function allocateFileAnchors(
     : (() => {
         const state = shadow ? cloneState(current()!) : current()!;
         const reuseIndex = fingerprintIndex(state, path);
+        const reuseTaken = new Map<string, number>();
         const anchors: string[] = checksums.map((checksum) => {
           const candidates = reuseIndex.get(checksum) ?? [];
-          const anchor = candidates.length > 0 ? candidates.shift()! : mintAnchor(state);
+          const taken = reuseTaken.get(checksum) ?? 0;
+          reuseTaken.set(checksum, taken + 1);
+          const anchor = taken < candidates.length ? candidates[taken]! : mintAnchor(state);
           state.everMinted.add(anchor);
           state.owned.set(anchor, { path, checksum });
           return anchor;

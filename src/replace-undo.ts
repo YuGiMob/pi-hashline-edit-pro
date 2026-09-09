@@ -184,7 +184,7 @@ export function regUndo(pi: ExtensionAPI): void {
         try {
           const store = await loadHashStore();
           const undoLines = splitLines(undo.content);
-          persistSnapshot(store, mutationTargetPath, undo.content, undo.hashes);
+          persistSnapshot(store, mutationTargetPath, undo.content, undo.hashes, undoLines.map((line) => contentChecksum(hashSource(line))));
           freeAnchors(mutationTargetPath);
           adoptAnchors(
             mutationTargetPath,

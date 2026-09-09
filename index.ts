@@ -31,6 +31,8 @@ import { loadFileKindAndText } from "./src/file-kind";
 import { resolveInCwd } from "./src/fs-write";
 import { valAccess } from "./src/validation";
 import { splitLines } from "./src/utils";
+import { hashSource } from "./src/hashline";
+import { contentChecksum } from "./src/hashline/hasher";
 
 export default function (pi: ExtensionAPI): void {
   regRead(pi);
@@ -177,7 +179,7 @@ export default function (pi: ExtensionAPI): void {
           DEFAULT_MAX_LINES,
         );
         const fileLines = splitLines(normalized);
-        persistSnapshot(await loadHashStore(), absolutePath, normalized, fileHashes);
+        persistSnapshot(await loadHashStore(), absolutePath, normalized, fileHashes, fileLines.map((line) => contentChecksum(hashSource(line))));
         markServedScoped(absolutePath, buildServedMap(fileHashes, fileLines, preview.servedHashes), new Set(fileHashes));
         return {
           content: [

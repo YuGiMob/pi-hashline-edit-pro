@@ -441,7 +441,7 @@ function composeBatchLines(baseContent: string, pieces: BatchPiece[]): string {
   const descending = [...pieces].sort((a, b) => b.start - a.start);
   for (const piece of descending) lines.splice(piece.start - 1, piece.end - piece.start + 1, ...piece.newLines);
   let composed = lines.join("\n");
-  if (lines.length > 0 && baseContent.endsWith("\n")) composed += "\n";
+  if (lines.length > 0 && (baseContent.endsWith("\n") || lines[lines.length - 1] === "")) composed += "\n";
   return composed;
 }
 

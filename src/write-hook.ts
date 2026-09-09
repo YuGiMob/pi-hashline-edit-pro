@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { HASH_CLASS } from "./hashline/alphabet";
 import { HASH_SEP } from "./hashline/hash";
-import { ownersForPath } from "./anchor-registry";
+import { servedForPath } from "./anchor-registry";
 import { resolveInCwd } from "./fs-write";
 import { abortIf, splitLines, isRec, normalizeFilePath } from "./utils";
 
@@ -27,7 +27,7 @@ export async function servedHashEchoDenial(rawPath: string, content: string, cwd
   abortIf(signal);
   const { resolved } = await resolveInCwd(rawPath, cwd);
   abortIf(signal);
-  const served = ownersForPath(resolved);
+  const served = servedForPath(resolved);
   if (!served || served.size === 0) return undefined;
   const echo = findServedHashEcho(content, served);
   if (!echo) return undefined;
