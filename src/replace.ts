@@ -33,7 +33,8 @@ import { resolveTarget } from "./fs-write";
 import { toCwd } from "./paths";
 import { noopPayloadKey, markBoundaryNoop, consumeBoundaryBypass, clearBoundaryBypass } from "./boundary-bypass";
 import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper, resolveEditTargetWithRequirement, throwIfStrictInput, isBoundaryDedupEnabled, withReplacePrompts, DEFAULT_EDIT_FLAGS, type EditToolFlags } from "./edit-common";
-import { commitBatched } from "./batch";
+import { commitEdit } from "./commit";
+import { batchMemberFor, executeBatchMember, noteBatchFailure } from "./batch";
 
 export { editToolSchema, type ReqParams, assertReq };
 
@@ -47,7 +48,7 @@ export type ReplaceDetails = {
   metrics?: RMetrics;
   diffLineNumbers?: (number|undefined)[];
   warnings?: string[];
-  batch?: { id: number; size: number; last: boolean };
+  batch?: { id: number; size: number; last: boolean; total: number };
 };
 
 export interface PipelineResult {
@@ -113,13 +114,7 @@ function countLineChanges(
   };
 }
 
-export async function execPipeline(
-  targetPath: string,
-  params: ReqParams,
-  cwd: string,
-  options?: ExecPipelineOptions,
-): Promise<PipelineResult> {
-
+export function buildReplaceHEdit(params: ReqParams): { edit: HEdit; warnings: string[] } {
   const editWarnings: string[] = [];
   let replacementLines = params.replacement_lines;
   const expandedReplacement = decodeStringArray(replacementLines);
@@ -135,7 +130,17 @@ export async function execPipeline(
     },
     editWarnings,
   );
+  return { edit, warnings: editWarnings };
+}
 
+export async function execPipeline(
+  targetPath: string,
+  params: ReqParams,
+  cwd: string,
+  options?: ExecPipelineOptions,
+): Promise<PipelineResult> {
+
+  const { edit, warnings: editWarnings } = buildReplaceHEdit(params);
   const hashStore = options?.store ?? await loadHashStore();
   const preResolvedPath = await resolveTarget(toCwd(targetPath, cwd));
   const served = servedForPath(preResolvedPath);
@@ -276,30 +281,59 @@ export function buildToolDef(flags: EditToolFlags = DEFAULT_EDIT_FLAGS): ToolDef
         removeTo: normalizedParams.remove_to,
         providedPath: normalizedParams.path,
         cwd: ctx.cwd,
+      }).catch((error: unknown) => {
+        const member = batchMemberFor(_toolCallId);
+        if (member) noteBatchFailure(member, error);
+        throw error;
       });
       return queuedEdit(targetPath, ctx.cwd, signal, async (absolutePath, mutationTargetPath) => {
         const dedupOn = await isBoundaryDedupEnabled();
         const noopPayload = noopPayloadKey(mutationTargetPath, normalizedParams.remove_from, normalizedParams.remove_to, normalizedParams.replacement_lines);
         const boundaryBypass = dedupOn ? consumeBoundaryBypass(mutationTargetPath, noopPayload) : false;
-        const pipe = await execPipeline(
-          targetPath,
-          normalizedParams,
-          ctx.cwd,
-          { accessMode: constants.R_OK | constants.W_OK, signal, skipBoundaryDedup: boundaryBypass },
-        );
+        const member = batchMemberFor(_toolCallId);
+        if (!member) {
+          const pipe = await execPipeline(
+            targetPath,
+            normalizedParams,
+            ctx.cwd,
+            { accessMode: constants.R_OK | constants.W_OK, signal, skipBoundaryDedup: boundaryBypass },
+          );
+          const appliedWarnings = boundaryBypass
+            ? ["[W_BOUNDARY_BYPASS] Boundary dedup was off for this call and is back on."]
+            : [];
+          return commitEdit(pipe, {
+            path: pipe.path,
+            absolutePath,
+            mutationTargetPath,
+            editAnchors: [normalizedParams.remove_from, normalizedParams.remove_to],
+            signal,
+            appliedWarnings,
+            onApplied: () => { if (dedupOn) clearBoundaryBypass(mutationTargetPath); },
+            onNoopDedup: dedupOn ? () => markBoundaryNoop(mutationTargetPath, noopPayload) : undefined,
+          });
+        }
+        let built: { edit: HEdit; warnings: string[] };
+        try {
+          built = buildReplaceHEdit(normalizedParams);
+        } catch (error) {
+          noteBatchFailure(member, error);
+          throw error;
+        }
         const appliedWarnings = boundaryBypass
           ? ["[W_BOUNDARY_BYPASS] Boundary dedup was off for this call and is back on."]
           : [];
-        return commitBatched(pipe, {
-          path: pipe.path,
-          absolutePath,
+        return executeBatchMember({
+          kind: "replace",
+          member,
+          targetPath,
           mutationTargetPath,
-          editAnchors: [normalizedParams.remove_from, normalizedParams.remove_to],
+          cwd: ctx.cwd,
           signal,
-          appliedWarnings,
-          onApplied: () => { if (dedupOn) clearBoundaryBypass(mutationTargetPath); },
-          onNoopDedup: dedupOn ? () => markBoundaryNoop(mutationTargetPath, noopPayload) : undefined,
-        }, _toolCallId, "replace");
+          hedit: built.edit,
+          extraWarnings: [...built.warnings, ...appliedWarnings],
+          skipBoundaryDedup: boundaryBypass,
+          noopPayload,
+        });
       });
     },
   };

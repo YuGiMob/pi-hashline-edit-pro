@@ -27,7 +27,7 @@ export interface CommitMeta {
   onNoopDedup?: () => void;
 }
 
-function boundaryDedupWarning(count: number): string {
+export function boundaryDedupWarning(count: number): string {
   const noun = count === 1 ? "1 line" : `${count} lines`;
   const row = count === 1 ? "row" : "rows";
   return `Boundary dedup: ${noun} not added again (see ${DEDUP_ANCHOR}${HASH_SEP} ${row}).`;

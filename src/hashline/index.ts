@@ -43,7 +43,10 @@ export {
 export {
 	buildIdx,
 	applyEdit,
+	planEdit,
+	type PlannedEdit,
 	fmtRegion,
 	fmtRow,
 	changedRange,
+	assertNotEmpty,
 } from "./apply";

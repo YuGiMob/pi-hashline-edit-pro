@@ -52,7 +52,7 @@ type NoopSpan = {
 	loc: string;
 	currentContent: string;
 };
-function assertNotEmpty(originalContent: string, result: string): void {
+export function assertNotEmpty(originalContent: string, result: string): void {
 	if (originalContent.length > 0 && result.length === 0) {
 		throw new Error(
 			"[E_WOULD_EMPTY] A replace cannot empty a non-empty file. Use `write` to clear the file."
@@ -148,6 +148,108 @@ function assemble(
 	return content.slice(0, span.start) + span.replacement + content.slice(span.end);
 }
 
+export interface PlannedEdit {
+  resolved: RHEdit;
+  warnings: string[];
+  autoFixes?: AutoFix[];
+}
+
+export function planEdit(
+  content: string,
+  edit: HEdit,
+  precomputedHashes: string[],
+  options?: {
+    filePath?: string;
+    servedHashes?: ReadonlyMap<string, string>;
+    skipBoundaryDedup?: boolean;
+    signal?: AbortSignal;
+  },
+): PlannedEdit {
+  const signal = options?.signal;
+  abortIf(signal);
+  const lineIndex = buildIdx(content);
+  const fileHashes = precomputedHashes;
+  const warnings: string[] = [];
+
+  const rangeFixed = swapReversedRanges(edit, fileHashes, warnings);
+  const prefixFixed = stripDiffPrefixes(
+    stripBarePrefixes(rangeFixed, fileHashes, warnings),
+    warnings,
+  );
+
+  const { resolved: initialResolved, mismatches, boundaryDups } = valEdit(
+    prefixFixed,
+    lineIndex.fileLines,
+    fileHashes,
+    warnings,
+    signal,
+  );
+  if (mismatches.length || !initialResolved) {
+    const feedback = fmtMismatchWithHashes(
+      mismatches,
+      lineIndex.fileLines,
+      fileHashes,
+      options?.filePath,
+    );
+    throw new AnchorMismatchError(feedback.text, feedback.hashes, feedback.servedMap);
+  }
+
+  warnUnicodeEsc(prefixFixed, warnings);
+
+  let resolved = initialResolved;
+  let autoFixes: AutoFix[] | undefined;
+  if (boundaryDups.length > 0 && !(options?.skipBoundaryDedup === true)) {
+    autoFixes = [];
+    const correctedEdit: HEdit = {
+      ...prefixFixed,
+      content_lines: [...prefixFixed.content_lines],
+    };
+    const seen = new Set<number>();
+    const uniqueDups: BDup[] = [];
+    for (const dup of boundaryDups) {
+      if (seen.has(dup.replacementLineIndex)) continue;
+      seen.add(dup.replacementLineIndex);
+      uniqueDups.push(dup);
+    }
+    const dupsByIndex = uniqueDups.sort(
+      (a, b) => b.replacementLineIndex - a.replacementLineIndex,
+    );
+    for (const dup of dupsByIndex) {
+      const idx = dup.replacementLineIndex;
+      if (idx < 0 || idx >= correctedEdit.content_lines.length) continue;
+      const removed = correctedEdit.content_lines.splice(idx, 1)[0];
+      autoFixes.push({ kind: dup.kind, removedLine: removed, removedLineIndex: idx });
+    }
+    const correctedResult = valEdit(
+      correctedEdit,
+      lineIndex.fileLines,
+      fileHashes,
+      warnings,
+      signal,
+    );
+    if (correctedResult.mismatches.length || !correctedResult.resolved) {
+      const feedback = fmtMismatchWithHashes(
+        correctedResult.mismatches,
+        lineIndex.fileLines,
+        fileHashes,
+        options?.filePath,
+      );
+      throw new AnchorMismatchError(feedback.text, feedback.hashes, feedback.servedMap);
+    }
+    resolved = correctedResult.resolved;
+  }
+
+  if (options?.servedHashes) {
+    abortIf(signal);
+    assertRangeServed(resolved, lineIndex.fileLines, fileHashes, options.servedHashes, options?.filePath);
+  }
+
+  return {
+    resolved,
+    warnings,
+    ...(autoFixes ? { autoFixes } : {}),
+  };
+}
 export function applyEdit(
 	content: string,
 	edit: HEdit,
@@ -164,88 +266,15 @@ export function applyEdit(
 	noopEdit?: NEdit;
 	autoFixes?: AutoFix[];
 } {
-	abortIf(signal);
-
-	const lineIndex = buildIdx(content);
-	if (precomputedHashes === undefined) {
-		throw new Error("[E_BAD_SHAPE] applyEdit requires the file's allocated anchors; derive them via lineHashes(content, path) first.");
-	}
-	const fileHashes = precomputedHashes;
-	const warnings: string[] = [];
-
-	const rangeFixed = swapReversedRanges(edit, fileHashes, warnings);
-	const prefixFixed = stripDiffPrefixes(
-		stripBarePrefixes(rangeFixed, fileHashes, warnings),
-		warnings,
-	);
-
-	const { resolved: initialResolved, mismatches, boundaryDups } = valEdit(
-		prefixFixed,
-		lineIndex.fileLines,
-		fileHashes,
-		warnings,
-		signal,
-	);
-	if (mismatches.length || !initialResolved) {
-		const feedback = fmtMismatchWithHashes(
-			mismatches,
-			lineIndex.fileLines,
-			fileHashes,
-			filePath,
-		);
-		throw new AnchorMismatchError(feedback.text, feedback.hashes, feedback.servedMap);
-	}
-
-	warnUnicodeEsc(prefixFixed, warnings);
-
-	let resolved = initialResolved;
-	let autoFixes: AutoFix[] | undefined;
-	if (boundaryDups.length > 0 && !skipBoundaryDedup) {
-		autoFixes = [];
-		const correctedEdit: HEdit = {
-			...prefixFixed,
-			content_lines: [...prefixFixed.content_lines],
-		};
-		const seen = new Set<number>();
-		const uniqueDups: BDup[] = [];
-		for (const dup of boundaryDups) {
-			if (seen.has(dup.replacementLineIndex)) continue;
-			seen.add(dup.replacementLineIndex);
-			uniqueDups.push(dup);
-		}
-		const dupsByIndex = uniqueDups.sort(
-			(a, b) => b.replacementLineIndex - a.replacementLineIndex,
-		);
-		for (const dup of dupsByIndex) {
-			const idx = dup.replacementLineIndex;
-			if (idx < 0 || idx >= correctedEdit.content_lines.length) continue;
-			const removed = correctedEdit.content_lines.splice(idx, 1)[0];
-			autoFixes.push({ kind: dup.kind, removedLine: removed, removedLineIndex: idx });
-		}
-		const correctedResult = valEdit(
-			correctedEdit,
-			lineIndex.fileLines,
-			fileHashes,
-			warnings,
-			signal,
-		);
-		if (correctedResult.mismatches.length || !correctedResult.resolved) {
-			const feedback = fmtMismatchWithHashes(
-				correctedResult.mismatches,
-				lineIndex.fileLines,
-				fileHashes,
-				filePath,
-			);
-			throw new AnchorMismatchError(feedback.text, feedback.hashes, feedback.servedMap);
-		}
-		resolved = correctedResult.resolved;
-	}
-
-	if (servedHashes) {
-		abortIf(signal);
-		assertRangeServed(resolved, lineIndex.fileLines, fileHashes, servedHashes, filePath);
-	}
-
+  abortIf(signal);
+  if (precomputedHashes === undefined) {
+    throw new Error("[E_BAD_SHAPE] applyEdit requires the file's allocated anchors; derive them via lineHashes(content, path) first.");
+  }
+  const planned = planEdit(content, edit, precomputedHashes, { filePath, servedHashes, skipBoundaryDedup, signal });
+  const lineIndex = buildIdx(content);
+  const warnings = planned.warnings;
+  const resolved = planned.resolved;
+  const autoFixes = planned.autoFixes;
 	const spanResult = resToSpan(resolved, content, lineIndex);
 	if (spanResult.kind === "noop") {
 		return {

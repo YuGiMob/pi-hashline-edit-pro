@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 import register from "../../index";
@@ -349,7 +349,7 @@ describe("same-turn edit batches", () => {
     });
   });
 
-  it("coalesces undo at turn end when the batch's last call fails", async () => {
+  it("rejects overlapping ranges without writing anything", async () => {
     await withTempFile("sample.txt", "a\nb\nc\n", async ({ cwd, path }) => {
       const { getTool, handlers, ctx } = await setupBatchTools(cwd);
       const readTool = getTool("read");
@@ -387,8 +387,8 @@ describe("same-turn edit batches", () => {
       } catch (error) {
         failure = error instanceof Error ? error.message : String(error);
       }
-      expect(failure).toContain("[E_STALE_ANCHOR]");
-      expect(await readFile(path, "utf-8")).toBe("a\nB\nc\n");
+      expect(failure).toContain("[E_BATCH_OVERLAP]");
+      expect(await readFile(path, "utf-8")).toBe("a\nb\nc\n");
 
       await (handlers.get("turn_end")!(
         { type: "turn_end", turnIndex: 0, message, toolResults: [{ toolCallId: "f1" }, { toolCallId: "f2" }] },
@@ -396,8 +396,8 @@ describe("same-turn edit batches", () => {
       ) as Promise<unknown>);
 
       const undone = await undoTool.execute("u1", { path: "sample.txt" }, undefined, undefined, ctx);
-      expect((undone.content[0] as { text: string }).text).toContain("Undone last change");
-      expect(await readFile(path, "utf-8")).toBe("a\nb\nc\n");
+      expect(undone.isError).toBe(true);
+      expect((undone.content[0] as { text: string }).text).toContain("No undo history");
     });
   });
 
@@ -456,6 +456,308 @@ describe("same-turn edit batches", () => {
       const undone = await undoTool.execute("u1", { path: "sample.txt" }, undefined, undefined, ctx);
       expect((undone.content[0] as { text: string }).text).toContain("Undone last change");
       expect(await readFile(path, "utf-8")).toBe("a\nb\nc\n");
+    });
+  });
+
+  it("fails fast on later calls after the first call fails", async () => {
+    await withTempFile("sample.txt", "a\nb\nc\n", async ({ cwd, path }) => {
+      const { getTool, handlers, ctx } = await setupBatchTools(cwd);
+      const readTool = getTool("read");
+      const editTool = getTool("replace");
+
+      const firstRead = await readTool.execute("r1", { path: "sample.txt" }, undefined, undefined, ctx);
+      const text = firstRead.content[0].text as string;
+      const aRef = anchorFor(text, "a");
+      const bRef = anchorFor(text, "b");
+
+      const message = assistantMessage([
+        toolCall("g1", "replace", { remove_from: aRef, remove_to: aRef, replacement_lines: "not-an-array" }),
+        toolCall("g2", "replace", { remove_from: bRef, remove_to: bRef, replacement_lines: ["B"] }),
+      ]);
+      await (handlers.get("message_end")!({ type: "message_end", message }, ctx) as Promise<unknown>);
+
+      let firstFailure = "";
+      try {
+        await editTool.execute(
+          "g1",
+          { remove_from: aRef, remove_to: aRef, replacement_lines: "not-an-array" },
+          undefined,
+          undefined,
+          ctx,
+        );
+      } catch (error) {
+        firstFailure = error instanceof Error ? error.message : String(error);
+      }
+      expect(firstFailure).toContain("[E_BAD_SHAPE]");
+
+      let secondFailure = "";
+      try {
+        await editTool.execute(
+          "g2",
+          { remove_from: bRef, remove_to: bRef, replacement_lines: ["B"] },
+          undefined,
+          undefined,
+          ctx,
+        );
+      } catch (error) {
+        secondFailure = error instanceof Error ? error.message : String(error);
+      }
+      expect(secondFailure).toContain("[E_BATCH_ABORTED]");
+      expect(await readFile(path, "utf-8")).toBe("a\nb\nc\n");
+
+      await (handlers.get("turn_end")!(
+        { type: "turn_end", turnIndex: 0, message, toolResults: [{ toolCallId: "g1" }, { toolCallId: "g2" }] },
+        ctx,
+      ) as Promise<unknown>);
+    });
+  });
+
+  it("aborts the batch when the file changes mid-turn", async () => {
+    await withTempFile("sample.txt", "a\nb\nc\n", async ({ cwd, path }) => {
+      const { getTool, handlers, ctx } = await setupBatchTools(cwd);
+      const readTool = getTool("read");
+      const editTool = getTool("replace");
+
+      const firstRead = await readTool.execute("r1", { path: "sample.txt" }, undefined, undefined, ctx);
+      const text = firstRead.content[0].text as string;
+      const aRef = anchorFor(text, "a");
+      const cRef = anchorFor(text, "c");
+
+      const message = assistantMessage([
+        toolCall("h1", "replace", { remove_from: aRef, remove_to: aRef, replacement_lines: ["A"] }),
+        toolCall("h2", "replace", { remove_from: cRef, remove_to: cRef, replacement_lines: ["C"] }),
+      ]);
+      await (handlers.get("message_end")!({ type: "message_end", message }, ctx) as Promise<unknown>);
+
+      const first = await editTool.execute(
+        "h1",
+        { remove_from: aRef, remove_to: aRef, replacement_lines: ["A"] },
+        undefined,
+        undefined,
+        ctx,
+      );
+      expect(first.content[0].text).toBe("In batch");
+
+      await writeFile(path, "a\nb\nEXTERNAL\n", "utf-8");
+
+      let failure = "";
+      try {
+        await editTool.execute(
+          "h2",
+          { remove_from: cRef, remove_to: cRef, replacement_lines: ["C"] },
+          undefined,
+          undefined,
+          ctx,
+        );
+      } catch (error) {
+        failure = error instanceof Error ? error.message : String(error);
+      }
+      expect(failure).toContain("[E_BATCH_ABORTED]");
+      expect(await readFile(path, "utf-8")).toBe("a\nb\nEXTERNAL\n");
+
+      await (handlers.get("turn_end")!(
+        { type: "turn_end", turnIndex: 0, message, toolResults: [{ toolCallId: "h1" }, { toolCallId: "h2" }] },
+        ctx,
+      ) as Promise<unknown>);
+    });
+  });
+
+  it("rejects the whole batch in strict-input mode", async () => {
+    await withTempFile("sample.txt", "aaa\nbbb\n", async ({ cwd, path }) => {
+      await mkdir(join(cwd, ".config", "pi-hashline-edit-pro"), { recursive: true });
+      await writeFile(
+        join(cwd, ".config", "pi-hashline-edit-pro", "config.json"),
+        JSON.stringify({ autoRead: true, strictInput: true }),
+        "utf-8",
+      );
+      const { getTool, handlers, ctx } = await setupBatchTools(cwd);
+      const readTool = getTool("read");
+      const editTool = getTool("replace");
+
+      const firstRead = await readTool.execute("r1", { path: "sample.txt" }, undefined, undefined, ctx);
+      const text = firstRead.content[0].text as string;
+      const aaaRef = anchorFor(text, "aaa");
+      const bbbRef = anchorFor(text, "bbb");
+
+      const message = assistantMessage([
+        toolCall("s1", "replace", { remove_from: aaaRef, remove_to: aaaRef, replacement_lines: [`${aaaRef}│AAA`] }),
+        toolCall("s2", "replace", { remove_from: bbbRef, remove_to: bbbRef, replacement_lines: ["BBB"] }),
+      ]);
+      await (handlers.get("message_end")!({ type: "message_end", message }, ctx) as Promise<unknown>);
+
+      const first = await editTool.execute(
+        "s1",
+        { remove_from: aaaRef, remove_to: aaaRef, replacement_lines: [`${aaaRef}│AAA`] },
+        undefined,
+        undefined,
+        ctx,
+      );
+      expect(first.content[0].text).toBe("In batch");
+
+      let failure = "";
+      try {
+        await editTool.execute(
+          "s2",
+          { remove_from: bbbRef, remove_to: bbbRef, replacement_lines: ["BBB"] },
+          undefined,
+          undefined,
+          ctx,
+        );
+      } catch (error) {
+        failure = error instanceof Error ? error.message : String(error);
+      }
+      expect(failure).toContain("Strict-input mode");
+      expect(await readFile(path, "utf-8")).toBe("aaa\nbbb\n");
+
+      await (handlers.get("turn_end")!(
+        { type: "turn_end", turnIndex: 0, message, toolResults: [{ toolCallId: "s1" }, { toolCallId: "s2" }] },
+        ctx,
+      ) as Promise<unknown>);
+    });
+  });
+
+  it("refuses a batch that would empty the file", async () => {
+    await withTempFile("sample.txt", "a\nb\n", async ({ cwd, path }) => {
+      const { getTool, handlers, ctx } = await setupBatchTools(cwd);
+      const readTool = getTool("read");
+      const editTool = getTool("replace");
+
+      const firstRead = await readTool.execute("r1", { path: "sample.txt" }, undefined, undefined, ctx);
+      const text = firstRead.content[0].text as string;
+      const aRef = anchorFor(text, "a");
+      const bRef = anchorFor(text, "b");
+
+      const message = assistantMessage([
+        toolCall("e1", "replace", { remove_from: aRef, remove_to: aRef, replacement_lines: [] }),
+        toolCall("e2", "replace", { remove_from: bRef, remove_to: bRef, replacement_lines: [] }),
+      ]);
+      await (handlers.get("message_end")!({ type: "message_end", message }, ctx) as Promise<unknown>);
+
+      const first = await editTool.execute(
+        "e1",
+        { remove_from: aRef, remove_to: aRef, replacement_lines: [] },
+        undefined,
+        undefined,
+        ctx,
+      );
+      expect(first.content[0].text).toBe("In batch");
+
+      let failure = "";
+      try {
+        await editTool.execute(
+          "e2",
+          { remove_from: bRef, remove_to: bRef, replacement_lines: [] },
+          undefined,
+          undefined,
+          ctx,
+        );
+      } catch (error) {
+        failure = error instanceof Error ? error.message : String(error);
+      }
+      expect(failure).toContain("[E_WOULD_EMPTY]");
+      expect(await readFile(path, "utf-8")).toBe("a\nb\n");
+
+      await (handlers.get("turn_end")!(
+        { type: "turn_end", turnIndex: 0, message, toolResults: [{ toolCallId: "e1" }, { toolCallId: "e2" }] },
+        ctx,
+      ) as Promise<unknown>);
+    });
+  });
+
+  it("fails later calls fast after an earlier call fails", async () => {
+    await withTempFile("sample.txt", "a\nb\nc\nd\n", async ({ cwd, path }) => {
+      const { getTool, handlers, ctx } = await setupBatchTools(cwd);
+      const readTool = getTool("read");
+      const editTool = getTool("replace");
+
+      const firstRead = await readTool.execute("r1", { path: "sample.txt" }, undefined, undefined, ctx);
+      const text = firstRead.content[0].text as string;
+      const aRef = anchorFor(text, "a");
+      const cRef = anchorFor(text, "c");
+      const dRef = anchorFor(text, "d");
+      await writeFile(path, "A2\nb\nc\nd\n", "utf-8");
+
+      const message = assistantMessage([
+        toolCall("t1", "replace", { remove_from: aRef, remove_to: aRef, replacement_lines: ["A"] }),
+        toolCall("t2", "replace", { remove_from: cRef, remove_to: cRef, replacement_lines: ["C"] }),
+        toolCall("t3", "replace", { remove_from: dRef, remove_to: dRef, replacement_lines: ["D"] }),
+      ]);
+      await (handlers.get("message_end")!({ type: "message_end", message }, ctx) as Promise<unknown>);
+
+      const runCall = async (id: string, ref: string, line: string): Promise<string> => {
+        try {
+          await editTool.execute(
+            id,
+            { remove_from: ref, remove_to: ref, replacement_lines: [line] },
+            undefined,
+            undefined,
+            ctx,
+          );
+          return "";
+        } catch (error) {
+          return error instanceof Error ? error.message : String(error);
+        }
+      };
+      expect(await runCall("t1", aRef, "A")).toContain("[E_STALE_ANCHOR]");
+      expect(await runCall("t2", cRef, "C")).toContain("[E_BATCH_ABORTED]");
+      expect(await runCall("t3", dRef, "D")).toContain("[E_BATCH_ABORTED]");
+      expect(await readFile(path, "utf-8")).toBe("A2\nb\nc\nd\n");
+
+      await (handlers.get("turn_end")!(
+        { type: "turn_end", turnIndex: 0, message, toolResults: [{ toolCallId: "t1" }, { toolCallId: "t2" }, { toolCallId: "t3" }] },
+        ctx,
+      ) as Promise<unknown>);
+    });
+  });
+
+  it("marks bypasses for dedup-cut noops in an all-noop batch", async () => {
+    await withTempFile("sample.txt", "x\ny\nz\n", async ({ cwd, path }) => {
+      const { getTool, handlers, ctx } = await setupBatchTools(cwd);
+      const readTool = getTool("read");
+      const editTool = getTool("replace");
+
+      const firstRead = await readTool.execute("r1", { path: "sample.txt" }, undefined, undefined, ctx);
+      const text = firstRead.content[0].text as string;
+      const xRef = anchorFor(text, "x");
+      const yRef = anchorFor(text, "y");
+
+      const message = assistantMessage([
+        toolCall("p1", "replace", { remove_from: xRef, remove_to: xRef, replacement_lines: ["x", "y"] }),
+        toolCall("p2", "replace", { remove_from: yRef, remove_to: yRef, replacement_lines: ["y", "z"] }),
+      ]);
+      await (handlers.get("message_end")!({ type: "message_end", message }, ctx) as Promise<unknown>);
+
+      await editTool.execute(
+        "p1",
+        { remove_from: xRef, remove_to: xRef, replacement_lines: ["x", "y"] },
+        undefined,
+        undefined,
+        ctx,
+      );
+      const second = await editTool.execute(
+        "p2",
+        { remove_from: yRef, remove_to: yRef, replacement_lines: ["y", "z"] },
+        undefined,
+        undefined,
+        ctx,
+      );
+      expect(second.details.metrics.classification).toBe("noop");
+      expect(await readFile(path, "utf-8")).toBe("x\ny\nz\n");
+
+      await (handlers.get("turn_end")!(
+        { type: "turn_end", turnIndex: 0, message, toolResults: [{ toolCallId: "p1" }, { toolCallId: "p2" }] },
+        ctx,
+      ) as Promise<unknown>);
+
+      const resent = await editTool.execute(
+        "solo-resend",
+        { remove_from: yRef, remove_to: yRef, replacement_lines: ["y", "z"] },
+        undefined,
+        undefined,
+        ctx,
+      );
+      expect((resent.content[0] as { text: string }).text).toContain("[W_BOUNDARY_BYPASS]");
+      expect(await readFile(path, "utf-8")).toBe("x\ny\nz\nz\n");
     });
   });
 });

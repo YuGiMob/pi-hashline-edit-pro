@@ -97,7 +97,7 @@ An edit that produces identical content reports `No changes made` and leaves the
 
 After a successful edit, the diff is capped at 50KB. A row over 50KB is shown as a marker that keeps the row's anchor, and only the rows shown in the capped diff are recorded as served. The same caps apply to the `insert` and `undo_last_change` diffs, to the interactive previews, and to `details.patch`.
 
-Multiple `replace` and `insert` calls on the same file in one message are grouped per file into one batch that applies in source order: earlier calls reply `In batch` (`In batch N` when several files batch) and the batch's last call shows the combined diff, with one undo reverting the whole batch. Verify each batch diff before the next turn's edits on that file.
+Multiple `replace` and `insert` calls on the same file in one message are grouped per file into one batch that validates every call against the pre-batch state and then applies them together on the batch's last call: earlier calls reply `In batch` (`In batch N` when several files batch) and the batch's last call shows the combined diff, with one undo reverting the whole batch. Batched calls must target disjoint ranges; overlapping ranges, or any failing call, aborts the whole batch with nothing written. Verify each batch diff before the next turn's edits on that file.
 
 ### insert
 
@@ -162,7 +162,7 @@ All five tools return machine-readable metadata in `details` alongside the model
 | Tool | `details` |
 | --- | --- |
 | `read` | `truncation` (set when output was truncated), `snapshotId` (a `v2\|path\|ino\|mtime\|ctime\|size` fingerprint), `nextOffset` (use as the next `offset`), and `metrics` with `truncated` and `next_offset`. |
-| `replace`, `insert` | `diff` (post-edit diff, capped, with current anchors on `+HASH│` and ` HASH│` rows; a same-turn batch reports the combined diff on its last call and an empty diff on earlier calls), `patch` (a standard unified patch for external tools, capped like the diff), `patchTruncated` (true when the patch was cut and can no longer be applied as-is), `firstChangedLine`, `snapshotId`, `classification` (`"noop"` when nothing changed), `batch` (`{ id, size, last }` marking same-turn batch membership), and `metrics`: `edits_attempted`, `edits_noop`, `warnings`, `classification` (`"applied"` or `"noop"`), `changed_lines` (`{ first, last }`), `added_lines`, `removed_lines`. |
+| `replace`, `insert` | `diff` (post-edit diff, capped, with current anchors on `+HASH│` and ` HASH│` rows; a same-turn batch reports the combined diff on its last call and an empty diff on earlier calls), `patch` (a standard unified patch for external tools, capped like the diff), `patchTruncated` (true when the patch was cut and can no longer be applied as-is), `firstChangedLine`, `snapshotId`, `classification` (`"noop"` when nothing changed), `batch` (`{ id, size, last, total }` marking same-turn batch membership), and `metrics`: `edits_attempted`, `edits_noop`, `warnings`, `classification` (`"applied"` or `"noop"`), `changed_lines` (`{ first, last }`), `added_lines`, `removed_lines`. |
 | `undo_last_change` | `diff` (the undo diff with restored anchors), `patch`, `patchTruncated`, and `metrics` in the same shape as `replace`. |
 | `anchor_grep` | `metrics` with `matches` (capped at `limit`), `files`, and `truncated`; `truncation` (the standard pi truncation report) when output was cut; and `linesTruncated` (true when long lines were shown as fragments). |
 
@@ -234,6 +234,8 @@ Codes starting with `E_` are errors (the operation failed); codes starting with 
 | `[E_REGISTRY]` | The anchor registry was not initialized; a serve or edit ran outside an initialized session. |
 | `[E_WRITE_HASH_ECHO]` | A `write` `content` line begins with the exact `anchor│` served for this file at the same line. The write is refused, file byte-identical; retry with bare content (remove the copied anchors). |
 | `[E_PATH_CHANGED]` | A write target changed identity after it was read; the write was refused to avoid following a swapped symlink or overwriting a replacement file. |
+| `[E_BATCH_OVERLAP]` | Batched `replace`/`insert` calls target overlapping ranges; the whole batch was refused with nothing written. Retry with disjoint ranges. |
+| `[E_BATCH_ABORTED]` | A same-turn edit batch aborted (a member failed, or the file changed mid-turn); nothing was written. The first failure is quoted; fix it and retry the batch. |
 | `[E_UNSAFE_REGEX]` | A grep regex can trigger excessive backtracking; simplify it or search with `literal: true`. |
 
 ## Troubleshooting

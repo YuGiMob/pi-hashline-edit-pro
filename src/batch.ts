@@ -1,23 +1,38 @@
 import { readFile } from "fs/promises";
-import { commitEdit, type CommitMeta } from "./commit";
+import { constants } from "fs";
+import { relative } from "path";
 import { readConfig } from "./config";
-import { tryResolveEditTarget } from "./edit-common";
-import { resolveInCwd } from "./fs-write";
-import { changedRange, lineHashes } from "./hashline";
-import { deleteUndo, getUndoEntry, loadHashStore, upsertUndo, type UndoRecord } from "./hash-store";
-import { markServed } from "./anchor-registry";
-import { stripBOM, toLF, type LineEnding } from "./normalize";
-import { normReq } from "./payload-contract";
-import { buildChanged, buildNoop, type TResult } from "./replace-response";
+import { throwIfStrictInput, tryResolveEditTarget } from "./edit-common";
+import { readNormFile, safeSnapId } from "./file-reader";
+import { resolveInCwd, writeAtomic, type FileIdentity } from "./fs-write";
+import {
+  AnchorMismatchError,
+  RangeStaleError,
+  assertNotEmpty,
+  changedRange,
+  lineHashes,
+  planEdit,
+  MAX_HASH_LINES,
+  type HEdit,
+  type PlannedEdit,
+} from "./hashline";
+import { clearBoundaryBypass, markBoundaryNoop } from "./boundary-bypass";
+import { boundaryDedupWarning } from "./commit";
+import { adoptAnchors, markServed, servedForPath } from "./anchor-registry";
+import { restoreEndings, stripBOM, toLF, type LineEnding } from "./normalize";
+import { assertInsertReq, assertReq, normReq } from "./payload-contract";
+import { saveUndo } from "./replace-undo";
+import { buildChanged, buildNoop, type RMetrics, type TResult } from "./replace-response";
 import { buildServedMap, servedHashesFromDiff } from "./served";
-import { errCode, isRec, splitLines } from "./utils";
-import type { PipelineResult } from "./replace";
+import { abortIf, errCode, isRec, splitLines } from "./utils";
 
 export interface PlannedMember {
   batchKey: number;
   display: number;
   total: number;
   target: string;
+  kind: BatchKind;
+  args: unknown;
   order: number;
   size: number;
   last: boolean;
@@ -30,11 +45,36 @@ interface BatchBase {
   hashes: string[];
   bom: string;
   ending: LineEnding;
+  identity: FileIdentity;
+  hadUtf8DecodeErrors: boolean;
+  absolutePath: string;
+  snapshotId?: string;
 }
 
-interface PriorUndo {
-  present: boolean;
-  record?: UndoRecord;
+export interface BatchPiece {
+  kind: BatchKind;
+  start: number;
+  end: number;
+  newLines: string[];
+  warnings: string[];
+  autoFixes: number;
+  noop: boolean;
+  noopPayload?: string;
+  foldedLines: number;
+}
+
+export interface BatchMemberInput {
+  kind: BatchKind;
+  member: PlannedMember;
+  targetPath: string;
+  mutationTargetPath: string;
+  cwd: string;
+  signal?: AbortSignal;
+  hedit: HEdit;
+  extraWarnings: string[];
+  skipBoundaryDedup: boolean;
+  noopPayload?: string;
+  foldedLines?: number;
 }
 
 interface BatchState {
@@ -44,15 +84,15 @@ interface BatchState {
   replaceCount: number;
   insertCount: number;
   base?: BatchBase;
-  priorUndo?: PriorUndo;
+  paths?: { absolutePath: string; mutationTargetPath: string; displayPath: string };
+  served?: ReadonlyMap<string, string>;
+  pieces: BatchPiece[];
   applied: number;
   noops: number;
   failures: number;
-  added: number;
-  removed: number;
+  failed: boolean;
+  firstError?: unknown;
   warnings: string[];
-  final?: string;
-  coalesced: boolean;
 }
 
 interface EditCall {
@@ -107,18 +147,13 @@ function anchorTargetFor(args: unknown): string | undefined {
   return tryResolveEditTarget(normalized.anchor);
 }
 
-function argsFor(calls: EditCall[], id: string): unknown {
-  return calls.find((call) => call.id === id)?.args;
-}
-
 async function verifyPaths(
-  group: Array<{ id: string; target: string }>,
-  calls: EditCall[],
+  group: Array<{ id: string; target: string; kind: BatchKind; args: unknown }>,
   cwd: string,
-): Promise<Array<{ id: string; target: string }>> {
-  const verified: Array<{ id: string; target: string }> = [];
+): Promise<Array<{ id: string; target: string; kind: BatchKind; args: unknown }>> {
+  const verified: Array<{ id: string; target: string; kind: BatchKind; args: unknown }> = [];
   for (const item of group) {
-    const normalized = normalizeEditArgs(argsFor(calls, item.id));
+    const normalized = normalizeEditArgs(item.args);
     if (!normalized || !normalized.path) continue;
     let resolved: string | undefined;
     try {
@@ -151,12 +186,13 @@ export async function planAssistantMessage(message: unknown, cwd: string): Promi
     calls.push({ id: block.id, name: block.name, args: block.arguments });
   }
   if (calls.length < 2) return;
-  const resolved: Array<{ id: string; target: string }> = [];
+  interface ResolvedCall { id: string; target: string; kind: BatchKind; args: unknown }
+  const resolved: ResolvedCall[] = [];
   for (const call of calls) {
     const target = anchorTargetFor(call.args);
-    if (target) resolved.push({ id: call.id, target });
+    if (target) resolved.push({ id: call.id, target, kind: call.name as BatchKind, args: call.args });
   }
-  const groups = new Map<string, Array<{ id: string; target: string }>>();
+  const groups = new Map<string, ResolvedCall[]>();
   for (const item of resolved) {
     const group = groups.get(item.target) ?? [];
     group.push(item);
@@ -165,10 +201,10 @@ export async function planAssistantMessage(message: unknown, cwd: string): Promi
   const multi = [...groups.values()].filter((group) => group.length >= 2);
   if (multi.length === 0) return;
   const config = await readConfig();
-  const finalGroups: Array<Array<{ id: string; target: string }>> = [];
+  const finalGroups: ResolvedCall[][] = [];
   if (config.requirePath === true) {
     for (const group of multi) {
-      const verified = await verifyPaths(group, calls, cwd);
+      const verified = await verifyPaths(group, cwd);
       if (verified.length >= 2) finalGroups.push(verified);
     }
   } else {
@@ -185,13 +221,12 @@ export async function planAssistantMessage(message: unknown, cwd: string): Promi
       memberIds: group.map((item) => item.id),
       replaceCount: 0,
       insertCount: 0,
+      pieces: [],
       applied: 0,
       noops: 0,
       failures: 0,
-      added: 0,
-      removed: 0,
+      failed: false,
       warnings: [],
-      coalesced: false,
     });
     group.forEach((item, index) => {
       plan.set(item.id, {
@@ -199,6 +234,8 @@ export async function planAssistantMessage(message: unknown, cwd: string): Promi
         display,
         total: finalGroups.length,
         target: item.target,
+        kind: item.kind,
+        args: item.args,
         order: index + 1,
         size: group.length,
         last: index === group.length - 1,
@@ -228,7 +265,16 @@ function batchHeader(member: PlannedMember): string {
   return member.total > 1 ? `batch ${member.display}:` : "batch:";
 }
 
-function batchPlaceholder(member: PlannedMember, result: TResult): TResult {
+function batchPlaceholder(member: PlannedMember, piece: BatchPiece, snapshotId: string | undefined): TResult {
+  const grossAdded = Math.max(0, piece.newLines.length - piece.autoFixes);
+  const added = piece.kind === "insert" ? Math.max(0, grossAdded - piece.foldedLines) : grossAdded;
+  const metrics: RMetrics = {
+    edits_attempted: 1,
+    edits_noop: piece.noop ? 1 : 0,
+    warnings: 0,
+    classification: piece.noop ? "noop" : "applied",
+    ...(piece.noop ? {} : { added_lines: added, removed_lines: piece.end - piece.start + 1 }),
+  };
   return {
     content: [
       {
@@ -239,100 +285,273 @@ function batchPlaceholder(member: PlannedMember, result: TResult): TResult {
     details: {
       diff: "",
       patch: "",
-      firstChangedLine: result.details.firstChangedLine,
-      snapshotId: result.details.snapshotId,
-      classification: result.details.classification,
-      metrics: result.details.metrics ? { ...result.details.metrics, warnings: 0 } : undefined,
-      batch: { id: member.display, size: member.size, last: false },
+      ...(piece.noop ? {} : { firstChangedLine: piece.start }),
+      ...(snapshotId !== undefined ? { snapshotId } : {}),
+      ...(piece.noop ? { classification: "noop" as const } : {}),
+      metrics,
+      batch: { id: member.display, size: member.size, last: false, total: member.total },
     },
   };
 }
 
-async function restorePriorUndo(runtime: BatchState): Promise<void> {
-  if (runtime.applied === 0 || !runtime.priorUndo) return;
-  try {
-    const store = await loadHashStore();
-    if (runtime.priorUndo.present && runtime.priorUndo.record) upsertUndo(store, runtime.target, runtime.priorUndo.record);
-    else deleteUndo(store, runtime.target);
-  } catch (error) {
-    console.error("Failed to restore pre-batch undo entry:", error);
+export function noteBatchFailure(member: PlannedMember, error: unknown): void {
+  const runtime = batches.get(member.batchKey);
+  if (!runtime) return;
+  runtime.failures += 1;
+  if (!runtime.failed) {
+    runtime.failed = true;
+    runtime.firstError = error;
   }
 }
 
-async function combinedApplied(
-  pipe: PipelineResult,
-  meta: CommitMeta,
-  member: PlannedMember,
-  runtime: BatchState,
-  lastResult: TResult,
-): Promise<TResult> {
-  const base = runtime.base!;
-  const store = await loadHashStore();
-  const finalHashes = await lineHashes(pipe.result, meta.mutationTargetPath);
-  const warnings = dedupeWarnings(runtime.warnings);
-  const range = changedRange(base.content, pipe.result);
+function batchAbortedError(runtime: BatchState): Error {
+  const first = runtime.firstError instanceof Error ? runtime.firstError.message : String(runtime.firstError);
+  return new Error(`[E_BATCH_ABORTED] Batch ${runtime.display} aborted; nothing was written. First failure: ${first}`);
+}
+
+export async function ensureBatchBase(input: {
+  member: PlannedMember;
+  targetPath: string;
+  mutationTargetPath: string;
+  cwd: string;
+  signal?: AbortSignal;
+}): Promise<BatchBase> {
+  const runtime = batches.get(input.member.batchKey);
+  if (!runtime) throw new Error(`[E_STALE_ANCHOR] Batch ${input.member.display} is no longer tracked. Call read for fresh anchors.`);
+  if (runtime.base) return runtime.base;
+  abortIf(input.signal);
+  const file = await readNormFile(input.targetPath, input.cwd, {
+    signal: input.signal,
+    accessMode: constants.R_OK | constants.W_OK,
+    maxLines: MAX_HASH_LINES,
+  });
+  const snapshotId = await safeSnapId(file.absolutePath, "batch edit");
+  const base: BatchBase = {
+    content: file.normalized,
+    hashes: file.fileHashes.slice(),
+    bom: file.bom,
+    ending: file.originalEnding,
+    identity: file.identity,
+    hadUtf8DecodeErrors: file.hadUtf8DecodeErrors,
+    absolutePath: file.absolutePath,
+    ...(snapshotId !== undefined ? { snapshotId } : {}),
+  };
+  runtime.base = base;
+  runtime.served = servedForPath(file.absolutePath);
+  runtime.paths = {
+    absolutePath: file.absolutePath,
+    mutationTargetPath: input.mutationTargetPath,
+    displayPath: relative(input.cwd, file.absolutePath).replace(/\\/g, "/") || input.targetPath,
+  };
+  return base;
+}
+
+export async function executeBatchMember(input: BatchMemberInput): Promise<TResult> {
+  const runtime = batches.get(input.member.batchKey);
+  if (!runtime) throw new Error(`[E_STALE_ANCHOR] Batch ${input.member.display} is no longer tracked. Call read for fresh anchors.`);
+  if (runtime.failed) throw batchAbortedError(runtime);
+  let base: BatchBase;
+  try {
+    base = await ensureBatchBase({
+      member: input.member,
+      targetPath: input.targetPath,
+      mutationTargetPath: input.mutationTargetPath,
+      cwd: input.cwd,
+      signal: input.signal,
+    });
+  } catch (error) {
+    noteBatchFailure(input.member, error);
+    throw error;
+  }
+  if (input.mutationTargetPath !== input.member.target) {
+    const error = new Error(`[E_STALE_ANCHOR] "${input.hedit.hash_bounds[0].hash}" is no longer owned by ${input.member.target}. Call read for fresh anchors.`);
+    noteBatchFailure(input.member, error);
+    throw error;
+  }
+  const displayPath = runtime.paths?.displayPath ?? input.targetPath;
+  let planned: PlannedEdit;
+  try {
+    planned = planEdit(base.content, input.hedit, base.hashes, {
+      filePath: displayPath,
+      servedHashes: runtime.served,
+      skipBoundaryDedup: input.skipBoundaryDedup,
+      signal: input.signal,
+    });
+  } catch (error) {
+    if (error instanceof RangeStaleError) adoptAnchors(base.absolutePath, error.rangeServedMap);
+    else if (error instanceof AnchorMismatchError) adoptAnchors(base.absolutePath, error.feedbackMap);
+    noteBatchFailure(input.member, error);
+    throw error;
+  }
+  const start = planned.resolved.hash_bounds[0].line;
+  const end = planned.resolved.hash_bounds[1].line;
+  const newLines = planned.resolved.content_lines;
+  const baseLines = splitLines(base.content);
+  const originalSlice = baseLines.slice(start - 1, end);
+  const noop = originalSlice.length === newLines.length && originalSlice.every((line, index) => line === newLines[index]);
+  const autoFixes = planned.autoFixes?.length ?? 0;
+  const piece: BatchPiece = {
+    kind: input.kind,
+    start,
+    end,
+    newLines: [...newLines],
+    warnings: [...input.extraWarnings, ...planned.warnings],
+    autoFixes,
+    noop,
+    ...(input.noopPayload !== undefined ? { noopPayload: input.noopPayload } : {}),
+    foldedLines: input.foldedLines ?? 0,
+  };
+  runtime.pieces.push(piece);
+  if (input.kind === "replace") runtime.replaceCount += 1;
+  else runtime.insertCount += 1;
+  if (noop) runtime.noops += 1;
+  else runtime.applied += 1;
+  runtime.warnings.push(...piece.warnings);
+  if (!input.member.last) return batchPlaceholder(input.member, piece, base.snapshotId);
+  return finishBatch(input.member, input.signal);
+}
+
+function composeBatchLines(baseContent: string, pieces: BatchPiece[]): string {
+  const lines = splitLines(baseContent);
+  const descending = [...pieces].sort((a, b) => b.start - a.start);
+  for (const piece of descending) lines.splice(piece.start - 1, piece.end - piece.start + 1, ...piece.newLines);
+  let composed = lines.join("\n");
+  if (lines.length > 0 && baseContent.endsWith("\n")) composed += "\n";
+  return composed;
+}
+
+async function finishBatch(member: PlannedMember, signal?: AbortSignal): Promise<TResult> {
+  const runtime = batches.get(member.batchKey);
+  if (!runtime || !runtime.base || !runtime.paths) throw new Error(`[E_STALE_ANCHOR] Batch ${member.display} is no longer tracked. Call read for fresh anchors.`);
+  const base = runtime.base;
+  const paths = runtime.paths;
+  if (runtime.failed) throw batchAbortedError(runtime);
+  for (const id of runtime.memberIds) {
+    const planned = plan.get(id);
+    if (!planned) continue;
+    try {
+      const normalized = normReq(planned.args);
+      if (planned.kind === "replace") assertReq(normalized);
+      else assertInsertReq(normalized);
+    } catch (error) {
+      noteBatchFailure(member, error);
+      throw batchAbortedError(runtime);
+    }
+  }
+  const appliedPieces = runtime.pieces.filter((piece) => !piece.noop);
+  if (appliedPieces.length === 0) {
+    for (const piece of runtime.pieces) {
+      if (piece.autoFixes > 0 && piece.noopPayload !== undefined) markBoundaryNoop(runtime.target, piece.noopPayload);
+    }
+    const snapshotId = await safeSnapId(paths.absolutePath, "noop edit");
+    return combinedNoop(paths.displayPath, member, runtime, snapshotId);
+  }
+  const ordered = [...appliedPieces].sort((a, b) => a.start - b.start);
+  for (let i = 1; i < ordered.length; i++) {
+    const prev = ordered[i - 1]!;
+    const current = ordered[i]!;
+    if (current.start <= prev.end) {
+      throw new Error(`[E_BATCH_OVERLAP] Batch ${runtime.display} has overlapping ranges (lines ${prev.start}-${prev.end} and lines ${current.start}-${current.end}); batched edits must target disjoint ranges. Nothing was written.`);
+    }
+  }
+  const warnings = [...runtime.warnings];
+  if (base.hadUtf8DecodeErrors) warnings.push("Non-UTF-8 bytes were shown as U+FFFD; this edit rewrote the file as UTF-8.");
+  const dedupTotal = runtime.pieces.reduce((sum, piece) => sum + piece.autoFixes, 0);
+  if (dedupTotal > 0) warnings.push(boundaryDedupWarning(dedupTotal));
+  await throwIfStrictInput(dedupeWarnings(warnings));
+  const composed = composeBatchLines(base.content, appliedPieces);
+  assertNotEmpty(base.content, composed);
+  if (composed === base.content) {
+    const snapshotId = await safeSnapId(paths.absolutePath, "noop edit");
+    return combinedNoop(paths.displayPath, member, runtime, snapshotId);
+  }
+  abortIf(signal);
+  let currentRaw: string;
+  try {
+    currentRaw = await readFile(runtime.target, "utf-8");
+  } catch (error) {
+    if (errCode(error) !== "ENOENT") throw error;
+    throw new Error(`[E_BATCH_ABORTED] Batch ${runtime.display} aborted: the file was deleted after the batch started; nothing was written.`);
+  }
+  if (toLF(stripBOM(currentRaw).text) !== base.content) {
+    throw new Error(`[E_BATCH_ABORTED] Batch ${runtime.display} aborted: the file changed after the batch started; nothing was written. Call read for fresh anchors and retry.`);
+  }
+  const undo = await saveUndo(runtime.target, {
+    content: base.content,
+    bom: base.bom,
+    originalEnding: base.ending,
+    hashes: base.hashes,
+    resultContent: composed,
+  });
+  if (!undo.persisted) {
+    throw new Error(`[E_UNDO_UNAVAILABLE] Could not persist undo history; the edit was not applied and ${paths.displayPath} is unchanged.`);
+  }
+  try {
+    abortIf(signal);
+    await writeAtomic(paths.absolutePath, base.bom + restoreEndings(composed, base.ending), base.identity);
+  } catch (error) {
+    await undo.restore();
+    throw error;
+  }
+  clearBoundaryBypass(runtime.target);
+  const updatedSnapshotId = await safeSnapId(paths.absolutePath, "post-edit");
+  const spans = appliedPieces.map((piece) => ({ start: piece.start - 1, end: piece.end - 1, replacementCount: piece.newLines.length }));
+  const resultHashes = await lineHashes(composed, runtime.target, {
+    content: base.content,
+    hashes: base.hashes,
+    spans,
+  });
+  const range = changedRange(base.content, composed);
+  let added = 0;
+  let removed = 0;
+  for (const piece of appliedPieces) {
+    removed += piece.end - piece.start + 1;
+    const gross = Math.max(0, piece.newLines.length - piece.autoFixes);
+    added += piece.kind === "insert" ? Math.max(0, gross - piece.foldedLines) : gross;
+  }
+  const header = batchHeader(member);
   const changed = buildChanged(
     {
-      path: pipe.path,
+      path: paths.displayPath,
       originalNormalized: base.content,
       originalHashes: base.hashes,
-      result: pipe.result,
-      resultHashes: finalHashes,
-      warnings,
-      snapshotId: lastResult.details.snapshotId,
+      result: composed,
+      resultHashes,
+      warnings: dedupeWarnings(warnings),
+      snapshotId: updatedSnapshotId,
       editMeta: {
         editsAttempted: runtime.applied + runtime.noops,
         noopEditsCount: runtime.noops,
         firstChangedLine: range?.firstChangedLine,
         lastChangedLine: range?.lastChangedLine,
-        addedLines: runtime.added,
-        removedLines: runtime.removed,
+        addedLines: added,
+        removedLines: removed,
       },
       boundaryDedupAbove: [],
       boundaryDedupBelow: [],
     },
     batchVerb(runtime),
   );
-  const header = batchHeader(member);
-  changed.details.diff = `${header}
-${changed.details.diff}`;
+  changed.details.diff = `${header}\n${changed.details.diff}`;
   changed.details.diffLineNumbers?.unshift(undefined);
   try {
-    upsertUndo(store, meta.mutationTargetPath, {
-      content: base.content,
-      bom: base.bom,
-      ending: base.ending,
-      hashes: base.hashes,
-      resultContent: pipe.result,
-    });
-    runtime.coalesced = true;
-  } catch (error) {
-    console.error("Failed to persist batch undo entry:", error);
-  }
-  try {
-    markServed(
-      meta.mutationTargetPath,
-      buildServedMap(finalHashes, splitLines(pipe.result), servedHashesFromDiff(changed.details.diff)),
-    );
+    markServed(runtime.target, buildServedMap(resultHashes, splitLines(composed), servedHashesFromDiff(changed.details.diff)), new Set(resultHashes));
   } catch (error) {
     console.error("Failed to mark batch diff served:", error);
   }
   const executed = runtime.applied + runtime.noops;
-  changed.content[0]!.text = `${header}
-${changed.content[0]!.text}
-Batch ${member.display}: ${executed} edit${executed === 1 ? "" : "s"} applied as one commit; one undo reverts them.`;
-  changed.details.batch = { id: member.display, size: member.size, last: true };
+  changed.content[0]!.text = `${header}\n${changed.content[0]!.text}\nBatch ${member.display}: ${executed} edit${executed === 1 ? "" : "s"} applied as one commit; one undo reverts them.`;
+  changed.details.batch = { id: member.display, size: member.size, last: true, total: member.total };
   return changed;
 }
 
-async function combinedNoop(path: string, member: PlannedMember, runtime: BatchState, lastResult: TResult): Promise<TResult> {
-  await restorePriorUndo(runtime);
+async function combinedNoop(path: string, member: PlannedMember, runtime: BatchState, snapshotId: string | undefined): Promise<TResult> {
   const executed = runtime.applied + runtime.noops;
   const noop = buildNoop(
     {
       path,
       noopEdit: undefined,
-      snapshotId: lastResult.details.snapshotId,
+      snapshotId,
       editMeta: {
         editsAttempted: executed,
         noopEditsCount: runtime.noops,
@@ -345,87 +564,10 @@ async function combinedNoop(path: string, member: PlannedMember, runtime: BatchS
     "Batch",
   );
   noop.content[0]!.text += `\nBatch ${member.display}: ${executed} edits produced no net change; undo history preserved.`;
-  noop.details.batch = { id: member.display, size: member.size, last: true };
+  noop.details.batch = { id: member.display, size: member.size, last: true, total: member.total };
   return noop;
 }
 
-export async function commitBatched(
-  pipe: PipelineResult,
-  meta: CommitMeta,
-  toolCallId: string,
-  kind: BatchKind,
-): Promise<TResult> {
-  const member = plan.get(toolCallId);
-  const runtime = member ? batches.get(member.batchKey) : undefined;
-  if (!member || !runtime || runtime.target !== meta.mutationTargetPath) return commitEdit(pipe, meta);
-  if (!runtime.base) {
-    runtime.base = {
-      content: pipe.originalNormalized,
-      hashes: pipe.originalHashes.slice(),
-      bom: pipe.bom,
-      ending: pipe.originalEnding,
-    };
-    try {
-      const store = await loadHashStore();
-      const prior = getUndoEntry(store, meta.mutationTargetPath);
-      runtime.priorUndo = { present: prior !== undefined, record: prior };
-    } catch {
-      runtime.priorUndo = undefined;
-    }
-  }
-  let result: TResult;
-  try {
-    result = await commitEdit(pipe, meta);
-  } catch (error) {
-    runtime.failures += 1;
-    throw error;
-  }
-  const metrics = result.details.metrics;
-  const applied = metrics?.classification === "applied";
-  if (kind === "replace") runtime.replaceCount += 1;
-  else runtime.insertCount += 1;
-  if (applied) {
-    runtime.applied += 1;
-    runtime.added += metrics?.added_lines ?? 0;
-    runtime.removed += metrics?.removed_lines ?? 0;
-  } else {
-    runtime.noops += 1;
-  }
-  runtime.warnings.push(...(result.details.warnings ?? []));
-  runtime.final = pipe.result;
-  if (!member.last) return batchPlaceholder(member, result);
-  if (runtime.final === runtime.base.content) return combinedNoop(pipe.path, member, runtime, result);
-  return combinedApplied(pipe, meta, member, runtime, result);
-}
-
-async function coalesceIfNeeded(runtime: BatchState): Promise<void> {
-  if (runtime.coalesced || !runtime.base || runtime.final === undefined) return;
-  if (runtime.final === runtime.base.content || runtime.applied === 0) return;
-  let current: string | undefined;
-  try {
-    current = toLF(stripBOM(await readFile(runtime.target, "utf-8")).text);
-  } catch (error) {
-    if (errCode(error) !== "ENOENT") {
-      console.error("Failed to verify batch file for undo coalescing:", error);
-      return;
-    }
-    current = undefined;
-  }
-  if (current !== undefined && current !== runtime.final) return;
-  try {
-    const store = await loadHashStore();
-    upsertUndo(store, runtime.target, {
-      content: runtime.base.content,
-      bom: runtime.base.bom,
-      ending: runtime.base.ending,
-      hashes: runtime.base.hashes,
-      resultContent: runtime.final,
-    });
-    runtime.coalesced = true;
-  } catch (error) {
-    console.error("Failed to persist batch undo entry:", error);
-  }
-}
 
 export async function finalizeTurn(toolCallIds: string[]): Promise<void> {
   const keys = new Set<number>();
@@ -436,7 +578,6 @@ export async function finalizeTurn(toolCallIds: string[]): Promise<void> {
   for (const key of keys) {
     const runtime = batches.get(key);
     if (!runtime) continue;
-    await coalesceIfNeeded(runtime);
     for (const id of runtime.memberIds) plan.delete(id);
     batches.delete(key);
   }

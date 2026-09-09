@@ -2,44 +2,18 @@ import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-age
 import { Type } from "typebox";
 import { constants } from "fs";
 import { execPipeline, type ReqParams, type ReplaceDetails, previewFromPipe, previewError } from "./replace";
-import { commitBatched } from "./batch";
+import { commitEdit } from "./commit";
+import { batchMemberFor, executeBatchMember, noteBatchFailure } from "./batch";
 import { readNormFile, type NormFile } from "./file-reader";
-import { MAX_HASH_LINES, parseHashRef, resolveAnchorLine, type Anchor } from "./hashline";
+import { MAX_HASH_LINES, parseHashRef, resEdit, resolveAnchorLine, type Anchor, type HEdit } from "./hashline";
 import { stripAnchorRow } from "./hashline/resolve";
 import { loadP, loadGuide } from "./prompts";
-import { normReq } from "./payload-contract";
-import { decodeStringArray, isRec, rejectUnknownFields, splitLines } from "./utils";
+import { assertInsertReq, normReq, type InsertReq } from "./payload-contract";
+import { decodeStringArray, isRec, splitLines } from "./utils";
 import { clearBoundaryBypass } from "./boundary-bypass";
 import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper, resolveEditTargetWithRequirement, throwIfStrictInput, withInsertPrompts, DEFAULT_EDIT_FLAGS, type EditToolFlags } from "./edit-common";
 import type { RPreview, RRState } from "./replace-render";
-
-const INSERT_KS = new Set(["path", "anchor", "direction", "lines"]);
-
-export interface InsertReq {
-  path?: string;
-  anchor: string;
-  direction: "before" | "after";
-  lines: string[];
-}
-
-export function assertInsertReq(request: unknown): asserts request is InsertReq {
-  if (!isRec(request)) {
-    throw new Error("[E_BAD_SHAPE] Insert request must be an object.");
-  }
-  rejectUnknownFields(request, INSERT_KS, "Insert request");
-  if (request.path !== undefined && typeof request.path !== "string") {
-    throw new Error('[E_BAD_SHAPE] Insert request field "path" must be a string when provided.');
-  }
-  if (typeof request.anchor !== "string" || request.anchor.length === 0) {
-    throw new Error('[E_BAD_SHAPE] Insert request requires an "anchor" string (4-char anchor from read output).');
-  }
-  if (request.direction !== "before" && request.direction !== "after") {
-    throw new Error('[E_BAD_SHAPE] Insert request "direction" must be "before" or "after".');
-  }
-  if (!Array.isArray(request.lines) || request.lines.some((line) => typeof line !== "string")) {
-    throw new Error('[E_BAD_SHAPE] Insert request requires "lines" as an array of strings, one element per line.');
-  }
-}
+export { assertInsertReq, type InsertReq };
 
 const insertAnchorSchema = Type.String({
   description:
@@ -87,14 +61,14 @@ export function buildInsertToolSchema(requirePath: boolean): typeof insertToolSc
   ) as typeof insertToolSchema;
 }
 
-function parseInsertAnchor(raw: string): { ref: Anchor; warnings: string[] } {
+export function parseInsertAnchor(raw: string): { ref: Anchor; warnings: string[] } {
   const trimmedAnchor = raw.trim();
   const warnings: string[] = [];
   const anchorText = stripAnchorRow(trimmedAnchor, "anchor entry", warnings);
   return { ref: parseHashRef(anchorText), warnings };
 }
 
-function buildInsertEdit(
+export function buildInsertEdit(
   req: InsertReq,
   preload: NormFile,
   ref: Anchor,
@@ -216,33 +190,68 @@ export function buildInsertToolDef(flags: EditToolFlags = DEFAULT_EDIT_FLAGS): I
         anchor: req.anchor,
         providedPath: req.path,
         cwd: ctx.cwd,
+      }).catch((error: unknown) => {
+        const member = batchMemberFor(_toolCallId);
+        if (member) noteBatchFailure(member, error);
+        throw error;
       });
-      const { ref, warnings: anchorWarnings } = parseInsertAnchor(req.anchor);
-      await throwIfStrictInput([...anchorWarnings, ...insertWarnings]);
+      let ref: Anchor;
+      let anchorWarnings: string[];
+      try {
+        ({ ref, warnings: anchorWarnings } = parseInsertAnchor(req.anchor));
+        await throwIfStrictInput([...anchorWarnings, ...insertWarnings]);
+      } catch (error) {
+        const member = batchMemberFor(_toolCallId);
+        if (member) noteBatchFailure(member, error);
+        throw error;
+      }
       return queuedEdit(targetPath, ctx.cwd, signal, async (absolutePath, mutationTargetPath) => {
+        const member = batchMemberFor(_toolCallId);
         const preload = await readNormFile(targetPath, ctx.cwd, {
           signal,
           accessMode: constants.R_OK | constants.W_OK,
           maxLines: MAX_HASH_LINES,
         });
         const { editParams, anchorLine } = buildInsertEdit(req, preload, ref, targetPath);
-        const pipe = await execPipeline(targetPath, editParams, ctx.cwd, {
-          accessMode: constants.R_OK | constants.W_OK,
-          signal,
-          preloadedNorm: preload,
-          skipBoundaryDedup: true,
-        });
-        return commitBatched(pipe, {
-          path: pipe.path,
-          absolutePath,
+        if (!member) {
+          const pipe = await execPipeline(targetPath, editParams, ctx.cwd, {
+            accessMode: constants.R_OK | constants.W_OK,
+            signal,
+            preloadedNorm: preload,
+            skipBoundaryDedup: true,
+          });
+          return commitEdit(pipe, {
+            path: pipe.path,
+            absolutePath,
+            mutationTargetPath,
+            signal,
+            verb: "inserted",
+            noopNoun: "Insertion",
+            foldedAnchorLines: anchorLine === undefined ? 0 : 1,
+            prefixWarnings: [...anchorWarnings, ...insertWarnings],
+            onApplied: () => clearBoundaryBypass(mutationTargetPath),
+          });
+        }
+        let hedit: HEdit;
+        const resWarnings: string[] = [];
+        try {
+          hedit = resEdit(editParams, resWarnings);
+        } catch (error) {
+          noteBatchFailure(member, error);
+          throw error;
+        }
+        return executeBatchMember({
+          kind: "insert",
+          member,
+          targetPath,
           mutationTargetPath,
+          cwd: ctx.cwd,
           signal,
-          verb: "inserted",
-          noopNoun: "Insertion",
-          foldedAnchorLines: anchorLine === undefined ? 0 : 1,
-          prefixWarnings: [...anchorWarnings, ...insertWarnings],
-          onApplied: () => clearBoundaryBypass(mutationTargetPath),
-        }, _toolCallId, "insert");
+          hedit,
+          extraWarnings: [...anchorWarnings, ...insertWarnings, ...resWarnings],
+          skipBoundaryDedup: true,
+          foldedLines: anchorLine === undefined ? 0 : 1,
+        });
       });
     },
   };

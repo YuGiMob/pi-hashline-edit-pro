@@ -109,3 +109,31 @@ export function getPreviewInput(args: unknown): { path?: string; remove_from: st
     replacement_lines: normalized.replacement_lines as string[],
   };
 }
+
+const INSERT_KS = new Set(["path", "anchor", "direction", "lines"]);
+
+export interface InsertReq {
+  path?: string;
+  anchor: string;
+  direction: "before" | "after";
+  lines: string[];
+}
+
+export function assertInsertReq(request: unknown): asserts request is InsertReq {
+  if (!isRec(request)) {
+    throw new Error("[E_BAD_SHAPE] Insert request must be an object.");
+  }
+  rejectUnknownFields(request, INSERT_KS, "Insert request");
+  if (request.path !== undefined && typeof request.path !== "string") {
+    throw new Error('[E_BAD_SHAPE] Insert request field "path" must be a string when provided.');
+  }
+  if (typeof request.anchor !== "string" || request.anchor.length === 0) {
+    throw new Error('[E_BAD_SHAPE] Insert request requires an "anchor" string (4-char anchor from read output).');
+  }
+  if (request.direction !== "before" && request.direction !== "after") {
+    throw new Error('[E_BAD_SHAPE] Insert request "direction" must be "before" or "after".');
+  }
+  if (!Array.isArray(request.lines) || request.lines.some((line) => typeof line !== "string")) {
+    throw new Error('[E_BAD_SHAPE] Insert request requires "lines" as an array of strings, one element per line.');
+  }
+}
