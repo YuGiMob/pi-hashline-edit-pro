@@ -166,7 +166,7 @@ describe("edit prompt flag variants", () => {
   it("withReplacePrompts drops the diff-follow hint when auto-read is off", () => {
     const result = withReplacePrompts(replaceBase, { ...DEFAULT_EDIT_FLAGS, autoRead: false });
     expect(result.description).not.toContain("Anchor follow-up edits on the `+anchor│`");
-    expect(result.guidelines.some((g) => g.includes("one edit per turn; verify each result"))).toBe(true);
+    expect(result.guidelines.some((g) => g.includes("one batch per file per turn; verify each result"))).toBe(true);
   });
 
   it("withInsertPrompts adds the require-path and strict-input notices", () => {

@@ -6,9 +6,11 @@ import { Compile } from "typebox/compile";
 import register from "../../index";
 import { shutdownHashStore } from "../../src/hash-store";
 import { initRegistry, resetRegistryForTests } from "../../src/anchor-registry";
+import { resetBatchStateForTests } from "../../src/batch";
 import { errCode } from "../../src/utils";
 afterEach(() => {
   resetRegistryForTests();
+  resetBatchStateForTests();
 });
 
 export async function getWritableTempRoot(): Promise<string> {
@@ -192,6 +194,7 @@ export function makeFakePiRegistry() {
 }
 export function setupIntegrationTest(cwd: string) {
   resetRegistryForTests();
+  resetBatchStateForTests();
   initRegistry(undefined);
   const { pi, getTool } = makeFakePiRegistry();
   register(pi);

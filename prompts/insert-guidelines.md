@@ -1,1 +1,2 @@
 - `insert`: the anchor must have been shown by `read`, a post-edit diff (`+anchor│`/` anchor│`), or any served `anchor│content` row. Empty file: `read` shows one `anchor│` row — insert `after` it.
+- `insert`: same-file calls in one message join the file's batch: earlier calls reply `In batch` (`In batch N` when several files batch), the last call shows the combined diff.

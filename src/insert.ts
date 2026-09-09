@@ -2,7 +2,7 @@ import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-age
 import { Type } from "typebox";
 import { constants } from "fs";
 import { execPipeline, type ReqParams, type ReplaceDetails, previewFromPipe, previewError } from "./replace";
-import { commitEdit } from "./commit";
+import { commitBatched } from "./batch";
 import { readNormFile, type NormFile } from "./file-reader";
 import { MAX_HASH_LINES, parseHashRef, resolveAnchorLine, type Anchor } from "./hashline";
 import { stripAnchorRow } from "./hashline/resolve";
@@ -232,7 +232,7 @@ export function buildInsertToolDef(flags: EditToolFlags = DEFAULT_EDIT_FLAGS): I
           preloadedNorm: preload,
           skipBoundaryDedup: true,
         });
-        return commitEdit(pipe, {
+        return commitBatched(pipe, {
           path: pipe.path,
           absolutePath,
           mutationTargetPath,
@@ -242,7 +242,7 @@ export function buildInsertToolDef(flags: EditToolFlags = DEFAULT_EDIT_FLAGS): I
           foldedAnchorLines: anchorLine === undefined ? 0 : 1,
           prefixWarnings: [...anchorWarnings, ...insertWarnings],
           onApplied: () => clearBoundaryBypass(mutationTargetPath),
-        });
+        }, _toolCallId, "insert");
       });
     },
   };

@@ -22,7 +22,6 @@ import { applyEdit,
   type HEdit,
   type NEdit,
 } from "./hashline";
-import { commitEdit } from "./commit";
 import { withDedupRows, type RMetrics } from "./replace-response";
 import {
   type RPreview,
@@ -34,6 +33,7 @@ import { resolveTarget } from "./fs-write";
 import { toCwd } from "./paths";
 import { noopPayloadKey, markBoundaryNoop, consumeBoundaryBypass, clearBoundaryBypass } from "./boundary-bypass";
 import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper, resolveEditTargetWithRequirement, throwIfStrictInput, isBoundaryDedupEnabled, withReplacePrompts, DEFAULT_EDIT_FLAGS, type EditToolFlags } from "./edit-common";
+import { commitBatched } from "./batch";
 
 export { editToolSchema, type ReqParams, assertReq };
 
@@ -47,6 +47,7 @@ export type ReplaceDetails = {
   metrics?: RMetrics;
   diffLineNumbers?: (number|undefined)[];
   warnings?: string[];
+  batch?: { id: number; size: number; last: boolean };
 };
 
 export interface PipelineResult {
@@ -289,7 +290,7 @@ export function buildToolDef(flags: EditToolFlags = DEFAULT_EDIT_FLAGS): ToolDef
         const appliedWarnings = boundaryBypass
           ? ["[W_BOUNDARY_BYPASS] Boundary dedup was off for this call and is back on."]
           : [];
-        return commitEdit(pipe, {
+        return commitBatched(pipe, {
           path: pipe.path,
           absolutePath,
           mutationTargetPath,
@@ -298,7 +299,7 @@ export function buildToolDef(flags: EditToolFlags = DEFAULT_EDIT_FLAGS): ToolDef
           appliedWarnings,
           onApplied: () => { if (dedupOn) clearBoundaryBypass(mutationTargetPath); },
           onNoopDedup: dedupOn ? () => markBoundaryNoop(mutationTargetPath, noopPayload) : undefined,
-        });
+        }, _toolCallId, "replace");
       });
     },
   };

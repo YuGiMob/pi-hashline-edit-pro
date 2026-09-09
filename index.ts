@@ -22,6 +22,7 @@ import { loadHashStore, persistSnapshot, pruneMissing } from "./src/hash-store";
 import { initRegistry, gcRegistrySidecars, clearRegistry, freeAnchors, markServed as markServedScoped } from "./src/anchor-registry";
 import { buildServedMap } from "./src/served";
 import { clearBoundaryBypass } from "./src/boundary-bypass";
+import { finalizeTurn, planAssistantMessage } from "./src/batch";
 import { currentEditFlags } from "./src/edit-common";
 import { HashlineConfigOverlay } from "./src/config-ui";
 import { registerWriteHook } from "./src/write-hook";
@@ -126,6 +127,21 @@ export default function (pi: ExtensionAPI): void {
       ctx.ui.notify(`Anchor claims cleared for this session`, "info");
     },
   });
+  pi.on("message_end", async (event, ctx) => {
+    try {
+      await planAssistantMessage(event.message, ctx.cwd);
+    } catch (error) {
+      console.error("Failed to plan edit batch:", error);
+    }
+  });
+  pi.on("turn_end", async (event) => {
+    try {
+      const ids = (event.toolResults ?? []).map((result) => (result as { toolCallId?: unknown }).toolCallId).filter((id): id is string => typeof id === "string");
+      await finalizeTurn(ids);
+    } catch (error) {
+      console.error("Failed to finalize edit batch:", error);
+    }
+  });
   pi.on("tool_result", async (event, ctx) => {
     if (event.isError) return;
 
@@ -191,6 +207,8 @@ export default function (pi: ExtensionAPI): void {
     const metrics = (event.details as { metrics?: RMetrics } | undefined)?.metrics;
     if (metrics?.classification === "noop") return;
 
+    const batched = (event.details as { batch?: { last?: boolean } } | undefined)?.batch;
+    if (batched?.last === false) return;
     const toolDetails = event.details as ReplaceDetails | undefined;
     const diff = toolDetails?.diff;
     const detailWarnings = Array.isArray(toolDetails?.warnings) ? toolDetails.warnings.filter((w): w is string => typeof w === "string") : [];

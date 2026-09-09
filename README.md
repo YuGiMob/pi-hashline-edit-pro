@@ -97,7 +97,7 @@ An edit that produces identical content reports `No changes made` and leaves the
 
 After a successful edit, the diff is capped at 50KB. A row over 50KB is shown as a marker that keeps the row's anchor, and only the rows shown in the capped diff are recorded as served. The same caps apply to the `insert` and `undo_last_change` diffs, to the interactive previews, and to `details.patch`.
 
-Do not issue multiple `replace` or `insert` calls on the same file in one message. Parallel edits split attention across the post-edit diffs, and removed lines are easy to miss. Verify each diff before the next edit on that file.
+Multiple `replace` and `insert` calls on the same file in one message are grouped per file into one batch that applies in source order: earlier calls reply `In batch` (`In batch N` when several files batch) and the batch's last call shows the combined diff, with one undo reverting the whole batch. Verify each batch diff before the next turn's edits on that file.
 
 ### insert
 
@@ -139,7 +139,7 @@ Output is capped at `limit` matched lines, 2000 rows, and 50KB of text, whicheve
 
 `undo_last_change` reverts the most recent successful `replace` or `insert` on a file, restoring the exact previous content, BOM and line endings included, plus the previous anchors.
 
-- History is per-file and single-level: only the most recent `replace` or `insert` can be reverted.
+- History is per-file and single-level: only the most recent `replace` or `insert` can be reverted. A same-turn batch of `replace`/`insert` calls on one file counts as one entry: one undo reverts the whole batch.
 - History is persisted and survives session restarts. A failed `write` does not clear it.
 - Every applied `replace` or `insert` is undoable; the undo record is saved before the edit is written.
 - A successful `write` clears the history for that file.
@@ -151,7 +151,7 @@ Output is capped at `limit` matched lines, 2000 rows, and 50KB of text, whicheve
 
 Auto-read is enabled by default. After a successful `write`, the extension reads the file and appends an `--- Auto-read (hashline anchors) ---` block, so you get fresh `anchor│content` anchors without a separate `read` call.
 
-After `replace`, `insert`, and `undo_last_change`, the result shows the post-edit diff. The `+anchor│` and ` anchor│` rows carry the current anchors, so follow-up edits can anchor on the diff directly. The `-anchor│` rows show removed lines with their old anchors, which are stale after the edit. When the context line next to a change is blank or whitespace-only, one more context line is shown in that direction, so the change stays anchored to visible content. Call `read` when you want the full file's anchors.
+After `replace`, `insert`, and `undo_last_change`, the result shows the post-edit diff. Inside a same-turn batch, only the batch's last call shows the combined diff, headed by a `batch:` line (`batch N:` when several files batch); earlier calls reply `In batch` (`In batch N` when several files batch). The `+anchor│` and ` anchor│` rows carry the current anchors, so follow-up edits can anchor on the diff directly. The `-anchor│` rows show removed lines with their old anchors, which are stale after the edit. When the context line next to a change is blank or whitespace-only, one more context line is shown in that direction, so the change stays anchored to visible content. Call `read` when you want the full file's anchors.
 
 Auto-read keeps the same 50KB and 2000-line budget as `read`. Change it in `/hashline-config`; both settings persist across sessions.
 
@@ -162,7 +162,7 @@ All five tools return machine-readable metadata in `details` alongside the model
 | Tool | `details` |
 | --- | --- |
 | `read` | `truncation` (set when output was truncated), `snapshotId` (a `v2\|path\|ino\|mtime\|ctime\|size` fingerprint), `nextOffset` (use as the next `offset`), and `metrics` with `truncated` and `next_offset`. |
-| `replace`, `insert` | `diff` (post-edit diff, capped, with current anchors on `+HASH│` and ` HASH│` rows), `patch` (a standard unified patch for external tools, capped like the diff), `patchTruncated` (true when the patch was cut and can no longer be applied as-is), `firstChangedLine`, `snapshotId`, `classification` (`"noop"` when nothing changed), and `metrics`: `edits_attempted`, `edits_noop`, `warnings`, `classification` (`"applied"` or `"noop"`), `changed_lines` (`{ first, last }`), `added_lines`, `removed_lines`. |
+| `replace`, `insert` | `diff` (post-edit diff, capped, with current anchors on `+HASH│` and ` HASH│` rows; a same-turn batch reports the combined diff on its last call and an empty diff on earlier calls), `patch` (a standard unified patch for external tools, capped like the diff), `patchTruncated` (true when the patch was cut and can no longer be applied as-is), `firstChangedLine`, `snapshotId`, `classification` (`"noop"` when nothing changed), `batch` (`{ id, size, last }` marking same-turn batch membership), and `metrics`: `edits_attempted`, `edits_noop`, `warnings`, `classification` (`"applied"` or `"noop"`), `changed_lines` (`{ first, last }`), `added_lines`, `removed_lines`. |
 | `undo_last_change` | `diff` (the undo diff with restored anchors), `patch`, `patchTruncated`, and `metrics` in the same shape as `replace`. |
 | `anchor_grep` | `metrics` with `matches` (capped at `limit`), `files`, and `truncated`; `truncation` (the standard pi truncation report) when output was cut; and `linesTruncated` (true when long lines were shown as fragments). |
 

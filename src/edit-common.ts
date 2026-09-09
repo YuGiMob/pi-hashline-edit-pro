@@ -38,7 +38,7 @@ export function withReplacePrompts(base: { description: string; snippet: string;
   let guidelines = [...base.guidelines];
   if (!flags.autoRead) {
     description = description.replace(" Anchor follow-up edits on the `+anchor│` and ` anchor│` rows of the post-edit diff instead of re-reading.", "");
-    guidelines = guidelines.map((guideline) => guideline.includes("post-edit diff") ? "`replace`: one edit per turn; verify each result before the next edit on that file." : guideline);
+    guidelines = guidelines.map((guideline) => guideline.includes("post-edit diff") ? "`replace`: one batch per file per turn; verify each result before the next edit on that file." : guideline);
   }
   const descriptionParts = [description];
   if (flags.requirePath) {
