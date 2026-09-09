@@ -27,7 +27,7 @@ describe("insert tool", () => {
     expect(schema.properties.direction).toBeDefined();
     expect(schema.properties.lines).toBeDefined();
     expect(schema.properties.replacement_lines).toBeUndefined();
-    expect(schema.additionalProperties).toBe(false);
+    expect(schema.additionalProperties).toBe(true);
   });
 
   it("inserts lines after the anchor line", async () => {
@@ -209,6 +209,23 @@ describe("insert tool", () => {
           undefined, undefined, ctx,
         ),
       ).rejects.toThrow(/E_BAD_SHAPE/);
+    });
+  });
+
+  it("names path when passed in anchor-only mode", async () => {
+    await withTempFile("sample.ts", "alpha\n", async ({ cwd }) => {
+      const { ctx, readTool, getTool } = setupIntegrationTest(cwd);
+      const insertTool = getTool("insert");
+      const readResult = await readTool.execute("r1", { path: "sample.ts" }, undefined, undefined, ctx);
+      const alphaHash = extractHash(getText(readResult).split("\n").find((l) => l.includes("│alpha"))!);
+
+      await expect(
+        insertTool.execute(
+          "i1",
+          { anchor: alphaHash, direction: "after", lines: ["x"], path: "sample.ts" } as any,
+          undefined, undefined, ctx,
+        ),
+      ).rejects.toThrow(/unknown or unsupported fields: path/);
     });
   });
 

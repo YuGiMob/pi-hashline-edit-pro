@@ -16,7 +16,7 @@ describe("editToolSchema", () => {
     expect(props.remove_to).toBeDefined();
     expect(props.replacement_lines).toBeDefined();
     expect(props.changes).toBeUndefined();
-    expect(schema.additionalProperties).toBe(false);
+    expect(schema.additionalProperties).toBe(true);
   });
 });
 
@@ -223,7 +223,7 @@ describe("regReplace", () => {
           undefined,
           { cwd } as any,
         ),
-      ).rejects.toThrow(/E_BAD_SHAPE/);
+      ).rejects.toThrow(/unknown_field/);
     });
   });
 

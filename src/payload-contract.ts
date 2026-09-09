@@ -32,7 +32,7 @@ export const editToolSchema = Type.Object(
     remove_to: removeToSchema,
     replacement_lines: replacementLinesSchema,
   },
-  { additionalProperties: false },
+  { additionalProperties: true },
 );
 
 export function buildEditToolSchema(requirePath: boolean): typeof editToolSchema {
@@ -44,7 +44,7 @@ export function buildEditToolSchema(requirePath: boolean): typeof editToolSchema
       remove_to: removeToSchema,
       replacement_lines: replacementLinesSchema,
     },
-    { additionalProperties: false },
+    { additionalProperties: true },
   ) as typeof editToolSchema;
 }
 

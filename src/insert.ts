@@ -45,7 +45,7 @@ const insertToolSchema = Type.Object(
     direction: insertDirectionSchema,
     lines: insertLinesSchema,
   },
-  { additionalProperties: false },
+  { additionalProperties: true },
 );
 
 export function buildInsertToolSchema(requirePath: boolean): typeof insertToolSchema {
@@ -57,7 +57,7 @@ export function buildInsertToolSchema(requirePath: boolean): typeof insertToolSc
       direction: insertDirectionSchema,
       lines: insertLinesSchema,
     },
-    { additionalProperties: false },
+    { additionalProperties: true },
   ) as typeof insertToolSchema;
 }
 
