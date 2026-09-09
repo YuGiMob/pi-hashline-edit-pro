@@ -1,7 +1,7 @@
 import { readFile } from "fs/promises";
 import { constants } from "fs";
 import { relative } from "path";
-import { readConfig } from "./config";
+import { readConfig, getDiffContextLines } from "./config";
 import { throwIfStrictInput, tryResolveEditTarget } from "./edit-common";
 import { readNormFile, safeSnapId } from "./file-reader";
 import { resolveInCwd, writeAtomic, type FileIdentity } from "./fs-write";
@@ -561,6 +561,7 @@ async function finishBatch(member: PlannedMember, signal?: AbortSignal): Promise
       boundaryDedupBelow: [],
     },
     batchVerb(runtime),
+    await getDiffContextLines(),
   );
   changed.details.diff = `${header}\n${changed.details.diff}`;
   changed.details.diffLineNumbers?.unshift(undefined);

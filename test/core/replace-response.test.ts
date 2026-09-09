@@ -227,4 +227,30 @@ describe("buildChanged", () => {
     expect(diff).not.toContain("│aaa");
     expect(diff).not.toContain("│eee");
   });
+
+  it("honors an explicit diff context line count", async () => {
+    const original = "aaa\nbbb\nccc\nddd\neee\n";
+    const result = "aaa\nbbb\nCCC\nddd\neee\n";
+    const originalHashes = await lineHashes(original, home.testPath);
+    const resultHashes = await lineHashes(result, home.testPath);
+    const base = {
+      path: "test.txt",
+      originalNormalized: original,
+      originalHashes,
+      result,
+      resultHashes,
+      warnings: undefined,
+      snapshotId: "snap1",
+      editMeta: { editsAttempted: 1, noopEditsCount: 0, firstChangedLine: 3, lastChangedLine: 3, addedLines: 1, removedLines: 1 },
+    };
+    const bare = buildChanged(base, "replaced", 0);
+    expect(bare.details.diff!).toContain("│CCC");
+    expect(bare.details.diff!).not.toContain("│bbb");
+    expect(bare.details.diff!).not.toContain("│ddd");
+    const wide = buildChanged(base, "replaced", 2);
+    expect(wide.details.diff!).toContain("│aaa");
+    expect(wide.details.diff!).toContain("│bbb");
+    expect(wide.details.diff!).toContain("│ddd");
+    expect(wide.details.diff!).toContain("│eee");
+  });
 });

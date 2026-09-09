@@ -153,7 +153,7 @@ Auto-read is enabled by default. After a successful `write`, the extension reads
 
 After `replace`, `insert`, and `undo_last_change`, the result shows the post-edit diff. Inside a same-turn batch, only the batch's last call shows the combined diff, headed by a `batch:` line (`batch N:` when several files batch); earlier calls reply `In batch` (`In batch N` when several files batch). The `+anchor│` and ` anchor│` rows carry the current anchors, so follow-up edits can anchor on the diff directly. The `-anchor│` rows show removed lines with their old anchors, which are stale after the edit. When the context line next to a change is blank or whitespace-only, one more context line is shown in that direction, so the change stays anchored to visible content. Call `read` when you want the full file's anchors.
 
-Auto-read keeps the same 50KB and 2000-line budget as `read`. Change it in `/hashline-config`; both settings persist across sessions.
+Auto-read keeps the same 50KB and 2000-line budget as `read`. Change it in `/hashline-config`; both settings persist across sessions. The post-edit diff shows 1 surrounding line by default; change Diff context in `/hashline-config` (0-10, needs Auto-read) to show more or fewer.
 
 ## Tool result details
 
@@ -170,7 +170,7 @@ All five tools return machine-readable metadata in `details` alongside the model
 
 | Command | Description |
 | --- | --- |
-| `/hashline-config` | Open the settings window: auto-read anchors, `anchor_grep` tool, required `path`, strict input, and boundary dedup. Persists across sessions. |
+| `/hashline-config` | Open the settings window: auto-read anchors, diff context lines, `anchor_grep` tool, required `path`, strict input, and boundary dedup. Persists across sessions. |
 | `/clear-anchors` | Clear the session's anchor claims. Anchors are re-claimed on the next `read`. |
 
 Settings live in `~/.config/pi-hashline-edit-pro/config.json`, created when a setting is first changed in `/hashline-config`:
@@ -181,7 +181,8 @@ Settings live in `~/.config/pi-hashline-edit-pro/config.json`, created when a se
   "anchorGrepEnabled": true,
   "requirePath": false,
   "strictInput": false,
-  "boundaryDedupMode": "on"
+  "boundaryDedupMode": "on",
+  "diffContextLines": 1
 }
 ```
 

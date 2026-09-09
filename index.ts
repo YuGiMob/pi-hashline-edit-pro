@@ -17,6 +17,7 @@ import {
   toggleRequirePath,
   toggleStrictInput,
   cycleBoundaryDedupMode,
+  adjustDiffContextLines,
 } from "./src/config";
 import { loadHashStore, persistSnapshot, pruneMissing } from "./src/hash-store";
 import { initRegistry, gcRegistrySidecars, clearRegistry, freeAnchors, markServed as markServedScoped } from "./src/anchor-registry";
@@ -89,7 +90,7 @@ export default function (pi: ExtensionAPI): void {
   });
 
   pi.registerCommand("hashline-config", {
-    description: "Open the hashline settings window (auto-read, grep, path, strict input, dedup)",
+    description: "Open the hashline settings window (auto-read, diff context, grep, path, strict input, dedup)",
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) {
         ctx.ui.notify("/hashline-config requires interactive mode", "error");
@@ -100,8 +101,9 @@ export default function (pi: ExtensionAPI): void {
           tui,
           theme,
           done,
-          onToggle: async (key) => {
+          onToggle: async (key, delta) => {
             if (key === "autoRead") autoRead = await toggleAutoRead();
+            else if (key === "diffContextLines") await adjustDiffContextLines(delta ?? 1);
             else if (key === "anchorGrepEnabled") {
               const enabled = await toggleAnchorGrep();
               const active = pi.getActiveTools();

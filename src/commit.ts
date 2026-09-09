@@ -4,6 +4,7 @@ import { DEDUP_ANCHOR } from "./constants";
 import { HASH_SEP } from "./hashline";
 import { buildChanged, buildNoop, type RMeta, type TResult } from "./replace-response";
 import { saveUndo } from "./replace-undo";
+import { getDiffContextLines } from "./config";
 import { safeSnapId } from "./file-reader";
 import { writeAtomic } from "./fs-write";
 import { servedHashesFromDiff, buildServedMap } from "./served";
@@ -127,7 +128,7 @@ export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promis
     boundaryDedupAbove: pipe.boundaryDedupAbove,
     boundaryDedupBelow: pipe.boundaryDedupBelow,
   };
-  const changed = buildChanged(successInput, meta.verb);
+  const changed = buildChanged(successInput, meta.verb, await getDiffContextLines());
   if (changed.details.diff) {
     markServedScoped(
       mutationTargetPath,

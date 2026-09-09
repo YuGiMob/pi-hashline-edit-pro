@@ -5,12 +5,17 @@ import { writeAtomic } from "./fs-write";
 
 export type BoundaryDedupMode = "on" | "off" | "strict";
 
+export const DEFAULT_DIFF_CONTEXT_LINES = 1;
+export const MIN_DIFF_CONTEXT_LINES = 0;
+export const MAX_DIFF_CONTEXT_LINES = 10;
+
 export interface Config {
   autoRead: boolean;
   anchorGrepEnabled: boolean;
   requirePath?: boolean;
   strictInput?: boolean;
   boundaryDedupMode?: BoundaryDedupMode;
+  diffContextLines?: number;
 }
 
 const DEFAULT_CONFIG: Config = {
@@ -18,7 +23,8 @@ const DEFAULT_CONFIG: Config = {
   anchorGrepEnabled: true,
   requirePath: false,
   strictInput: false,
-  boundaryDedupMode: "on"
+  boundaryDedupMode: "on",
+  diffContextLines: DEFAULT_DIFF_CONTEXT_LINES
 };
 
 const BOUNDARY_DEDUP_MODES: BoundaryDedupMode[] = ["on", "strict", "off"];
@@ -28,6 +34,14 @@ function parseBoundaryDedupMode(mode: unknown, legacy: unknown): BoundaryDedupMo
   if (legacy === true) return "on";
   if (legacy === false) return "off";
   return DEFAULT_CONFIG.boundaryDedupMode ?? "on";
+}
+
+export function normalizeDiffContextLines(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return DEFAULT_DIFF_CONTEXT_LINES;
+  const floored = Math.floor(value);
+  if (floored < MIN_DIFF_CONTEXT_LINES) return MIN_DIFF_CONTEXT_LINES;
+  if (floored > MAX_DIFF_CONTEXT_LINES) return MAX_DIFF_CONTEXT_LINES;
+  return floored;
 }
 
 function parseConfig(content: string): Config {
@@ -41,12 +55,14 @@ function parseConfig(content: string): Config {
   const strictInput = isRec(parsed) ? parsed.strictInput : undefined;
   const boundaryDedupMode = isRec(parsed) ? parsed.boundaryDedupMode : undefined;
   const legacyBoundaryDedup = isRec(parsed) ? parsed.boundaryDedupEnabled : undefined;
+  const diffContextLines = isRec(parsed) ? parsed.diffContextLines : undefined;
   return {
     autoRead,
     anchorGrepEnabled: typeof anchorGrepEnabled === "boolean" ? anchorGrepEnabled : DEFAULT_CONFIG.anchorGrepEnabled,
     requirePath: typeof requirePath === "boolean" ? requirePath : DEFAULT_CONFIG.requirePath,
     strictInput: typeof strictInput === "boolean" ? strictInput : DEFAULT_CONFIG.strictInput,
     boundaryDedupMode: parseBoundaryDedupMode(boundaryDedupMode, legacyBoundaryDedup),
+    diffContextLines: normalizeDiffContextLines(diffContextLines),
   };
 }
 
@@ -100,6 +116,18 @@ export async function cycleBoundaryDedupMode(): Promise<BoundaryDedupMode> {
   const current = config.boundaryDedupMode ?? "on";
   const next = BOUNDARY_DEDUP_MODES[(BOUNDARY_DEDUP_MODES.indexOf(current) + 1) % BOUNDARY_DEDUP_MODES.length] ?? "on";
   config.boundaryDedupMode = next;
+  await writeConfig(config);
+  return next;
+}
+
+export async function getDiffContextLines(): Promise<number> {
+  return normalizeDiffContextLines((await readConfig()).diffContextLines);
+}
+
+export async function adjustDiffContextLines(delta: number): Promise<number> {
+  const config = await readConfig();
+  const next = normalizeDiffContextLines(normalizeDiffContextLines(config.diffContextLines) + delta);
+  config.diffContextLines = next;
   await writeConfig(config);
   return next;
 }

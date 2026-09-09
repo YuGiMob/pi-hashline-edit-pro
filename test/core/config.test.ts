@@ -7,6 +7,7 @@ import {
   toggleRequirePath,
   toggleStrictInput,
   cycleBoundaryDedupMode,
+  adjustDiffContextLines,
   readConfig,
   writeConfig,
 } from "../../src/config";
@@ -255,6 +256,44 @@ describe("config - wrong-shape config", () => {
       await mkdir(configDir, { recursive: true });
       await writeFile(pathJoin(configDir, "config.json"), JSON.stringify({ autoRead: "yes" }));
       expect((await readConfig()).autoRead).toBe(true);
+    });
+  });
+});
+
+describe("config - diffContextLines", () => {
+  it("defaults to 1 when no config file exists", async () => {
+    await withTempHome(async () => {
+      expect((await readConfig()).diffContextLines).toBe(1);
+    });
+  });
+
+  it("reads a stored value", async () => {
+    await withTempHome(async () => {
+      await writeConfig({ autoRead: true, anchorGrepEnabled: true, diffContextLines: 3 });
+      expect((await readConfig()).diffContextLines).toBe(3);
+    });
+  });
+
+  it("clamps out-of-range and non-numeric values", async () => {
+    await withTempHome(async () => {
+      await writeConfig({ autoRead: true, anchorGrepEnabled: true, diffContextLines: 99 });
+      expect((await readConfig()).diffContextLines).toBe(10);
+      await writeConfig({ autoRead: true, anchorGrepEnabled: true, diffContextLines: -4 });
+      expect((await readConfig()).diffContextLines).toBe(0);
+      await writeConfig({ autoRead: true, anchorGrepEnabled: true, diffContextLines: 2.7 });
+      expect((await readConfig()).diffContextLines).toBe(2);
+      await writeConfig({ autoRead: true, anchorGrepEnabled: true, diffContextLines: "many" } as never);
+      expect((await readConfig()).diffContextLines).toBe(1);
+    });
+  });
+
+  it("adjusts up and down within bounds", async () => {
+    await withTempHome(async () => {
+      expect(await adjustDiffContextLines(1)).toBe(2);
+      expect(await adjustDiffContextLines(-1)).toBe(1);
+      expect(await adjustDiffContextLines(-5)).toBe(0);
+      expect(await adjustDiffContextLines(50)).toBe(10);
+      expect((await readConfig()).diffContextLines).toBe(10);
     });
   });
 });

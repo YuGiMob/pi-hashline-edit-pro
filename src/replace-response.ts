@@ -170,10 +170,10 @@ export function withDedupRows(diff: string, lineNumbers: (number | undefined)[],
   return { diff: out.join("\n"), lineNumbers: nums };
 }
 
-export function buildChanged(input: SuccessInput, verb = "replaced"): TResult {
+export function buildChanged(input: SuccessInput, verb = "replaced", diffContextLines = 1): TResult {
   const { path, result, warnings, snapshotId, originalNormalized, originalHashes, editMeta, resultHashes, boundaryDedupAbove, boundaryDedupBelow } = input;
   const resultLines = visLines(result);
-  const baseDiff = genDiff(originalNormalized, result, 1, resultHashes, originalHashes);
+  const baseDiff = genDiff(originalNormalized, result, diffContextLines, resultHashes, originalHashes);
   const diffResult = withDedupRows(baseDiff.diff, baseDiff.lineNumbers, boundaryDedupAbove, boundaryDedupBelow);
   const addedLines = editMeta.addedLines;
   const removedLines = editMeta.removedLines;

@@ -224,6 +224,7 @@ describe("anchor_grep default", () => {
         expect(getActive()).toContain("anchor_grep");
         const overlay = await openConfigOverlay(commands, dir);
         overlay.handleInput("j");
+        overlay.handleInput("j");
         overlay.handleInput(" ");
         await waitForConfig(async () => (await readConfig()).anchorGrepEnabled === false && !getActive().includes("anchor_grep") && getActive().includes("grep"));
         expect(getActive()).not.toContain("anchor_grep");
@@ -255,6 +256,7 @@ describe("anchor_grep default", () => {
         expect(getActive()).not.toContain("grep");
         expect(getActive()).toContain("anchor_grep");
         const overlay = await openConfigOverlay(commands, dir);
+        overlay.handleInput("j");
         overlay.handleInput("j");
         overlay.handleInput(" ");
         await waitForConfig(async () => (await readConfig()).anchorGrepEnabled === false && !getActive().includes("anchor_grep"));
@@ -332,6 +334,7 @@ describe("hashline-config overlay rendering", () => {
         await waitForConfig(async () => (await readConfig()).autoRead === false);
 
         overlay.handleInput("j");
+        overlay.handleInput("j");
         overlay.handleInput(" ");
         await waitForConfig(async () => (await readConfig()).anchorGrepEnabled === false);
 
@@ -355,8 +358,47 @@ describe("hashline-config overlay rendering", () => {
         expect(config.requirePath).toBe(true);
         expect(config.strictInput).toBe(true);
         expect(config.boundaryDedupMode).toBe("off");
+        expect(config.diffContextLines).toBe(1);
         expect(getActive()).toContain("grep");
         expect(getActive()).not.toContain("anchor_grep");
+      } finally {
+        vi.unstubAllEnvs();
+        const { shutdownHashStore } = await import("../../src/hash-store");
+        shutdownHashStore();
+      }
+    });
+  });
+
+  it("adjusts diff context from the overlay only while auto-read is on", async () => {
+    await withTempDir("diff-context-", async dir => {
+      const home = join(dir, "home");
+      await mkdir(join(home, ".config", "pi-hashline-edit-pro"), { recursive: true });
+      vi.stubEnv("HOME", home);
+      vi.stubEnv("XDG_CONFIG_HOME", "");
+      try {
+        const { pi, commands, handlers } = makeCommandPi(["read", "replace", "insert", "grep", "anchor_grep", "undo_last_change"]);
+        const { default: register } = await import("../../index");
+        register(pi);
+        const sessionStart = handlers.get("session_start") as (a: unknown, b: unknown) => Promise<void>;
+        await sessionStart({}, { cwd: dir, ui: { notify: vi.fn() } });
+        const overlay = await openConfigOverlay(commands, dir);
+
+        overlay.handleInput("j");
+        overlay.handleInput("+");
+        await waitForConfig(async () => (await readConfig()).diffContextLines === 2);
+        overlay.handleInput("-");
+        await waitForConfig(async () => (await readConfig()).diffContextLines === 1);
+
+        overlay.handleInput("k");
+        overlay.handleInput(" ");
+        await waitForConfig(async () => (await readConfig()).autoRead === false);
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        overlay.handleInput("j");
+        overlay.handleInput("+");
+        overlay.handleInput("-");
+        overlay.handleInput(" ");
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        expect((await readConfig()).diffContextLines).toBe(1);
       } finally {
         vi.unstubAllEnvs();
         const { shutdownHashStore } = await import("../../src/hash-store");
