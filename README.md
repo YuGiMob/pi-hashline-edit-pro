@@ -89,7 +89,7 @@ Single line: use the same anchor for `remove_from` and `remove_to`. `replace_fro
 
 The request is checked before any file I/O, so a bad request never touches the file.
 
-Common copy-paste slips are fixed automatically and reported as warnings: a leftover `anchor│` prefix in `replacement_lines` or the anchor fields (a prefix of 4 to 5 characters before `│`, for example `ab12│`), diff-preview rows pasted into the replacement, a reversed range, and a boundary line pasted twice. New lines that re-include a block adjacent to the range are stripped when that block is unique in the file. The whole run is stripped as one unit, so re-including an unchanged block next to the range never duplicates it.
+Common copy-paste slips are fixed automatically and reported as warnings: a leftover `anchor│` prefix in `replacement_lines` or the anchor fields (a prefix of 4 to 5 characters before `│`, for example `ab12│`), diff-preview rows pasted into the replacement, a reversed range, and a boundary line pasted twice. New lines that re-include a block adjacent to the range are stripped when that block is unique in the file. The whole run is stripped as one unit, so re-including an unchanged block next to the range never duplicates it. Boundary dedup has three modes in `/hashline-config`: `on` strips with a warning, `off` applies edits literally, and `strict` rejects the edit with `[E_BOUNDARY_STRICT]` when any replacement line would be stripped.
 
 Every line in the removed range must match what was last shown to you. The extension records the `anchor│content` rows it serves (`read` output, `anchor_grep` output, the auto-read block after `write`, the `+anchor│` and ` anchor│` rows of post-edit diffs, the current-range rows of `[E_RANGE_STALE]` feedback, and the context rows of stale-anchor feedback) and verifies the whole range against that record before writing. A line that changed on disk since it was shown, or an anchor that is not owned in this session, refuses the edit with `[E_RANGE_STALE]` or `[E_STALE_ANCHOR]` and returns the current range with fresh anchors, so the retry needs no `read`. An owned anchor enters the served record when its row is shown (after a restart, restored ownership counts as shown), so a file with no owned anchors cannot be edited by anchor at all; call `read` first. An owned line that was never shown — for example beyond an auto-read preview's truncation cap — is refused with `[E_RANGE_STALE]` and returns the current range, so the retry still needs no `read`.
 
@@ -181,7 +181,7 @@ Settings live in `~/.config/pi-hashline-edit-pro/config.json`, created when a se
   "anchorGrepEnabled": true,
   "requirePath": false,
   "strictInput": false,
-  "boundaryDedupEnabled": true
+  "boundaryDedupMode": "on"
 }
 ```
 
@@ -230,6 +230,7 @@ Codes starting with `E_` are errors (the operation failed); codes starting with 
 | `[E_UNDO_UNAVAILABLE]` | Undo history could not be persisted to the hash store; the edit was refused and the file was left unchanged. |
 | `[E_RANGE_STALE]` | A line in the replaced range no longer matches what was last shown (the file changed on disk, or the line was never shown). The edit was refused; the current range is returned with fresh anchors. |
 | `[W_BOUNDARY_BYPASS]` | The boundary anti-duplication was turned off for one replace call (an identical replacement had previously been cut to a noop); the duplicate lines were applied literally. The dedup is restored for the next call. |
+| `[E_BOUNDARY_STRICT]` | Strict boundary dedup rejected the edit because replacement lines re-include edge lines; resend without those lines. |
 | `[E_FILE_TOO_LARGE]` | The file exceeds the 1,353,139-line hashline limit or the 100MB size limit. |
 | `[E_REGISTRY]` | The anchor registry was not initialized; a serve or edit ran outside an initialized session. |
 | `[E_WRITE_HASH_ECHO]` | A `write` `content` line begins with the exact `anchor│` served for this file at the same line. The write is refused, file byte-identical; retry with bare content (remove the copied anchors). |

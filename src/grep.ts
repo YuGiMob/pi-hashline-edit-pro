@@ -677,7 +677,7 @@ export function regGrep(pi: ExtensionAPI): void {
       if (rowTruncated) notes.push(`[grep: output truncated at ${DEFAULT_MAX_LINES} rows or ${formatSize(DEFAULT_MAX_BYTES)}; refine the pattern to see more.]`);
       if (limitTruncated) notes.push(`[grep: showing first ${limit} matches; increase limit to see more.]`);
       if (linesReplaced > 0) notes.push(`[grep: ${linesReplaced} line(s) exceed ${formatSize(MAX_GREP_LINE_BYTES)} and are shown as truncated fragments; use read to see the full lines.]`);
-      if (poolSkipped > 0) notes.push(`[grep: ${poolSkipped} file(s) skipped because the session's anchor pool is exhausted; free anchors with /clear-anchors or narrow the search.]`);
+      if (poolSkipped > 0) notes.push(`[grep: ${poolSkipped} file(s) skipped because the session's anchor pool is exhausted; narrow the search.]`);
       const truncated = limitTruncated || rowTruncated;
       const truncation: TruncationResult | undefined = rowTruncated
         ? {

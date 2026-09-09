@@ -1,4 +1,4 @@
-import { abortIf, splitLines } from "../utils";
+import { abortIf, clipLine, splitLines } from "../utils";
 import { _lineHashesPure } from "./hash";
 import {
 	valEdit,
@@ -154,6 +154,16 @@ export interface PlannedEdit {
   autoFixes?: AutoFix[];
 }
 
+
+function throwStrictBoundaryDedup(edit: HEdit, boundaryDups: BDup[], resolved: RHEdit): never {
+  const startLine = resolved.hash_bounds[0].line;
+  const endLine = resolved.hash_bounds[1].line;
+  const range = startLine === endLine ? `line ${startLine}` : `lines ${startLine}-${endLine}`;
+  const seen = new Set<number>();
+  for (const dup of boundaryDups) seen.add(dup.replacementLineIndex);
+  const removed = [...seen].sort((a, b) => a - b).map((index) => `replacement_lines line ${index + 1}: ${clipLine(edit.content_lines[index] ?? "")}`);
+  throw new Error(`[E_BOUNDARY_STRICT] Strict boundary dedup rejects this edit: ${seen.size} replacement line(s) re-include edge lines (${range}). ${removed.join("; ")}. Resend without those lines.`);
+}
 export function planEdit(
   content: string,
   edit: HEdit,
@@ -162,6 +172,7 @@ export function planEdit(
     filePath?: string;
     servedHashes?: ReadonlyMap<string, string>;
     skipBoundaryDedup?: boolean;
+    strictBoundaryDedup?: boolean;
     signal?: AbortSignal;
   },
 ): PlannedEdit {
@@ -196,6 +207,9 @@ export function planEdit(
 
   warnUnicodeEsc(prefixFixed, warnings);
 
+  if (options?.strictBoundaryDedup === true && boundaryDups.length > 0) {
+    throwStrictBoundaryDedup(prefixFixed, boundaryDups, initialResolved);
+  }
   let resolved = initialResolved;
   let autoFixes: AutoFix[] | undefined;
   if (boundaryDups.length > 0 && !(options?.skipBoundaryDedup === true)) {
@@ -258,6 +272,7 @@ export function applyEdit(
 	filePath?: string,
 	servedHashes?: ReadonlyMap<string, string>,
 	skipBoundaryDedup?: boolean,
+	strictBoundaryDedup?: boolean,
 	): {
 	content: string;
 	firstChangedLine: number | undefined;
@@ -270,7 +285,7 @@ export function applyEdit(
   if (precomputedHashes === undefined) {
     throw new Error("[E_BAD_SHAPE] applyEdit requires the file's allocated anchors; derive them via lineHashes(content, path) first.");
   }
-  const planned = planEdit(content, edit, precomputedHashes, { filePath, servedHashes, skipBoundaryDedup, signal });
+  const planned = planEdit(content, edit, precomputedHashes, { filePath, servedHashes, skipBoundaryDedup, strictBoundaryDedup, signal });
   const lineIndex = buildIdx(content);
   const warnings = planned.warnings;
   const resolved = planned.resolved;

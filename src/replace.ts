@@ -32,7 +32,7 @@ import { adoptAnchors, servedForPath } from "./anchor-registry";
 import { resolveTarget } from "./fs-write";
 import { toCwd } from "./paths";
 import { noopPayloadKey, markBoundaryNoop, consumeBoundaryBypass, clearBoundaryBypass } from "./boundary-bypass";
-import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper, resolveEditTargetWithRequirement, throwIfStrictInput, isBoundaryDedupEnabled, withReplacePrompts, DEFAULT_EDIT_FLAGS, type EditToolFlags } from "./edit-common";
+import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper, resolveEditTargetWithRequirement, throwIfStrictInput, getBoundaryDedupMode, withReplacePrompts, DEFAULT_EDIT_FLAGS, type EditToolFlags } from "./edit-common";
 import { commitEdit } from "./commit";
 import { batchMemberFor, executeBatchMember, noteBatchFailure } from "./batch";
 
@@ -149,8 +149,9 @@ export async function execPipeline(
   );
   const displayPath = relative(cwd, absolutePath).replace(/\\/g, "/") || targetPath;
 
-  const dedupEnabled = await isBoundaryDedupEnabled();
-  const effectiveSkipBoundaryDedup = options?.skipBoundaryDedup === true || !dedupEnabled;
+  const dedupMode = await getBoundaryDedupMode();
+  const effectiveSkipBoundaryDedup = options?.skipBoundaryDedup === true || dedupMode === "off";
+  const strictBoundaryDedup = options?.skipBoundaryDedup !== true && dedupMode === "strict";
   let anchorResult: ReturnType<typeof applyEdit>;
   try {
     anchorResult = applyEdit(
@@ -161,6 +162,7 @@ export async function execPipeline(
       displayPath,
       served,
       effectiveSkipBoundaryDedup,
+      strictBoundaryDedup,
     );
   } catch (error) {
     await noteAnchorError(absolutePath, error, originalHashes, options?.noPersist);
@@ -287,9 +289,11 @@ export function buildToolDef(flags: EditToolFlags = DEFAULT_EDIT_FLAGS): ToolDef
         throw error;
       });
       return queuedEdit(targetPath, ctx.cwd, signal, async (absolutePath, mutationTargetPath) => {
-        const dedupOn = await isBoundaryDedupEnabled();
+        const dedupMode = await getBoundaryDedupMode();
+        const dedupOn = dedupMode !== "off";
         const noopPayload = noopPayloadKey(mutationTargetPath, normalizedParams.remove_from, normalizedParams.remove_to, normalizedParams.replacement_lines);
         const boundaryBypass = dedupOn ? consumeBoundaryBypass(mutationTargetPath, noopPayload) : false;
+        const strictBoundaryDedup = dedupMode === "strict" && !boundaryBypass;
         const member = batchMemberFor(_toolCallId);
         if (!member) {
           const pipe = await execPipeline(
@@ -332,6 +336,7 @@ export function buildToolDef(flags: EditToolFlags = DEFAULT_EDIT_FLAGS): ToolDef
           hedit: built.edit,
           extraWarnings: [...built.warnings, ...appliedWarnings],
           skipBoundaryDedup: boundaryBypass,
+          strictBoundaryDedup,
           noopPayload,
         });
       });

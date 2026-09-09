@@ -158,9 +158,15 @@ describe("edit prompt flag variants", () => {
   });
 
   it("withReplacePrompts adds the boundary-dedup-off notice", () => {
-    const result = withReplacePrompts(replaceBase, { ...DEFAULT_EDIT_FLAGS, boundaryDedupEnabled: false });
+    const result = withReplacePrompts(replaceBase, { ...DEFAULT_EDIT_FLAGS, boundaryDedupMode: "off" });
     expect(result.description).toContain("Boundary dedup is off: edits apply literally.");
     expect(result.guidelines.some((g) => g.includes("boundary dedup is off"))).toBe(true);
+  });
+
+  it("withReplacePrompts adds the boundary-dedup-strict notice", () => {
+    const result = withReplacePrompts(replaceBase, { ...DEFAULT_EDIT_FLAGS, boundaryDedupMode: "strict" });
+    expect(result.description).toContain("Boundary dedup is strict: edits that re-include edge lines are rejected instead of stripped.");
+    expect(result.guidelines.some((g) => g.includes("boundary dedup is strict"))).toBe(true);
   });
 
   it("withReplacePrompts drops the diff-follow hint when auto-read is off", () => {

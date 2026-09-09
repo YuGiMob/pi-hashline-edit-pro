@@ -6,7 +6,7 @@ import {
   toggleAnchorGrep,
   toggleRequirePath,
   toggleStrictInput,
-  toggleBoundaryDedup,
+  cycleBoundaryDedupMode,
   readConfig,
   writeConfig,
 } from "../../src/config";
@@ -121,19 +121,39 @@ describe("config - toggleStrictInput", () => {
   });
 });
 
-describe("config - toggleBoundaryDedup", () => {
-  it("toggles from default true to false", async () => {
+describe("config - cycleBoundaryDedupMode", () => {
+  it("cycles on to strict", async () => {
     await withTempHome(async () => {
-      expect(await toggleBoundaryDedup()).toBe(false);
-      expect((await readConfig()).boundaryDedupEnabled).toBe(false);
+      expect(await cycleBoundaryDedupMode()).toBe("strict");
+      expect((await readConfig()).boundaryDedupMode).toBe("strict");
     });
   });
 
-  it("toggles from false back to true", async () => {
+  it("cycles strict to off to on", async () => {
     await withTempHome(async () => {
-      await writeConfig({ autoRead: true, anchorGrepEnabled: true, boundaryDedupEnabled: false });
-      expect(await toggleBoundaryDedup()).toBe(true);
-      expect((await readConfig()).boundaryDedupEnabled).toBe(true);
+      await writeConfig({ autoRead: true, anchorGrepEnabled: true, boundaryDedupMode: "strict" });
+      expect(await cycleBoundaryDedupMode()).toBe("off");
+      expect(await cycleBoundaryDedupMode()).toBe("on");
+      expect((await readConfig()).boundaryDedupMode).toBe("on");
+    });
+  });
+
+  it("migrates legacy boolean config values", async () => {
+    await withTempHome(async () => {
+      const { writeFile, mkdir } = await import("fs/promises");
+      const { join: pathJoin } = await import("path");
+      const configDir = pathJoin(tmpHome, ".config", "pi-hashline-edit-pro");
+      await mkdir(configDir, { recursive: true });
+      await writeFile(
+        pathJoin(configDir, "config.json"),
+        JSON.stringify({ autoRead: true, boundaryDedupEnabled: false }),
+      );
+      expect((await readConfig()).boundaryDedupMode).toBe("off");
+      await writeFile(
+        pathJoin(configDir, "config.json"),
+        JSON.stringify({ autoRead: true, boundaryDedupEnabled: true }),
+      );
+      expect((await readConfig()).boundaryDedupMode).toBe("on");
     });
   });
 });

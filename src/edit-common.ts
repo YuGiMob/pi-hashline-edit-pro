@@ -3,7 +3,7 @@ import { resolveInCwd } from "./fs-write";
 import { abortIf, makePrepareArguments } from "./utils";
 import { ownerOf } from "./anchor-registry";
 import { parseHashRef, stripAnchorRow } from "./hashline";
-import { readConfig } from "./config";
+import { readConfig, type BoundaryDedupMode } from "./config";
 import { makeRenderCall, renderEditResult, type RPreview, type FgT } from "./replace-render";
 import type { ReplaceDetails } from "./replace";
 export const editPrepare = makePrepareArguments();
@@ -11,14 +11,14 @@ export const editPrepare = makePrepareArguments();
 export interface EditToolFlags {
   requirePath: boolean;
   strictInput: boolean;
-  boundaryDedupEnabled: boolean;
+  boundaryDedupMode: BoundaryDedupMode;
   autoRead: boolean;
 }
 
 export const DEFAULT_EDIT_FLAGS: EditToolFlags = {
   requirePath: false,
   strictInput: false,
-  boundaryDedupEnabled: true,
+  boundaryDedupMode: "on",
   autoRead: true
 };
 
@@ -27,7 +27,7 @@ export async function currentEditFlags(): Promise<EditToolFlags> {
   return {
     requirePath: config.requirePath === true,
     strictInput: config.strictInput === true,
-    boundaryDedupEnabled: config.boundaryDedupEnabled !== false,
+    boundaryDedupMode: config.boundaryDedupMode ?? "on",
     autoRead: config.autoRead !== false
   };
 }
@@ -50,9 +50,12 @@ export function withReplacePrompts(base: { description: string; snippet: string;
     descriptionParts.push("Strict-input mode is on: auto-fixable slips are rejected instead of fixed with warnings.");
     guidelines.push("`replace`: strict-input is on: auto-fixable slips are rejected instead of fixed.");
   }
-  if (!flags.boundaryDedupEnabled) {
+  if (flags.boundaryDedupMode === "off") {
     descriptionParts.push("Boundary dedup is off: edits apply literally.");
     guidelines.push("`replace`: boundary dedup is off: edits apply literally.");
+  } else if (flags.boundaryDedupMode === "strict") {
+    descriptionParts.push("Boundary dedup is strict: edits that re-include edge lines are rejected instead of stripped.");
+    guidelines.push("`replace`: boundary dedup is strict: edits that re-include edge lines are rejected instead of stripped.");
   }
   return { description: descriptionParts.join(" "), snippet: snippetParts.join(""), guidelines };
 }
@@ -116,10 +119,10 @@ export interface PathRequirementInput {
 export async function resolveEditTargetWithRequirement(input: PathRequirementInput): Promise<string> {
   const { requirePath } = await readConfig();
   if (!requirePath && input.providedPath !== undefined) {
-    throw new Error("[E_BAD_SHAPE] Edit request contains unknown or unsupported fields: path. Path resolution is anchor-only; enable require-path in /hashline-config to require it.");
+    throw new Error("[E_BAD_SHAPE] Edit request contains unknown or unsupported fields: path. Path resolution is anchor-only; retry without `path`.");
   }
   if (requirePath && (typeof input.providedPath !== "string" || input.providedPath.length === 0)) {
-    throw new Error('[E_BAD_SHAPE] Edit request requires a non-empty "path" string when require-path mode is on (disable it in /hashline-config).');
+    throw new Error('[E_BAD_SHAPE] Edit request requires a non-empty "path" string when require-path mode is on. Provide `path` matching the file the anchors were served for.');
   }
   const anchorTarget = typeof input.anchor === "string"
     ? resolveEditTarget(input.anchor)
@@ -138,13 +141,12 @@ export async function throwIfStrictInput(warnings: string[]): Promise<void> {
   if (fixes.length === 0) return;
   const { strictInput } = await readConfig();
   if (strictInput === true) {
-    throw new Error(`[E_BAD_SHAPE] Strict-input mode rejects auto-fixable input (disable it in /hashline-config):\n${fixes.join("\n")}`);
+    throw new Error(`[E_BAD_SHAPE] Strict-input mode rejects auto-fixable input:\n${fixes.join("\n")}`);
   }
 }
 
-export async function isBoundaryDedupEnabled(): Promise<boolean> {
-  const { boundaryDedupEnabled } = await readConfig();
-  return boundaryDedupEnabled !== false;
+export async function getBoundaryDedupMode(): Promise<BoundaryDedupMode> {
+  return (await readConfig()).boundaryDedupMode ?? "on";
 }
 
 export function editRenderCallWrapper(

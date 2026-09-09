@@ -2,13 +2,15 @@ import { Key, matchesKey, visibleWidth } from "@earendil-works/pi-tui";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { readConfig, type Config } from "./config";
 
-export type ConfigToggleKey = "autoRead" | "anchorGrepEnabled" | "requirePath" | "strictInput" | "boundaryDedupEnabled";
+export type ConfigToggleKey = "autoRead" | "anchorGrepEnabled" | "requirePath" | "strictInput" | "boundaryDedupMode";
 
 export interface ConfigRow {
   key: ConfigToggleKey;
   label: string;
   hint: string;
   enabled: boolean;
+  mode?: string;
+  cycle?: string[];
 }
 
 export function configRows(config: Config): ConfigRow[] {
@@ -17,13 +19,19 @@ export function configRows(config: Config): ConfigRow[] {
     { key: "anchorGrepEnabled", label: "Anchor grep", hint: "anchor_grep tool (builtin grep off while on)", enabled: config.anchorGrepEnabled === true },
     { key: "requirePath", label: "Require path", hint: "replace + insert need path (RPC visibility)", enabled: config.requirePath === true },
     { key: "strictInput", label: "Strict input", hint: "Reject auto-fixable slips instead of warnings", enabled: config.strictInput === true },
-    { key: "boundaryDedupEnabled", label: "Boundary dedup", hint: "Strip re-included edge lines (off = literal)", enabled: config.boundaryDedupEnabled !== false },
+    { key: "boundaryDedupMode", label: "Boundary dedup", hint: "Strip edge lines: on, strict (reject), off (literal)", enabled: (config.boundaryDedupMode ?? "on") !== "off", mode: config.boundaryDedupMode ?? "on", cycle: ["on", "strict", "off"] },
   ];
 }
 
 function padRow(theme: Theme, innerWidth: number, content: string): string {
   const padded = content + " ".repeat(Math.max(0, innerWidth - visibleWidth(content)));
   return theme.fg("border", "│") + padded + theme.fg("border", "│");
+}
+
+function modeBox(theme: Theme, mode: string): string {
+  if (mode === "off") return theme.fg("dim", `[${mode}]`);
+  if (mode === "strict") return theme.fg("accent", `[${mode}]`);
+  return theme.fg("success", `[${mode}]`);
 }
 
 export class HashlineConfigOverlay {
@@ -41,7 +49,14 @@ export class HashlineConfigOverlay {
   private toggleSelected(): void {
     const row = this.rows[this.selected];
     if (!row) return;
-    row.enabled = !row.enabled;
+    if (row.cycle && row.mode !== undefined) {
+      const next = row.cycle[(row.cycle.indexOf(row.mode) + 1) % row.cycle.length] ?? row.cycle[0];
+      if (next === undefined) return;
+      row.mode = next;
+      row.enabled = next !== "off";
+    } else {
+      row.enabled = !row.enabled;
+    }
     this.opts.tui.requestRender(true);
     void this.opts.onToggle(row.key).then(async () => {
       this.rows = configRows(await readConfig());
@@ -81,7 +96,7 @@ export class HashlineConfigOverlay {
     lines.push(theme.fg("border", `├${"─".repeat(innerWidth)}┤`));
     this.rows.forEach((row, index) => {
       const cursor = index === this.selected ? theme.fg("accent", "> ") : "  ";
-      const box = row.enabled ? theme.fg("success", "[x]") : theme.fg("dim", "[ ]");
+      const box = row.mode !== undefined ? modeBox(theme, row.mode) : row.enabled ? theme.fg("success", "[x]") : theme.fg("dim", "[ ]");
       const label = index === this.selected ? theme.fg("accent", theme.bold(row.label)) : row.label;
       lines.push(padRow(theme, innerWidth, `${cursor}${box} ${label} ${theme.fg("dim", `— ${row.hint}`)}`));
     });

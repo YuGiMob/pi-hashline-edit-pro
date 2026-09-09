@@ -77,6 +77,7 @@ export interface BatchMemberInput {
   hedit: HEdit;
   extraWarnings: string[];
   skipBoundaryDedup: boolean;
+  strictBoundaryDedup: boolean;
   noopPayload?: string;
   foldedLines?: number;
 }
@@ -390,11 +391,17 @@ export async function executeBatchMember(input: BatchMemberInput): Promise<TResu
       filePath: displayPath,
       servedHashes: runtime.served,
       skipBoundaryDedup: input.skipBoundaryDedup,
+      strictBoundaryDedup: input.strictBoundaryDedup,
       signal: input.signal,
     });
   } catch (error) {
     if (error instanceof RangeStaleError) adoptAnchors(base.absolutePath, error.rangeServedMap);
     else if (error instanceof AnchorMismatchError) adoptAnchors(base.absolutePath, error.feedbackMap);
+    else if (error instanceof Error && error.message.startsWith("[E_BOUNDARY_STRICT]")) {
+      const indexed = new Error(`edit #${input.member.order} strict boundary-dedup rejection: ${error.message}`);
+      noteBatchFailure(input.member, indexed);
+      throw indexed;
+    }
     noteBatchFailure(input.member, error);
     throw error;
   }

@@ -16,7 +16,7 @@ import {
   toggleAnchorGrep,
   toggleRequirePath,
   toggleStrictInput,
-  toggleBoundaryDedup,
+  cycleBoundaryDedupMode,
 } from "./src/config";
 import { loadHashStore, persistSnapshot, pruneMissing } from "./src/hash-store";
 import { initRegistry, gcRegistrySidecars, clearRegistry, freeAnchors, markServed as markServedScoped } from "./src/anchor-registry";
@@ -107,7 +107,7 @@ export default function (pi: ExtensionAPI): void {
             }
             else if (key === "requirePath") await toggleRequirePath();
             else if (key === "strictInput") await toggleStrictInput();
-            else await toggleBoundaryDedup();
+            else await cycleBoundaryDedupMode();
             await refreshEditTools();
           },
         });

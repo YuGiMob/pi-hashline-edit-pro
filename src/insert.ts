@@ -250,6 +250,7 @@ export function buildInsertToolDef(flags: EditToolFlags = DEFAULT_EDIT_FLAGS): I
           hedit,
           extraWarnings: [...anchorWarnings, ...insertWarnings, ...resWarnings],
           skipBoundaryDedup: true,
+          strictBoundaryDedup: false,
           foldedLines: anchorLine === undefined ? 0 : 1,
         });
       });

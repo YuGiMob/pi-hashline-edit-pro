@@ -7,7 +7,7 @@ vi.mock("../../src/file-reader", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   tryReadNormFile: vi.fn(async () => {
     throw new Error(
-      `${ANCHOR_POOL_EXHAUSTED_PREFIX}; free anchors with /clear-anchors or use write for very large files.`,
+      `${ANCHOR_POOL_EXHAUSTED_PREFIX}; use write for very large files.`,
     );
   }),
 }));
