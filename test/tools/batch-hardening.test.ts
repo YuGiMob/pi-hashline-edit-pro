@@ -148,7 +148,7 @@ describe("batch hardening", () => {
       await editTool.execute("v1", { path: "sample.txt", remove_from: betaRef, remove_to: betaRef, replacement_lines: ["BETA"] }, undefined, undefined, ctx);
       await expect(
         editTool.execute("s1", { path: "sample.txt", remove_from: "ZZZZ", remove_to: "ZZZZ", replacement_lines: ["STALE"] }, undefined, undefined, ctx)
-      ).rejects.toThrow(/E_BATCH_ABORTED|E_STALE_ANCHOR/);
+      ).rejects.toThrow(/E_OP_ABORTED|E_STALE_ANCHOR/);
       expect(await readFile(path, "utf-8")).toBe("alpha\nbeta\ngamma\n");
     });
   });
@@ -171,7 +171,7 @@ describe("batch hardening", () => {
       await editTool.execute("v1", { remove_from: gammaRef, remove_to: gammaRef, replacement_lines: ["GAMMA"] }, undefined, undefined, ctx);
       await expect(
         editTool.execute("m1", { remove_from: betaRef, remove_to: "ZZZZ", replacement_lines: ["MIXED"] }, undefined, undefined, ctx)
-      ).rejects.toThrow(/E_BATCH_ABORTED|E_STALE_ANCHOR/);
+      ).rejects.toThrow(/E_OP_ABORTED|E_STALE_ANCHOR/);
       expect(await readFile(path, "utf-8")).toBe("alpha\nbeta\ngamma\n");
     });
   });
@@ -240,7 +240,7 @@ describe("batch hardening", () => {
       await editTool.execute("o1", { remove_from: bRef, remove_to: bRef, replacement_lines: ["X", "c"] }, undefined, undefined, ctx);
       await expect(
         editTool.execute("o2", { remove_from: bRef, remove_to: cRef, replacement_lines: ["OVERLAP"] }, undefined, undefined, ctx)
-      ).rejects.toThrow(/E_BATCH_OVERLAP|E_BATCH_ABORTED/);
+      ).rejects.toThrow(/E_BATCH_OVERLAP|E_OP_ABORTED/);
       expect(consumeBoundaryBypass(resolved, payload)).toBe(true);
       expect(await readFile(path, "utf-8")).toBe("a\nb\nc\nd\n");
     });

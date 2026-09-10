@@ -344,7 +344,7 @@ function batchAbortedError(runtime: BatchState): Error {
     if (piece.bypassConsumed && piece.noopPayload) markBoundaryNoop(runtime.target, piece.noopPayload);
   }
   const first = runtime.firstError instanceof Error ? runtime.firstError.message : String(runtime.firstError);
-  return new Error(`[E_BATCH_ABORTED] Batch ${runtime.display} aborted; nothing was written. First failure: ${first}`);
+  return new Error(`[E_OP_ABORTED] Batch ${runtime.display} aborted; nothing was written. First failure: ${first}`);
 }
 function restoreBatchBypasses(runtime: BatchState, input?: BatchMemberInput): void {
   for (const piece of runtime.pieces) {
@@ -543,11 +543,11 @@ async function finishBatch(member: PlannedMember, signal?: AbortSignal): Promise
   } catch (error) {
     if (errCode(error) !== "ENOENT") throw error;
     restoreBatchBypasses(runtime);
-    throw new Error(`[E_BATCH_ABORTED] Batch ${runtime.display} aborted: the file was deleted after the batch started; nothing was written.`);
+    throw new Error(`[E_OP_ABORTED] Batch ${runtime.display} aborted: the file was deleted after the batch started; nothing was written.`);
   }
   if (toLF(stripBOM(currentRaw).text) !== base.content) {
     restoreBatchBypasses(runtime);
-    throw new Error(`[E_BATCH_ABORTED] Batch ${runtime.display} aborted: the file changed after the batch started; nothing was written. Call read for fresh anchors and retry.`);
+    throw new Error(`[E_OP_ABORTED] Batch ${runtime.display} aborted: the file changed after the batch started; nothing was written. Call read for fresh anchors and retry.`);
   }
   const preflightSpans = appliedPieces.map((piece) => ({ start: piece.start - 1, end: piece.end - 1, replacementCount: piece.newLines.length }));
   try {

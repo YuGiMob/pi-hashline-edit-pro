@@ -502,7 +502,7 @@ describe("same-turn edit batches", () => {
       } catch (error) {
         secondFailure = error instanceof Error ? error.message : String(error);
       }
-      expect(secondFailure).toContain("[E_BATCH_ABORTED]");
+      expect(secondFailure).toContain("[E_OP_ABORTED]");
       expect(await readFile(path, "utf-8")).toBe("a\nb\nc\n");
 
       await (handlers.get("turn_end")!(
@@ -552,7 +552,7 @@ describe("same-turn edit batches", () => {
       } catch (error) {
         failure = error instanceof Error ? error.message : String(error);
       }
-      expect(failure).toContain("[E_BATCH_ABORTED]");
+      expect(failure).toContain("[E_OP_ABORTED]");
       expect(await readFile(path, "utf-8")).toBe("a\nb\nEXTERNAL\n");
 
       await (handlers.get("turn_end")!(
@@ -699,8 +699,8 @@ describe("same-turn edit batches", () => {
         }
       };
       expect(await runCall("t1", aRef, "A")).toContain("[E_STALE_ANCHOR]");
-      expect(await runCall("t2", cRef, "C")).toContain("[E_BATCH_ABORTED]");
-      expect(await runCall("t3", dRef, "D")).toContain("[E_BATCH_ABORTED]");
+      expect(await runCall("t2", cRef, "C")).toContain("[E_OP_ABORTED]");
+      expect(await runCall("t3", dRef, "D")).toContain("[E_OP_ABORTED]");
       expect(await readFile(path, "utf-8")).toBe("A2\nb\nc\nd\n");
 
       await (handlers.get("turn_end")!(
