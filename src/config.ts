@@ -1,8 +1,8 @@
-import { readFile } from "fs/promises";
+import { mkdir, readFile, rename, rm, stat } from "fs/promises";
+import { dirname } from "path";
 import { configPath } from "./paths";
 import { errCode, isRec } from "./utils";
 import { writeAtomic } from "./fs-write";
-
 export type BoundaryDedupMode = "on" | "off" | "strict";
 
 export const DEFAULT_DIFF_CONTEXT_LINES = 1;
@@ -66,16 +66,79 @@ function parseConfig(content: string): Config {
   };
 }
 
-
-export async function readConfig(): Promise<Config> {
+async function loadConfigFile(): Promise<{ config: Config; corrupted: boolean }> {
+  let content: string;
   try {
-    const content = await readFile(configPath(), "utf-8");
-    return parseConfig(content);
+    content = await readFile(configPath(), "utf-8");
   } catch (error: unknown) {
-    if (errCode(error) !== "ENOENT") {
-      console.error("Config file corrupted, using defaults:", error);
+    if (errCode(error) === "ENOENT") return { config: { ...DEFAULT_CONFIG }, corrupted: false };
+    console.error("Config file unreadable, using defaults:", error);
+    return { config: { ...DEFAULT_CONFIG }, corrupted: false };
+  }
+  try {
+    return { config: parseConfig(content), corrupted: false };
+  } catch (error: unknown) {
+    try {
+      const badPath = configPath();
+      await rename(badPath, `${badPath}.corrupt-${Date.now()}-${process.pid}-${Math.random().toString(36).slice(2)}`);
+    } catch { }
+    console.error("Config file corrupted, quarantined, using defaults:", error);
+    return { config: { ...DEFAULT_CONFIG }, corrupted: true };
+  }
+}
+export async function readConfig(): Promise<Config> {
+  return (await loadConfigFile()).config;
+}
+export async function readConfigWithStatus(): Promise<{ config: Config; corrupted: boolean }> {
+  return loadConfigFile();
+}
+const CONFIG_LOCK_RETRIES = 80;
+const CONFIG_LOCK_DELAY_MS = 25;
+const CONFIG_LOCK_STALE_MS = 5000;
+async function acquireConfigLock(lockPath: string): Promise<void> {
+  try {
+    await mkdir(dirname(lockPath), { recursive: true, mode: 0o700 });
+  } catch { }
+  for (let attempt = 0; attempt < CONFIG_LOCK_RETRIES; attempt++) {
+    try {
+      await mkdir(lockPath, { mode: 0o700 });
+      return;
+    } catch (error) {
+      if (errCode(error) === "ENOENT") {
+        try {
+          await mkdir(dirname(lockPath), { recursive: true, mode: 0o700 });
+        } catch { }
+        continue;
+      }
+      if (errCode(error) !== "EEXIST") throw error;
+      try {
+        const st = await stat(lockPath);
+        if (Date.now() - st.mtimeMs > CONFIG_LOCK_STALE_MS) {
+          await rm(lockPath, { recursive: true, force: true });
+          continue;
+        }
+      } catch { }
+      await new Promise<void>((r) => setTimeout(r, CONFIG_LOCK_DELAY_MS));
     }
-    return { ...DEFAULT_CONFIG };
+  }
+  throw new Error(`[E_ACCESS] Could not acquire config lock: ${lockPath}`);
+}
+async function releaseConfigLock(lockPath: string): Promise<void> {
+  try {
+    await rm(lockPath, { recursive: true, force: true });
+  } catch { }
+}
+export async function updateConfig(mut: (config: Config) => void): Promise<Config> {
+  const cfgPath = configPath();
+  const lockPath = `${cfgPath}.lock`;
+  await acquireConfigLock(lockPath);
+  try {
+    const config = await readConfig();
+    mut(config);
+    await writeConfig(config);
+    return config;
+  } finally {
+    await releaseConfigLock(lockPath);
   }
 }
 export async function writeConfig(config: Config): Promise<void> {
@@ -84,50 +147,38 @@ export async function writeConfig(config: Config): Promise<void> {
 
 
 export async function toggleAutoRead(): Promise<boolean> {
-  const config = await readConfig();
-  config.autoRead = !config.autoRead;
-  await writeConfig(config);
+  const config = await updateConfig((c) => { c.autoRead = !c.autoRead; });
   return config.autoRead;
 }
-
 export async function toggleAnchorGrep(): Promise<boolean> {
-  const config = await readConfig();
-  config.anchorGrepEnabled = !config.anchorGrepEnabled;
-  await writeConfig(config);
+  const config = await updateConfig((c) => { c.anchorGrepEnabled = !c.anchorGrepEnabled; });
   return config.anchorGrepEnabled;
 }
-
 export async function toggleRequirePath(): Promise<boolean> {
-  const config = await readConfig();
-  config.requirePath = !config.requirePath;
-  await writeConfig(config);
-  return config.requirePath;
+  const config = await updateConfig((c) => { c.requirePath = !c.requirePath; });
+  return config.requirePath === true;
 }
-
 export async function toggleStrictInput(): Promise<boolean> {
-  const config = await readConfig();
-  config.strictInput = !(config.strictInput === true);
-  await writeConfig(config);
+  const config = await updateConfig((c) => { c.strictInput = !(c.strictInput === true); });
   return config.strictInput === true;
 }
-
 export async function cycleBoundaryDedupMode(): Promise<BoundaryDedupMode> {
-  const config = await readConfig();
-  const current = config.boundaryDedupMode ?? "on";
-  const next = BOUNDARY_DEDUP_MODES[(BOUNDARY_DEDUP_MODES.indexOf(current) + 1) % BOUNDARY_DEDUP_MODES.length] ?? "on";
-  config.boundaryDedupMode = next;
-  await writeConfig(config);
+  let next: BoundaryDedupMode = "on";
+  await updateConfig((c) => {
+    const current = c.boundaryDedupMode ?? "on";
+    next = BOUNDARY_DEDUP_MODES[(BOUNDARY_DEDUP_MODES.indexOf(current) + 1) % BOUNDARY_DEDUP_MODES.length] ?? "on";
+    c.boundaryDedupMode = next;
+  });
   return next;
 }
-
 export async function getDiffContextLines(): Promise<number> {
   return normalizeDiffContextLines((await readConfig()).diffContextLines);
 }
-
 export async function adjustDiffContextLines(delta: number): Promise<number> {
-  const config = await readConfig();
-  const next = normalizeDiffContextLines(normalizeDiffContextLines(config.diffContextLines) + delta);
-  config.diffContextLines = next;
-  await writeConfig(config);
+  let next = DEFAULT_DIFF_CONTEXT_LINES;
+  await updateConfig((c) => {
+    next = normalizeDiffContextLines(normalizeDiffContextLines(c.diffContextLines) + delta);
+    c.diffContextLines = next;
+  });
   return next;
 }

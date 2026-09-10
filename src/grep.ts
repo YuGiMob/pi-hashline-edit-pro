@@ -326,6 +326,12 @@ async function collectRgMatches(
   signal?: AbortSignal,
 ): Promise<Map<string, number[]>> {
   const args = ["--json", "--line-number", "--color=never", "--hidden", "--glob", "!.git"];
+  const wanted = req.limit ?? 100;
+  args.push("--max-count", String(wanted + 1));
+  if (typeof req.glob === "string" && req.glob.length > 0) {
+    const stripped = req.glob.startsWith("/") ? req.glob.slice(1) : req.glob;
+    if (!stripped.includes("/")) args.push("--glob", stripped);
+  }
   if (req.ignoreCase) args.push("--ignore-case");
   if (req.literal) args.push("--fixed-strings");
   args.push("--", pattern, searchPath);
@@ -579,15 +585,17 @@ export function regGrep(pi: ExtensionAPI): void {
       let linesReplaced = 0;
       let countOnly = false;
       let poolSkipped = 0;
-      const readGrepFile = async (absPath: string) => {
+      const makeGrepReader = (allocation: "real" | "shadow") => async (absPath: string) => {
         try {
-          return await tryReadNormFile(absPath, ctx.cwd, { maxLines: MAX_HASH_LINES, noPersist: true, allocation: "real", signal });
+          return await tryReadNormFile(absPath, ctx.cwd, { maxLines: MAX_HASH_LINES, noPersist: true, allocation, signal });
         } catch (error) {
           if (!isPoolExhaustedError(error)) throw error;
           poolSkipped += 1;
           return undefined;
         }
       };
+      const readGrepFile = makeGrepReader("real");
+      const readGrepFileShadow = makeGrepReader("shadow");
       const rgMatches = await collectRgMatches(rgPath, req.pattern, base, req, signal);
       const sortedFiles = [...rgMatches.keys()].sort(cmp);
       for (let f = 0; f < sortedFiles.length; f++) {
@@ -603,7 +611,7 @@ export function regGrep(pi: ExtensionAPI): void {
             const globPath = relative(globRoot, absPath).replace(/\\/g, "/");
             if (!globRegex.test(globPath) && !globRegex.test(displayPath)) continue;
           }
-          const norm = await readGrepFile(absPath);
+          const norm = await readGrepFileShadow(absPath);
           if (!norm) continue;
           const hit = makeHitFromIndices(norm, relative(ctx.cwd, absPath).replace(/\\/g, "/"), indices, context, validatedRegex, totalForFile, indices.length);
           const display = displayRowsForHit(hit);

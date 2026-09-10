@@ -1,5 +1,6 @@
+import { readFile } from "fs/promises";
 import type { PipelineResult } from "./replace";
-import { abortIf } from "./utils";
+import { abortIf, errCode, splitLines } from "./utils";
 import { DEDUP_ANCHOR } from "./constants";
 import { HASH_SEP } from "./hashline";
 import { buildChanged, buildNoop, type RMeta, type TResult } from "./replace-response";
@@ -10,8 +11,7 @@ import { writeAtomic } from "./fs-write";
 import { servedHashesFromDiff, buildServedMap } from "./served";
 import { lineHashes } from "./hashline";
 import { hashSpan } from "./replace";
-import { restoreEndings } from "./normalize";
-import { splitLines } from "./utils";
+import { restoreEndings, stripBOM, toLF } from "./normalize";
 import { markServed as markServedScoped } from "./anchor-registry";
 export interface CommitMeta {
   editAnchors?: [string, string];
@@ -71,6 +71,22 @@ export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promis
   }
 
   abortIf(signal);
+  let currentRaw: string | undefined;
+  try {
+    currentRaw = await readFile(mutationTargetPath, "utf-8");
+  } catch (error) {
+    const code = errCode(error);
+    if (code === "ENOENT") currentRaw = undefined;
+    else if (code === "EACCES" || code === "EPERM") throw new Error(`[E_ACCESS] File is not readable: ${path}`);
+    else if (code === "ELOOP") throw new Error(`[E_ACCESS] Too many symbolic links while resolving: ${path}`);
+    else throw error;
+  }
+  if (currentRaw === undefined) {
+    throw new Error(`[E_BATCH_ABORTED] Edit aborted: the file was deleted after the edit started; nothing was written.`);
+  }
+  if (toLF(stripBOM(currentRaw).text) !== pipe.originalNormalized) {
+    throw new Error(`[E_BATCH_ABORTED] Edit aborted: the file changed after the edit started; nothing was written. Call read for fresh anchors and retry.`);
+  }
   const undo = await saveUndo(mutationTargetPath, {
     content: pipe.originalNormalized,
     bom: pipe.bom,

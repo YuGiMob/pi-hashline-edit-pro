@@ -1,10 +1,10 @@
-import { chmod, mkdir, readFile, readdir, rm, stat } from "fs/promises";
+import { chmod, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "fs/promises";
 import { appendFileSync, chmodSync } from "fs";
 import { join } from "path";
 import { createHash } from "crypto";
 import { sessionClaimsDir } from "./paths";
 import { contentChecksum } from "./hashline/hasher";
-import { ANCHOR_COUNT, anchorAt } from "./hashline/alphabet";
+import { ANCHOR_COUNT, ANCHOR_TABLE_VERSION, anchorAt, isCompatibleTableVersion } from "./hashline/alphabet";
 import { HASH_PROBE_STRIDE } from "./hashline/hash";
 import { errCode, splitLines } from "./utils";
 import { hashSource } from "./hashline";
@@ -13,9 +13,10 @@ import { getAllocatedState, persistSnapshot, type HashStore } from "./hash-store
 import { ANCHOR_POOL_EXHAUSTED_PREFIX } from "./constants";
 
 export type RegistryEvent =
-  | { kind: "session"; sessionFile: string }
+  | { kind: "session"; sessionFile: string; tableVersion?: number }
   | { kind: "allocate"; path: string; rows: [string, string][] }
   | { kind: "free"; path: string; anchors?: string[] }
+  | { kind: "minted"; anchors: string[] }
   | { kind: "clear" };
 
 export interface OwnedAnchor {
@@ -31,7 +32,9 @@ interface SessionState {
 }
 
 const SIDECAR_SUFFIX = ".registry.jsonl";
-
+const SIDECAR_COMPACT_LINES = 5000;
+const SIDECAR_COMPACT_BYTES = 1024 * 1024;
+const SIDECAR_COMPACT_CHUNK = 5000;
 let currentKey: string | undefined;
 let currentSidecar: string | undefined;
 const registries = new Map<string, SessionState>();
@@ -62,6 +65,8 @@ export function foldRegistryEvents(events: RegistryEvent[]): SessionState {
   for (const event of events) {
     if (event.kind === "clear") {
       state.owned.clear();
+    } else if (event.kind === "minted") {
+      for (const anchor of event.anchors) state.everMinted.add(anchor);
     } else if (event.kind === "allocate") {
       for (const [anchor, checksum] of event.rows) {
         state.owned.set(anchor, { path: event.path, checksum });
@@ -90,7 +95,7 @@ export function parseRegistryLog(raw: string): RegistryEvent[] {
     if (!line.trim()) continue;
     try {
       const parsed = JSON.parse(line) as RegistryEvent;
-      if (parsed && (parsed.kind === "allocate" || parsed.kind === "free" || parsed.kind === "clear" || parsed.kind === "session")) {
+      if (parsed && (parsed.kind === "allocate" || parsed.kind === "free" || parsed.kind === "clear" || parsed.kind === "session" || parsed.kind === "minted")) {
         events.push(parsed);
       }
     } catch {
@@ -107,6 +112,46 @@ function sidecarPath(key: string): string {
 function sidecarKeyFor(sessionFile: string): string {
   return createHash("sha256").update(sessionFile).digest("hex").slice(0, 24);
 }
+export function shouldCompactSidecar(raw: string): boolean {
+  if (raw.length >= SIDECAR_COMPACT_BYTES) return true;
+  let lines = 0;
+  for (let i = 0; i < raw.length; i++) if (raw.charCodeAt(i) === 10) lines += 1;
+  return lines >= SIDECAR_COMPACT_LINES;
+}
+export function buildCompactedLog(sessionFile: string, state: SessionState): string {
+  const byPath = new Map<string, Array<[string, string]>>();
+  for (const [anchor, entry] of state.owned) {
+    const rows = byPath.get(entry.path) ?? [];
+    rows.push([anchor, entry.checksum]);
+    byPath.set(entry.path, rows);
+  }
+  const out: string[] = [JSON.stringify({ kind: "session", sessionFile, tableVersion: ANCHOR_TABLE_VERSION })];
+  for (const [path, rows] of byPath) {
+    for (let i = 0; i < rows.length; i += SIDECAR_COMPACT_CHUNK) {
+      out.push(JSON.stringify({ kind: "allocate", path, rows: rows.slice(i, i + SIDECAR_COMPACT_CHUNK) }));
+    }
+  }
+  const freedHistory = [...state.everMinted].filter((anchor) => !state.owned.has(anchor));
+  for (let i = 0; i < freedHistory.length; i += SIDECAR_COMPACT_CHUNK) {
+    out.push(JSON.stringify({ kind: "minted", anchors: freedHistory.slice(i, i + SIDECAR_COMPACT_CHUNK) }));
+  }
+  return out.join("\n") + "\n";
+}
+async function compactSidecarIfNeeded(sidecar: string, raw: string, sessionFile: string, state: SessionState): Promise<void> {
+  if (!shouldCompactSidecar(raw)) return;
+  const tmp = `${sidecar}.compact-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  try {
+    const compacted = buildCompactedLog(sessionFile, state);
+    await writeFile(tmp, compacted, { mode: 0o600 });
+    if (process.platform !== "win32") {
+      try { await chmod(tmp, 0o600); } catch { }
+    }
+    await rename(tmp, sidecar);
+  } catch (error) {
+    console.error("Failed to compact anchor registry sidecar:", error);
+    try { await rm(tmp, { force: true }); } catch { }
+  }
+}
 
 export async function initRegistry(sessionFile: string | undefined): Promise<void> {
   if (!sessionFile) {
@@ -119,24 +164,50 @@ export async function initRegistry(sessionFile: string | undefined): Promise<voi
   currentKey = key;
   currentSidecar = sidecarPath(key);
   let events: RegistryEvent[] = [];
+  let rawLog = "";
   try {
-    const raw = await readFile(currentSidecar, "utf-8");
-    events = parseRegistryLog(raw);
+    rawLog = await readFile(currentSidecar, "utf-8");
+    events = parseRegistryLog(rawLog);
   } catch (error) {
     if (errCode(error) !== "ENOENT") {
       console.error("Failed to read anchor registry sidecar:", error);
     }
   }
-  const folded = foldRegistryEvents(events);
+  let folded = foldRegistryEvents(events);
+  let tableReset = false;
+  for (const event of events) {
+    if (event.kind === "session" && !isCompatibleTableVersion(event.tableVersion, ANCHOR_TABLE_VERSION)) {
+      console.error(`Anchor table version changed; clearing session anchor claims for ${sessionFile}.`);
+      folded = newSessionState();
+      tableReset = true;
+      break;
+    }
+  }
   seedServedFromOwned(folded);
   registries.set(key, folded);
+  if (tableReset) {
+    try {
+      await mkdir(sessionClaimsDir(), { recursive: true, mode: 0o700 });
+      await writeFile(currentSidecar, JSON.stringify({ kind: "session", sessionFile, tableVersion: ANCHOR_TABLE_VERSION }) + "\n", { mode: 0o600 });
+      if (process.platform !== "win32") {
+        try { await chmod(sessionClaimsDir(), 0o700); } catch (error) { if (errCode(error) !== "ENOENT") console.error("Failed to secure anchor registry directory:", error); }
+        try { await chmod(currentSidecar, 0o600); } catch (error) { if (errCode(error) !== "ENOENT") console.error("Failed to secure anchor registry sidecar:", error); }
+      }
+    } catch (error) {
+      console.error("Failed to reset anchor registry sidecar:", error);
+    }
+    return;
+  }
+  if (rawLog.length > 0) {
+    await compactSidecarIfNeeded(currentSidecar, rawLog, sessionFile, folded);
+  }
   try {
     await mkdir(sessionClaimsDir(), { recursive: true, mode: 0o700 });
     if (process.platform !== "win32") {
       try { await chmod(sessionClaimsDir(), 0o700); } catch (error) { if (errCode(error) !== "ENOENT") console.error("Failed to secure anchor registry directory:", error); }
       try { await chmod(currentSidecar, 0o600); } catch (error) { if (errCode(error) !== "ENOENT") console.error("Failed to secure anchor registry sidecar:", error); }
     }
-    appendEvent({ kind: "session", sessionFile } satisfies RegistryEvent);
+    appendEvent({ kind: "session", sessionFile, tableVersion: ANCHOR_TABLE_VERSION } satisfies RegistryEvent);
   } catch (error) {
     console.error("Failed to initialize anchor registry sidecar:", error);
   }
@@ -595,6 +666,16 @@ export async function gcRegistrySidecars(): Promise<void> {
     return;
   }
   for (const name of names) {
+    if (name.includes(`${SIDECAR_SUFFIX}.compact-`)) {
+      const tmpPath = join(sessionClaimsDir(), name);
+      try {
+        const tmpStat = await stat(tmpPath);
+        if (Date.now() - tmpStat.mtimeMs > 60 * 60 * 1000) await rm(tmpPath, { force: true });
+      } catch (error) {
+        if (errCode(error) !== "ENOENT") console.error("Failed to inspect registry sidecar:", error);
+      }
+      continue;
+    }
     if (!name.endsWith(SIDECAR_SUFFIX)) continue;
     const sidecar = join(sessionClaimsDir(), name);
     try {

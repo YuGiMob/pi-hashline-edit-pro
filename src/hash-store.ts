@@ -5,6 +5,7 @@ import { hashStorePath, hashStoreDir, legacyHashStorePath } from "./paths";
 import { errCode, isRec, splitLines } from "./utils";
 import { initHasher, contentChecksum } from "./hashline/hasher";
 import { HASH_STORE_VERSION, HASH_STORE_BUSY_TIMEOUT } from "./constants";
+import { ANCHOR_TABLE_VERSION, isCompatibleTableVersion } from "./hashline/alphabet";
 import {
   isValidHashList,
   isValidServedMap,
@@ -162,6 +163,16 @@ function buildStore(db: RawDb): { db: RawDb; stmts: Prepared } {
     db.exec("DELETE FROM snapshots");
     db.exec("DELETE FROM undo");
   }
+  const tableVersionRow = db.prepare("SELECT value FROM meta WHERE key = 'anchor_table_version'").get() as { value?: string } | undefined;
+  const storedTableVersion = tableVersionRow?.value === undefined ? undefined : Number(tableVersionRow.value);
+  if (!isCompatibleTableVersion(Number.isInteger(storedTableVersion) ? storedTableVersion : undefined, ANCHOR_TABLE_VERSION)) {
+    db.exec("DELETE FROM snapshots");
+    db.exec("DELETE FROM undo");
+  }
+  db.prepare(
+    "INSERT INTO meta (key, value) VALUES ('anchor_table_version', ?) " +
+    "ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+  ).run(String(ANCHOR_TABLE_VERSION));
   db.prepare(
     "INSERT INTO meta (key, value) VALUES ('version', ?) " +
     "ON CONFLICT(key) DO UPDATE SET value = excluded.value"

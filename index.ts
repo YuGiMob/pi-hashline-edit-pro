@@ -11,7 +11,7 @@ import type { ReplaceDetails } from "./src/replace";
 import { extractWarnings } from "./src/replace-render";
 import { MAX_HASH_LINES } from "./src/hashline";
 import {
-  readConfig,
+  readConfigWithStatus,
   toggleAutoRead,
   toggleAnchorGrep,
   toggleRequirePath,
@@ -75,7 +75,8 @@ export default function (pi: ExtensionAPI): void {
     const sessionFile = sessionManager?.getSessionFile?.();
     await initRegistry(sessionFile);
     await gcRegistrySidecars();
-    const config = await readConfig();
+    const { config, corrupted } = await readConfigWithStatus();
+    if (corrupted && (ctx as unknown as { hasUI?: boolean }).hasUI !== false) ctx.ui.notify("Hashline config was corrupt and was reset to defaults", "warning");
     autoRead = config.autoRead;
     await refreshEditTools();
     pi.setActiveTools(
