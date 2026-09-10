@@ -236,8 +236,8 @@ Codes starting with `E_` are errors (the operation failed); codes starting with 
 | `[E_REGISTRY]` | The anchor registry was not initialized; a serve or edit ran outside an initialized session. |
 | `[E_WRITE_HASH_ECHO]` | A `write` `content` line begins with the exact `anchor│` served for this file at the same line. The write is refused, file byte-identical; retry with bare content (remove the copied anchors). |
 | `[E_PATH_CHANGED]` | A write target changed identity after it was read; the write was refused to avoid following a swapped symlink or overwriting a replacement file. |
-| `[E_BATCH_OVERLAP]` | Batched `replace`/`insert` calls target overlapping ranges; the whole batch was refused with nothing written. Retry with disjoint ranges. |
-| `[E_OP_ABORTED]` | An edit aborted (a same-turn batch member failed, or the file changed or was deleted after the edit started); nothing was written. For batches the first failure is quoted; fix it and retry the batch, otherwise call `read` for fresh anchors and retry. |
+| `[E_BATCH_OVERLAP]` | Batched `replace`/`insert` calls target overlapping ranges; the whole batch was refused. Retry with disjoint ranges. |
+| `[E_OP_ABORTED]` | An edit aborted (a same-turn batch member failed, or the file changed or was deleted after the edit started). Fix the sibling failure and retry the batch, otherwise call `read` for fresh anchors and retry. |
 | `[E_UNSAFE_REGEX]` | A grep regex can trigger excessive backtracking; simplify it or search with `literal: true`. |
 
 ## Troubleshooting

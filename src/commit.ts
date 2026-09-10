@@ -82,10 +82,10 @@ export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promis
     else throw error;
   }
   if (currentRaw === undefined) {
-    throw new Error(`[E_OP_ABORTED] Edit aborted: the file was deleted after the edit started; nothing was written.`);
+    throw new Error(`[E_OP_ABORTED] Edit aborted: the file was deleted after the edit started.`);
   }
   if (toLF(stripBOM(currentRaw).text) !== pipe.originalNormalized) {
-    throw new Error(`[E_OP_ABORTED] Edit aborted: the file changed after the edit started; nothing was written. Call read for fresh anchors and retry.`);
+    throw new Error(`[E_OP_ABORTED] Edit aborted: the file changed after the edit started. Call read for fresh anchors and retry.`);
   }
   const undo = await saveUndo(mutationTargetPath, {
     content: pipe.originalNormalized,

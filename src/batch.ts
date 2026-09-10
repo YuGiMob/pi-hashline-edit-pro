@@ -155,14 +155,15 @@ function anchorTargetFor(args: unknown): string | undefined {
 }
 function unresolvedErrorFor(call: EditCall): Error {
   const normalized = normalizeEditArgs(call.args);
-  if (!normalized) return new Error(`[E_BAD_SHAPE] Edit call "${call.id}" has unknown or invalid fields; aborting batch conservatively.`);
+  if (!normalized) return new Error(`sibling invalid`);
+  const refs = normalized.kind === "replace" ? [normalized.removeFrom, normalized.removeTo].filter((ref): ref is string => typeof ref === "string").join("→") : normalized.anchor;
   try {
     if (normalized.kind === "replace") resolveEditTarget(normalized.removeFrom, normalized.removeTo);
     else resolveEditTarget(normalized.anchor);
-  } catch (error) {
-    return error instanceof Error ? error : new Error(String(error));
+  } catch {
+    return new Error(`sibling stale (${refs})`);
   }
-  return new Error(`[E_STALE_ANCHOR] Edit call "${call.id}" could not be resolved; aborting batch conservatively.`);
+  return new Error(`sibling stale (${refs})`);
 }
 async function inferredTargetFor(args: unknown, cwd: string, requirePath: boolean): Promise<string | undefined> {
   const normalized = normalizeEditArgs(args);
@@ -361,8 +362,7 @@ export function noteBatchFailure(member: PlannedMember, error: unknown): void {
 
 function batchAbortedError(runtime: BatchState, input?: BatchMemberInput): Error {
   restoreBatchBypasses(runtime, input);
-  const first = runtime.firstError instanceof Error ? runtime.firstError.message : String(runtime.firstError);
-  return new Error(`[E_OP_ABORTED] Batch ${runtime.display} aborted; nothing was written. First failure: ${first}`);
+  return new Error(`[E_OP_ABORTED] Batch ${runtime.display} aborted.`);
 }
 function restoreBatchBypasses(runtime: BatchState, input?: BatchMemberInput): void {
   for (const piece of runtime.pieces) {
@@ -561,11 +561,11 @@ async function finishBatch(member: PlannedMember, signal?: AbortSignal): Promise
   } catch (error) {
     if (errCode(error) !== "ENOENT") throw error;
     restoreBatchBypasses(runtime);
-    throw new Error(`[E_OP_ABORTED] Batch ${runtime.display} aborted: the file was deleted after the batch started; nothing was written.`);
+    throw new Error(`[E_OP_ABORTED] Batch ${runtime.display} aborted: the file was deleted after the batch started.`);
   }
   if (toLF(stripBOM(currentRaw).text) !== base.content) {
     restoreBatchBypasses(runtime);
-    throw new Error(`[E_OP_ABORTED] Batch ${runtime.display} aborted: the file changed after the batch started; nothing was written. Call read for fresh anchors and retry.`);
+    throw new Error(`[E_OP_ABORTED] Batch ${runtime.display} aborted: the file changed after the batch started. Call read for fresh anchors and retry.`);
   }
   const preflightSpans = appliedPieces.map((piece) => ({ start: piece.start - 1, end: piece.end - 1, replacementCount: piece.newLines.length }));
   try {
