@@ -339,10 +339,8 @@ export function noteBatchFailure(member: PlannedMember, error: unknown): void {
   }
 }
 
-function batchAbortedError(runtime: BatchState): Error {
-  for (const piece of runtime.pieces) {
-    if (piece.bypassConsumed && piece.noopPayload) markBoundaryNoop(runtime.target, piece.noopPayload);
-  }
+function batchAbortedError(runtime: BatchState, input?: BatchMemberInput): Error {
+  restoreBatchBypasses(runtime, input);
   const first = runtime.firstError instanceof Error ? runtime.firstError.message : String(runtime.firstError);
   return new Error(`[E_OP_ABORTED] Batch ${runtime.display} aborted; nothing was written. First failure: ${first}`);
 }
@@ -394,7 +392,7 @@ export async function ensureBatchBase(input: {
 export async function executeBatchMember(input: BatchMemberInput): Promise<TResult> {
   const runtime = batches.get(input.member.batchKey);
   if (!runtime) throw new Error(`[E_STALE_ANCHOR] Batch ${input.member.display} is no longer tracked. Call read for fresh anchors.`);
-  if (runtime.failed) throw batchAbortedError(runtime);
+  if (runtime.failed) throw batchAbortedError(runtime, input);
   let base: BatchBase;
   try {
     base = await ensureBatchBase({

@@ -273,4 +273,27 @@ describe("batch hardening", () => {
       }
     });
   });
+  it("preserves bypass consumed by later member after earlier failure", async () => {
+    await withTempFile("sample.txt", "a\nb\nc\nd\n", async ({ cwd, path }) => {
+      const { getTool, handlers, ctx } = await setupTools(cwd);
+      const readTool = getTool("read");
+      const editTool = getTool("replace");
+      const text = getText(await readTool.execute("r1", { path: "sample.txt" }, undefined, undefined, ctx));
+      const bRef = anchorFor(text, "b");
+      const cRef = anchorFor(text, "c");
+      const { resolveInCwd } = await import("../../src/fs-write");
+      const { resolved } = await resolveInCwd("sample.txt", cwd);
+      clearBoundaryBypass(resolved);
+      await (handlers.get("message_end")!({ type: "message_end", message: assistantMessage([
+        toolCall("m1", "replace", { remove_from: bRef, remove_to: "ZZZZ", replacement_lines: ["MIXED"] }),
+        toolCall("m2", "replace", { remove_from: cRef, remove_to: cRef, replacement_lines: ["Y"] }),
+      ]) }, ctx) as Promise<unknown>);
+      const payload2 = noopPayloadKey(resolved, cRef, cRef, ["Y"]);
+      markBoundaryNoop(resolved, payload2);
+      await expect(editTool.execute("m1", { remove_from: bRef, remove_to: "ZZZZ", replacement_lines: ["MIXED"] }, undefined, undefined, ctx)).rejects.toThrow();
+      await expect(editTool.execute("m2", { remove_from: cRef, remove_to: cRef, replacement_lines: ["Y"] }, undefined, undefined, ctx)).rejects.toThrow(/E_OP_ABORTED/);
+      expect(await readFile(path, "utf-8")).toBe("a\nb\nc\nd\n");
+      expect(consumeBoundaryBypass(resolved, payload2)).toBe(true);
+    });
+  });
 });
