@@ -541,6 +541,19 @@ async function withSystemTempDir(prefix: string, run: (dir: string) => Promise<v
       expect(getText(result)).toContain("│alpha");
     });
   });
+  it("names unknown fields instead of a generic schema error", async () => {
+    await withTempFile("sample.ts", "alpha\n", async ({ cwd }) => {
+      const { ctx, getTool } = setupIntegrationTest(cwd);
+      const grepTool = getTool("anchor_grep");
+      await expect(
+        grepTool.execute(
+          "g1",
+          { pattern: "alpha", path: "sample.ts", unknown_field: "x" } as any,
+          undefined, undefined, ctx,
+        ),
+      ).rejects.toThrow(/unknown or unsupported fields: unknown_field/);
+    });
+  });
 
   it("shows a fragment around the match for an oversized line and keeps the line editable", async () => {
     const longLine = "const x = '" + "a".repeat(10000) + "';";

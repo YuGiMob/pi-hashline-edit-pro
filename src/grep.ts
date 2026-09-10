@@ -451,7 +451,7 @@ const grepToolSchema = Type.Object(
       }),
     ),
   },
-  { additionalProperties: false },
+  { additionalProperties: true },
 );
 
 

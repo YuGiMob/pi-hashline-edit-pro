@@ -296,31 +296,38 @@ export function buildToolDef(flags: EditToolFlags = DEFAULT_EDIT_FLAGS): ToolDef
         const strictBoundaryDedup = dedupMode === "strict" && !boundaryBypass;
         const member = batchMemberFor(_toolCallId);
         if (!member) {
-          const pipe = await execPipeline(
-            targetPath,
-            normalizedParams,
-            ctx.cwd,
-            { accessMode: constants.R_OK | constants.W_OK, signal, skipBoundaryDedup: boundaryBypass },
-          );
-          const appliedWarnings = boundaryBypass
-            ? ["[W_BOUNDARY_BYPASS] Boundary dedup was off for this call and is back on."]
-            : [];
-          return commitEdit(pipe, {
-            path: pipe.path,
-            absolutePath,
-            mutationTargetPath,
-            editAnchors: [normalizedParams.remove_from, normalizedParams.remove_to],
-            signal,
-            appliedWarnings,
-            onApplied: () => { if (dedupOn) clearBoundaryBypass(mutationTargetPath); },
-            onNoopDedup: dedupOn ? () => markBoundaryNoop(mutationTargetPath, noopPayload) : undefined,
-          });
+          try {
+            const pipe = await execPipeline(
+              targetPath,
+              normalizedParams,
+              ctx.cwd,
+              { accessMode: constants.R_OK | constants.W_OK, signal, skipBoundaryDedup: boundaryBypass },
+            );
+            const appliedWarnings = boundaryBypass
+              ? ["[W_BOUNDARY_BYPASS] Boundary dedup was off for this call and is back on."]
+              : [];
+            return await commitEdit(pipe, {
+              path: pipe.path,
+              absolutePath,
+              mutationTargetPath,
+              editAnchors: [normalizedParams.remove_from, normalizedParams.remove_to],
+              signal,
+              appliedWarnings,
+              onApplied: () => { if (dedupOn) clearBoundaryBypass(mutationTargetPath); },
+              onNoopDedup: dedupOn ? () => markBoundaryNoop(mutationTargetPath, noopPayload) : undefined,
+            });
+          } catch (error) {
+            const detail = error instanceof Error ? error.message : String(error);
+            if (boundaryBypass && !detail.includes("File was written;")) markBoundaryNoop(mutationTargetPath, noopPayload);
+            throw error;
+          }
         }
         let built: { edit: HEdit; warnings: string[] };
         try {
           built = buildReplaceHEdit(normalizedParams);
         } catch (error) {
           noteBatchFailure(member, error);
+          if (boundaryBypass) markBoundaryNoop(mutationTargetPath, noopPayload);
           throw error;
         }
         const appliedWarnings = boundaryBypass
@@ -338,6 +345,7 @@ export function buildToolDef(flags: EditToolFlags = DEFAULT_EDIT_FLAGS): ToolDef
           skipBoundaryDedup: boundaryBypass,
           strictBoundaryDedup,
           noopPayload,
+          bypassConsumed: boundaryBypass,
         });
       });
     },

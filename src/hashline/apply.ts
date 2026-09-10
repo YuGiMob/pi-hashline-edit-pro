@@ -174,11 +174,13 @@ export function planEdit(
     skipBoundaryDedup?: boolean;
     strictBoundaryDedup?: boolean;
     signal?: AbortSignal;
+    baseFileLines?: string[];
   },
 ): PlannedEdit {
   const signal = options?.signal;
   abortIf(signal);
-  const lineIndex = buildIdx(content);
+  const fileLines = options?.baseFileLines ?? buildIdx(content).fileLines;
+  const lineIndex = { fileLines };
   const fileHashes = precomputedHashes;
   const warnings: string[] = [];
 

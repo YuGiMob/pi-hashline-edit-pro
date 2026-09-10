@@ -109,13 +109,19 @@ export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promis
   const span = meta.editAnchors ? hashSpan(pipe.originalHashes, meta.editAnchors[0], meta.editAnchors[1]) : undefined;
   const resultCount = splitLines(pipe.result).length;
   const replacementCount = span ? resultCount - (pipe.originalHashes.length - (span[1] - span[0] + 1)) : 0;
-  const resultHashes = pipe.result === pipe.originalNormalized
-    ? pipe.originalHashes
-    : await lineHashes(pipe.result, mutationTargetPath, {
+  let resultHashes: string[];
+  try {
+    resultHashes = pipe.result === pipe.originalNormalized
+      ? pipe.originalHashes
+      : await lineHashes(pipe.result, mutationTargetPath, {
         content: pipe.originalNormalized,
         hashes: pipe.originalHashes,
         spans: span ? [{ start: span[0], end: span[1], replacementCount }] : undefined,
       });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`${detail} File was written; anchor finalization failed. One undo reverts. Call read for fresh anchors.`);
+  }
   const successInput = {
     path,
     originalNormalized: pipe.originalNormalized,
