@@ -29,12 +29,12 @@ describe("valKind", () => {
 
 	it("throws for binary file", () => {
 		expect(() => valKind({ kind: "binary", description: "application/octet-stream" }, "test.bin"))
-			.toThrow("[E_NOT_TEXT] Path is a binary file: test.bin (application/octet-stream). Hashline edit only supports text files.");
+      .toThrow("[E_NOT_TEXT] Path is a binary file: test.bin (application/octet-stream).");
 	});
 
 	it("throws for image file", () => {
 		expect(() => valKind({ kind: "image", mimeType: "image/png" }, "test.png"))
-			.toThrow("[E_NOT_TEXT] Path is an image file: test.png. Hashline edit only supports text files.");
+      .toThrow("[E_NOT_TEXT] Path is an image file: test.png.");
 	});
 
 	it("does not throw for text file", () => {

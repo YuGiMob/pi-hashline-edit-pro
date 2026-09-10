@@ -49,7 +49,7 @@ describe("served-state range verification", () => {
       }
       expect(caught).toBeDefined();
       expect(caught!.message).toMatch(/E_RANGE_STALE/);
-      expect(caught!.message).toContain("Nothing was modified");
+      expect(caught!.message).toContain("Current range with fresh anchors");
       expect(await readFile(path, "utf-8")).toBe("a\nB\nc\nd\n");
       const rows = feedbackRows(caught!.message);
       expect(rows).toHaveLength(4);

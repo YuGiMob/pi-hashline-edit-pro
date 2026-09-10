@@ -31,7 +31,7 @@ export async function servedHashEchoDenial(rawPath: string, content: string, cwd
   if (!served || served.size === 0) return undefined;
   const echo = findServedHashEcho(content, served);
   if (!echo) return undefined;
-  return `[E_WRITE_HASH_ECHO] Refused write to ${rawPath}: line ${echo.line} begins with the exact ${echo.hash}${HASH_SEP} anchor served for this file. Remove the copied anchors and retry. Nothing was written.`;
+  return `[E_WRITE_HASH_ECHO] Refused write to ${rawPath}: line ${echo.line} begins with the exact ${echo.hash}${HASH_SEP} anchor served for this file. Remove the copied anchors and retry.`;
 }
 
 export function registerWriteHook(pi: ExtensionAPI): void {

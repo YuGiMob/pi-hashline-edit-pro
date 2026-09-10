@@ -540,7 +540,7 @@ export function assertRangeServed(
       ? `\n\n[The range has ${rangeLength} lines; showing the first ${shownLength}. Call read()${filePath ? ` on ${filePath}` : ""} with offset=${startLine + shownLength} to see the rest.]`
       : "\n\nRetry with the fresh anchors above without a read.";
   const message =
-    `[E_RANGE_STALE] ${mismatchText} what was shown. Nothing was modified. Current range with fresh anchors:\n\n${rows.join("\n")}${capHint}`;
+    `[E_RANGE_STALE] ${mismatchText} what was shown. Current range with fresh anchors:\n\n${rows.join("\n")}${capHint}`;
   throw new RangeStaleError(message, shownHashes, shownMap);
 }
 

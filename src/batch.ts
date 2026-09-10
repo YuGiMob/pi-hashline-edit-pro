@@ -603,7 +603,7 @@ async function finishBatch(member: PlannedMember, signal?: AbortSignal): Promise
   });
   if (!undo.persisted) {
     restoreBatchBypasses(runtime);
-    throw new Error(`[E_UNDO_UNAVAILABLE] Could not persist undo history; the edit was not applied and ${paths.displayPath} is unchanged. Aborts batch ${runtime.display}.`);
+    throw new Error(`[E_UNDO_UNAVAILABLE] Could not persist undo history for ${paths.displayPath}. Aborts batch ${runtime.display}.`);
   }
   try {
     abortIf(signal);

@@ -96,7 +96,7 @@ export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promis
   });
   if (!undo.persisted) {
     throw new Error(
-      `[E_UNDO_UNAVAILABLE] Could not persist undo history; the edit was not applied and ${path} is unchanged.`
+      `[E_UNDO_UNAVAILABLE] Could not persist undo history for ${path}.`
     );
   }
   try {
