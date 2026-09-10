@@ -1,16 +1,9 @@
 import anchorData from "./anchor-table.json";
 const rawAnchors: unknown = (anchorData as { anchors?: unknown }).anchors;
-const rawVersion: unknown = (anchorData as { version?: unknown }).version;
 if (typeof rawAnchors !== "string" || rawAnchors.length === 0 || rawAnchors.length % 4 !== 0) {
   throw new Error("[E_REGISTRY] Anchor table is missing or corrupt; reinstall pi-hashline-edit-pro.");
 }
 const TABLE: string = rawAnchors;
-export const ANCHOR_TABLE_VERSION: number = typeof rawVersion === "number" && Number.isInteger(rawVersion) ? rawVersion : 0;
-export function isCompatibleTableVersion(stored: unknown, current: number = ANCHOR_TABLE_VERSION): boolean {
-  if (stored === undefined) stored = 0;
-  if (current === 1 && (stored === 0 || stored === 1)) return true;
-  return stored === current;
-}
 export const HASH_LEN = 4;
 export const ANCHOR_COUNT = TABLE.length / HASH_LEN;
 const ALNUM = "A-Za-z0-9";

@@ -4,7 +4,7 @@ import { join } from "path";
 import { createHash } from "crypto";
 import { sessionClaimsDir } from "./paths";
 import { contentChecksum } from "./hashline/hasher";
-import { ANCHOR_COUNT, ANCHOR_TABLE_VERSION, anchorAt, isCompatibleTableVersion } from "./hashline/alphabet";
+import { ANCHOR_COUNT, anchorAt } from "./hashline/alphabet";
 import { HASH_PROBE_STRIDE } from "./hashline/hash";
 import { errCode, splitLines } from "./utils";
 import { hashSource } from "./hashline";
@@ -13,7 +13,7 @@ import { getAllocatedState, persistSnapshot, type HashStore } from "./hash-store
 import { ANCHOR_POOL_EXHAUSTED_PREFIX } from "./constants";
 
 export type RegistryEvent =
-  | { kind: "session"; sessionFile: string; tableVersion?: number }
+  | { kind: "session"; sessionFile: string }
   | { kind: "allocate"; path: string; rows: [string, string][] }
   | { kind: "free"; path: string; anchors?: string[] }
   | { kind: "minted"; anchors: string[] }
@@ -125,7 +125,7 @@ export function buildCompactedLog(sessionFile: string, state: SessionState): str
     rows.push([anchor, entry.checksum]);
     byPath.set(entry.path, rows);
   }
-  const out: string[] = [JSON.stringify({ kind: "session", sessionFile, tableVersion: ANCHOR_TABLE_VERSION })];
+  const out: string[] = [JSON.stringify({ kind: "session", sessionFile })];
   for (const [path, rows] of byPath) {
     for (let i = 0; i < rows.length; i += SIDECAR_COMPACT_CHUNK) {
       out.push(JSON.stringify({ kind: "allocate", path, rows: rows.slice(i, i + SIDECAR_COMPACT_CHUNK) }));
@@ -173,31 +173,9 @@ export async function initRegistry(sessionFile: string | undefined): Promise<voi
       console.error("Failed to read anchor registry sidecar:", error);
     }
   }
-  let folded = foldRegistryEvents(events);
-  let tableReset = false;
-  for (const event of events) {
-    if (event.kind === "session" && !isCompatibleTableVersion(event.tableVersion, ANCHOR_TABLE_VERSION)) {
-      console.error(`Anchor table version changed; clearing session anchor claims for ${sessionFile}.`);
-      folded = newSessionState();
-      tableReset = true;
-      break;
-    }
-  }
+  const folded = foldRegistryEvents(events);
   seedServedFromOwned(folded);
   registries.set(key, folded);
-  if (tableReset) {
-    try {
-      await mkdir(sessionClaimsDir(), { recursive: true, mode: 0o700 });
-      await writeFile(currentSidecar, JSON.stringify({ kind: "session", sessionFile, tableVersion: ANCHOR_TABLE_VERSION }) + "\n", { mode: 0o600 });
-      if (process.platform !== "win32") {
-        try { await chmod(sessionClaimsDir(), 0o700); } catch (error) { if (errCode(error) !== "ENOENT") console.error("Failed to secure anchor registry directory:", error); }
-        try { await chmod(currentSidecar, 0o600); } catch (error) { if (errCode(error) !== "ENOENT") console.error("Failed to secure anchor registry sidecar:", error); }
-      }
-    } catch (error) {
-      console.error("Failed to reset anchor registry sidecar:", error);
-    }
-    return;
-  }
   if (rawLog.length > 0) {
     await compactSidecarIfNeeded(currentSidecar, rawLog, sessionFile, folded);
   }
@@ -207,7 +185,7 @@ export async function initRegistry(sessionFile: string | undefined): Promise<voi
       try { await chmod(sessionClaimsDir(), 0o700); } catch (error) { if (errCode(error) !== "ENOENT") console.error("Failed to secure anchor registry directory:", error); }
       try { await chmod(currentSidecar, 0o600); } catch (error) { if (errCode(error) !== "ENOENT") console.error("Failed to secure anchor registry sidecar:", error); }
     }
-    appendEvent({ kind: "session", sessionFile, tableVersion: ANCHOR_TABLE_VERSION } satisfies RegistryEvent);
+    appendEvent({ kind: "session", sessionFile } satisfies RegistryEvent);
   } catch (error) {
     console.error("Failed to initialize anchor registry sidecar:", error);
   }
