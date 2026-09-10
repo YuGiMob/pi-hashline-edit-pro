@@ -1,7 +1,7 @@
-import { chmod, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "fs/promises";
-import { appendFileSync, chmodSync } from "fs";
-import { join } from "path";
-import { createHash } from "crypto";
+import { chmod, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { appendFileSync, chmodSync } from "node:fs";
+import { join } from "node:path";
+import { createHash } from "node:crypto";
 import { sessionClaimsDir } from "./paths";
 import { contentChecksum } from "./hashline/hasher";
 import { ANCHOR_COUNT, anchorAt } from "./hashline/alphabet";

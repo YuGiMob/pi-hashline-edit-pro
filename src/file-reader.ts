@@ -1,6 +1,6 @@
-import { constants } from "fs";
-import { stat } from "fs/promises";
-import { relative } from "path";
+import { constants } from "node:fs";
+import { stat } from "node:fs/promises";
+import { relative } from "node:path";
 import { lineHashes } from "./hashline";
 import { loadFileKindAndText, type LFile } from "./file-kind";
 import { resolveTarget, type FileIdentity } from "./fs-write";

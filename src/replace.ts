@@ -2,8 +2,8 @@ import type {
   ExtensionAPI,
   ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
-import { constants } from "fs";
-import { relative } from "path";
+import { constants } from "node:fs";
+import { relative } from "node:path";
 import {
   genDiff,
   type LineEnding,

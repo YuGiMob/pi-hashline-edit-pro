@@ -1,5 +1,5 @@
-import { randomUUID } from "crypto";
-import { constants } from "fs";
+import { randomUUID } from "node:crypto";
+import { constants } from "node:fs";
 import {
 	lstat,
 	mkdir,
@@ -10,8 +10,8 @@ import {
 	rm,
 	stat,
 	writeFile,
-} from "fs/promises";
-import { dirname, join, parse, resolve, sep } from "path";
+} from "node:fs/promises";
+import { dirname, join, parse, resolve, sep } from "node:path";
 import { toCwd } from "./paths";
 import { errCode } from "./utils";
 

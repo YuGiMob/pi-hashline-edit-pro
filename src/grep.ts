@@ -1,10 +1,10 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { formatSize, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, type TruncationResult } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { stat } from "fs/promises";
-import { dirname, isAbsolute, join, relative, win32 } from "path";
-import { spawn, spawnSync } from "child_process";
-import { createInterface } from "readline";
+import { stat } from "node:fs/promises";
+import { dirname, isAbsolute, join, relative, win32 } from "node:path";
+import { spawn, spawnSync } from "node:child_process";
+import { createInterface } from "node:readline";
 import { tryReadNormFile } from "./file-reader";
 import { MAX_HASH_LINES, fmtRow, HASH_LEN, HASH_SEP } from "./hashline";
 import { ANCHOR_POOL_EXHAUSTED_PREFIX, MAX_GREP_LINE_BYTES } from "./constants";
@@ -292,8 +292,8 @@ async function resolveRgPath(): Promise<string> {
     if (!r.error && r.status === 0) { cachedRgPath = "rg"; return "rg"; }
   } catch {}
   try {
-    const { homedir } = await import("os");
-    const { existsSync } = await import("fs");
+    const { homedir } = await import("node:os");
+    const { existsSync } = await import("node:fs");
     const home = process.env.HOME ?? homedir();
     const base = process.env.PI_CODING_AGENT_DIR ?? join(home, ".pi", "agent");
     const bin = join(base, "bin", process.platform === "win32" ? "rg.exe" : "rg");
@@ -303,10 +303,10 @@ async function resolveRgPath(): Promise<string> {
     }
   } catch {}
   try {
-    const { createRequire } = await import("module");
+    const { createRequire } = await import("node:module");
     const require = createRequire(import.meta.url);
     const pkgPath = require.resolve("@earendil-works/pi-coding-agent/package.json");
-    const { dirname } = await import("path");
+    const { dirname } = await import("node:path");
     const piDir = dirname(pkgPath);
     const toolsManagerPath = join(piDir, "dist/utils/tools-manager.js");
     const mod = await import("file://" + toolsManagerPath);

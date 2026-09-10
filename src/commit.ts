@@ -1,4 +1,4 @@
-import { readFile } from "fs/promises";
+import { readFile } from "node:fs/promises";
 import type { PipelineResult } from "./replace";
 import { abortIf, errCode, splitLines } from "./utils";
 import { DEDUP_ANCHOR } from "./constants";

@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { readFileSync } from "node:fs";
 
 export function loadP(relativePath: string): string {
   return readFileSync(new URL(relativePath, import.meta.url), "utf-8").trim();

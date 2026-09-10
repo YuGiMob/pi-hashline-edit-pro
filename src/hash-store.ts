@@ -1,6 +1,6 @@
-import { randomUUID } from "crypto";
-import { existsSync } from "fs";
-import { chmod, readFile, rename, mkdir, stat } from "fs/promises";
+import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { chmod, readFile, rename, mkdir, stat } from "node:fs/promises";
 import { hashStorePath, hashStoreDir, legacyHashStorePath } from "./paths";
 import { errCode, isRec, splitLines } from "./utils";
 import { initHasher, contentChecksum } from "./hashline/hasher";
@@ -39,48 +39,10 @@ interface RawDb {
   close(): void;
   readonly isOpen: boolean;
 }
-export type SqliteEngine = "node:sqlite" | "bun:sqlite";
-
-interface BunDbLike {
-  exec(sql: string): void;
-  prepare(sql: string): {
-    get(...params: SqlParams): unknown;
-    all(...params: SqlParams): unknown[];
-    run(...params: SqlParams): unknown;
-  };
-  close(): void;
-}
-
-let openDbFn: (path: string) => RawDb;
-let sqliteEngine: SqliteEngine;
-
-if (typeof process !== "undefined" && (process.versions as Record<string, string | undefined>).bun) {
-  const specifier = "bun:sqlite";
-  const mod = await import(specifier) as { Database: new (path: string) => BunDbLike };
-  sqliteEngine = "bun:sqlite";
-  openDbFn = (path) => {
-    const db = new mod.Database(path);
-    db.exec(`PRAGMA busy_timeout = ${HASH_STORE_BUSY_TIMEOUT}`);
-    let closed = false;
-    return {
-      exec: (sql) => db.exec(sql),
-      prepare: (sql) => {
-        const stmt = db.prepare(sql);
-        return {
-          get: (...p) => stmt.get(...p) ?? undefined,
-          all: (...p) => stmt.all(...p),
-          run: (...p) => stmt.run(...p),
-        };
-      },
-      close: () => { if (!closed) { closed = true; db.close(); } },
-      get isOpen() { return !closed; },
-    };
-  };
-} else {
-  const { DatabaseSync } = await import("node:sqlite");
-  sqliteEngine = "node:sqlite";
-  openDbFn = (path) => new DatabaseSync(path, { timeout: HASH_STORE_BUSY_TIMEOUT }) as unknown as RawDb;
-}
+export type SqliteEngine = "node:sqlite";
+const sqliteEngine: SqliteEngine = "node:sqlite";
+const { DatabaseSync } = await import("node:sqlite");
+const openDbFn = (path: string): RawDb => new DatabaseSync(path, { timeout: HASH_STORE_BUSY_TIMEOUT }) as unknown as RawDb;
 
 interface Prepared {
   get: (...params: SqlParams) => Record<string, unknown> | undefined;

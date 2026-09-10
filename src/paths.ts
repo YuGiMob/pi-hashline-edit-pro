@@ -1,5 +1,5 @@
-import { homedir } from "os";
-import { isAbsolute, resolve as resolvePath, join, dirname } from "path";
+import { homedir } from "node:os";
+import { isAbsolute, resolve as resolvePath, join, dirname } from "node:path";
 
 
 function homeBase(): string {

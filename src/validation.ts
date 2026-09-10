@@ -1,5 +1,5 @@
-import { constants } from "fs";
-import { access as fsAccess } from "fs/promises";
+import { constants } from "node:fs";
+import { access as fsAccess } from "node:fs/promises";
 import type { LFile } from "./file-kind";
 import type { FileIdentity } from "./fs-write";
 import { errCode } from "./utils";

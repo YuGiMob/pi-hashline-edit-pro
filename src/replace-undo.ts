@@ -1,5 +1,5 @@
-import { constants } from "fs";
-import { open } from "fs/promises";
+import { constants } from "node:fs";
+import { open } from "node:fs/promises";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";

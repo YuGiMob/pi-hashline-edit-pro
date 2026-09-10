@@ -1,5 +1,5 @@
-import { mkdir, readFile, rename, rm, stat } from "fs/promises";
-import { dirname } from "path";
+import { mkdir, readFile, rename, rm, stat } from "node:fs/promises";
+import { dirname } from "node:path";
 import { configPath } from "./paths";
 import { errCode, isRec } from "./utils";
 import { writeAtomic } from "./fs-write";

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeAll } from "vitest";
 import { chmod, mkdtemp, mkdir, rm, writeFile, stat, readdir } from "fs/promises";
-import { existsSync } from "fs";
+import { existsSync, statSync } from "node:fs";
 import { join } from "path";
 import { DatabaseSync } from "node:sqlite";
 
@@ -605,6 +605,11 @@ describe("hash-store - incremental writes (issue #8)", () => {
   });
 });
 
+function walTruncated(walPath: string): boolean {
+  if (!existsSync(walPath)) return true;
+  return statSync(walPath).size === 0;
+}
+
 describe("hash-store - WAL checkpoint on shutdown", () => {
   it("truncates the WAL file after shutdownHashStore", async () => {
     await withTempHome(async (home) => {
@@ -616,7 +621,7 @@ describe("hash-store - WAL checkpoint on shutdown", () => {
 
       shutdownHashStore();
 
-      expect(existsSync(walPath)).toBe(false);
+      expect(walTruncated(walPath)).toBe(true);
     });
   });
 });

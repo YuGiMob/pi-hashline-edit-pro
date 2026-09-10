@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { constants } from "fs";
+import { constants } from "node:fs";
 import { execPipeline, type ReqParams, type ReplaceDetails, previewFromPipe, previewError } from "./replace";
 import { commitEdit } from "./commit";
 import { batchMemberFor, ensureBatchBase, executeBatchMember, noteBatchFailure, suffixPoisonCause } from "./batch";

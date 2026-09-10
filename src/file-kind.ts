@@ -1,4 +1,4 @@
-import { open as fsOpen, stat as fsStat } from "fs/promises";
+import { open as fsOpen, stat as fsStat } from "node:fs/promises";
 import { fileTypeFromBuffer } from "file-type";
 import { SNIFF_BYTES, MAX_BYTES } from "./constants";
 import { assertLineLimit, lineLimitMoreThanMessage } from "./utils";
