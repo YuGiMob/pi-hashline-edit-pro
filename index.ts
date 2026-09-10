@@ -76,7 +76,7 @@ export default function (pi: ExtensionAPI): void {
     await initRegistry(sessionFile);
     await gcRegistrySidecars();
     const { config, corrupted } = await readConfigWithStatus();
-    if (corrupted && (ctx as unknown as { hasUI?: boolean }).hasUI !== false) ctx.ui.notify("Hashline config was corrupt and was reset to defaults", "warning");
+    if (corrupted && (ctx as { hasUI?: boolean }).hasUI) ctx.ui.notify("Hashline config was corrupt and was reset to defaults", "warning");
     autoRead = config.autoRead;
     await refreshEditTools();
     pi.setActiveTools(
