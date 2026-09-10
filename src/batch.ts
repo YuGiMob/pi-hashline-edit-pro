@@ -100,6 +100,7 @@ interface BatchState {
   failures: number;
   failed: boolean;
   firstError?: unknown;
+  poisonedBy?: string;
   warnings: string[];
 }
 
@@ -246,11 +247,12 @@ export async function planAssistantMessage(message: unknown, cwd: string): Promi
   }
   const resolvedIds = new Set(resolved.map((item) => item.id));
   const unplanned = calls.filter((call) => !resolvedIds.has(call.id));
-  let poison: { target: string; error: unknown } | undefined;
+  let poison: { target: string; error: unknown; callId: string } | undefined;
   if (unplanned.length > 0 && groups.size === 1) {
     const sole = [...groups.values()][0]!;
     const poisonTarget = sole[0]!.target;
-    poison = { target: poisonTarget, error: unresolvedErrorFor(unplanned[0]!) };
+    const poisonCall = unplanned[0]!;
+    poison = { target: poisonTarget, error: unresolvedErrorFor(poisonCall), callId: poisonCall.id };
     if (!finalGroups.some((group) => group[0]!.target === poisonTarget)) finalGroups.push(sole);
   }
   let display = 0;
@@ -270,7 +272,7 @@ export async function planAssistantMessage(message: unknown, cwd: string): Promi
       noops: 0,
       failures: poisoned ? 1 : 0,
       failed: poisoned,
-      ...(matchingPoison ? { firstError: matchingPoison.error } : {}),
+      ...(matchingPoison ? { firstError: matchingPoison.error, poisonedBy: matchingPoison.callId } : {}),
       warnings: [],
     });
     group.forEach((item, index) => {
@@ -350,9 +352,21 @@ function batchPlaceholder(member: PlannedMember, piece: BatchPiece, snapshotId: 
   };
 }
 
+export function withAbortSuffix(message: string, display: number): string {
+  const suffix = `Aborts batch ${display}.`;
+  if (message.includes(suffix)) return message;
+  return message.endsWith(".") ? `${message} ${suffix}` : `${message}. ${suffix}`;
+}
+export function suffixPoisonCause(toolCallId: string, error: unknown): void {
+  if (!(error instanceof Error)) return;
+  for (const runtime of batches.values()) {
+    if (runtime.poisonedBy === toolCallId) error.message = withAbortSuffix(error.message, runtime.display);
+  }
+}
 export function noteBatchFailure(member: PlannedMember, error: unknown): void {
   const runtime = batches.get(member.batchKey);
   if (!runtime) return;
+  if (error instanceof Error && !error.message.startsWith("[E_OP_ABORTED]")) error.message = withAbortSuffix(error.message, member.display);
   runtime.failures += 1;
   if (!runtime.failed) {
     runtime.failed = true;
@@ -548,6 +562,7 @@ async function finishBatch(member: PlannedMember, signal?: AbortSignal): Promise
     }
   } catch (error) {
     restoreBatchBypasses(runtime);
+    if (error instanceof Error) error.message = withAbortSuffix(error.message, runtime.display);
     throw error;
   }
   if (composed === base.content) {
@@ -576,6 +591,7 @@ async function finishBatch(member: PlannedMember, signal?: AbortSignal): Promise
     }, undefined, false, true);
   } catch (error) {
     restoreBatchBypasses(runtime);
+    if (error instanceof Error) error.message = withAbortSuffix(error.message, runtime.display);
     throw error;
   }
   const undo = await saveUndo(runtime.target, {
@@ -587,7 +603,7 @@ async function finishBatch(member: PlannedMember, signal?: AbortSignal): Promise
   });
   if (!undo.persisted) {
     restoreBatchBypasses(runtime);
-    throw new Error(`[E_UNDO_UNAVAILABLE] Could not persist undo history; the edit was not applied and ${paths.displayPath} is unchanged.`);
+    throw new Error(`[E_UNDO_UNAVAILABLE] Could not persist undo history; the edit was not applied and ${paths.displayPath} is unchanged. Aborts batch ${runtime.display}.`);
   }
   try {
     abortIf(signal);
@@ -595,6 +611,7 @@ async function finishBatch(member: PlannedMember, signal?: AbortSignal): Promise
   } catch (error) {
     await undo.restore();
     restoreBatchBypasses(runtime);
+    if (error instanceof Error) error.message = withAbortSuffix(error.message, runtime.display);
     throw error;
   }
   clearBoundaryBypass(runtime.target);

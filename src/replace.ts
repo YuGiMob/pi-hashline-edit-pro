@@ -34,7 +34,7 @@ import { toCwd } from "./paths";
 import { noopPayloadKey, markBoundaryNoop, consumeBoundaryBypass, clearBoundaryBypass } from "./boundary-bypass";
 import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper, resolveEditTargetWithRequirement, throwIfStrictInput, getBoundaryDedupMode, withReplacePrompts, DEFAULT_EDIT_FLAGS, type EditToolFlags } from "./edit-common";
 import { commitEdit } from "./commit";
-import { batchMemberFor, executeBatchMember, noteBatchFailure } from "./batch";
+import { batchMemberFor, executeBatchMember, noteBatchFailure, suffixPoisonCause } from "./batch";
 
 export { editToolSchema, type ReqParams, assertReq };
 
@@ -286,6 +286,7 @@ export function buildToolDef(flags: EditToolFlags = DEFAULT_EDIT_FLAGS): ToolDef
       }).catch((error: unknown) => {
         const member = batchMemberFor(_toolCallId);
         if (member) noteBatchFailure(member, error);
+        else suffixPoisonCause(_toolCallId, error);
         throw error;
       });
       return queuedEdit(targetPath, ctx.cwd, signal, async (absolutePath, mutationTargetPath) => {

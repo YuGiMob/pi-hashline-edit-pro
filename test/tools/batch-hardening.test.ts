@@ -171,7 +171,7 @@ describe("batch hardening", () => {
       await editTool.execute("v1", { remove_from: gammaRef, remove_to: gammaRef, replacement_lines: ["GAMMA"] }, undefined, undefined, ctx);
       await expect(
         editTool.execute("m1", { remove_from: betaRef, remove_to: "ZZZZ", replacement_lines: ["MIXED"] }, undefined, undefined, ctx)
-      ).rejects.toThrow(/E_OP_ABORTED|E_STALE_ANCHOR/);
+      ).rejects.toThrow(/Aborts batch 1\.$/);
       expect(await readFile(path, "utf-8")).toBe("alpha\nbeta\ngamma\n");
     });
   });
@@ -308,7 +308,7 @@ describe("batch hardening", () => {
         toolCall("s1", "replace", { remove_from: "ZZZZ", remove_to: "ZZZZ", replacement_lines: ["XXX"] }),
       ]) }, ctx) as Promise<unknown>);
       await expect(editTool.execute("v1", { remove_from: valid, remove_to: valid, replacement_lines: ["AAA"] }, undefined, undefined, ctx)).rejects.toThrow(/E_OP_ABORTED/);
-      await expect(editTool.execute("s1", { remove_from: "ZZZZ", remove_to: "ZZZZ", replacement_lines: ["XXX"] }, undefined, undefined, ctx)).rejects.toThrow(/E_STALE_ANCHOR/);
+      await expect(editTool.execute("s1", { remove_from: "ZZZZ", remove_to: "ZZZZ", replacement_lines: ["XXX"] }, undefined, undefined, ctx)).rejects.toThrow(/Aborts batch 1\.$/);
       expect(await readFile(path, "utf-8")).toBe("aaa\nbbb\nccc\n");
     });
   });
@@ -323,7 +323,7 @@ describe("batch hardening", () => {
         toolCall("s1", "replace", { remove_from: "ZZZZ", remove_to: "ZZZZ", replacement_lines: ["XXX"] }),
         toolCall("v1", "replace", { remove_from: valid, remove_to: valid, replacement_lines: ["AAA"] }),
       ]) }, ctx) as Promise<unknown>);
-      await expect(editTool.execute("s1", { remove_from: "ZZZZ", remove_to: "ZZZZ", replacement_lines: ["XXX"] }, undefined, undefined, ctx)).rejects.toThrow(/E_STALE_ANCHOR/);
+      await expect(editTool.execute("s1", { remove_from: "ZZZZ", remove_to: "ZZZZ", replacement_lines: ["XXX"] }, undefined, undefined, ctx)).rejects.toThrow(/Aborts batch 1\.$/);
       await expect(editTool.execute("v1", { remove_from: valid, remove_to: valid, replacement_lines: ["AAA"] }, undefined, undefined, ctx)).rejects.toThrow(/E_OP_ABORTED/);
       expect(await readFile(path, "utf-8")).toBe("aaa\nbbb\nccc\n");
     });
@@ -345,7 +345,7 @@ describe("batch hardening", () => {
         toolCall("s1", "replace", { remove_from: "ZZZZ", remove_to: "ZZZZ", replacement_lines: ["XXX"] }),
       ]) }, ctx) as Promise<unknown>);
       await expect(editTool.execute("v1", { remove_from: valid, remove_to: valid, replacement_lines: ["AAA"] }, undefined, undefined, ctx)).rejects.toThrow(/E_OP_ABORTED/);
-      await expect(editTool.execute("s1", { remove_from: "ZZZZ", remove_to: "ZZZZ", replacement_lines: ["XXX"] }, undefined, undefined, ctx)).rejects.toThrow(/E_STALE_ANCHOR/);
+      await expect(editTool.execute("s1", { remove_from: "ZZZZ", remove_to: "ZZZZ", replacement_lines: ["XXX"] }, undefined, undefined, ctx)).rejects.toThrow(/Aborts batch 1\.$/);
       expect(await readFile(path, "utf-8")).toBe("aaa\nBBB\nccc\n");
       await undoTool.execute("u1", { path: "sample.txt" }, undefined, undefined, ctx);
       expect(await readFile(path, "utf-8")).toBe("aaa\nbbb\nccc\n");
