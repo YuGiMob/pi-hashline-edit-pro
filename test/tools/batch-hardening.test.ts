@@ -296,4 +296,59 @@ describe("batch hardening", () => {
       expect(consumeBoundaryBypass(resolved, payload2)).toBe(true);
     });
   });
+  it("unresolved same-turn stale aborts single-file batch valid first", async () => {
+    await withTempFile("sample.txt", "aaa\nbbb\nccc\n", async ({ cwd, path }) => {
+      const { getTool, handlers, ctx } = await setupTools(cwd);
+      const readTool = getTool("read");
+      const editTool = getTool("replace");
+      const text = getText(await readTool.execute("r1", { path: "sample.txt" }, undefined, undefined, ctx));
+      const valid = anchorFor(text, "aaa");
+      await (handlers.get("message_end")!({ type: "message_end", message: assistantMessage([
+        toolCall("v1", "replace", { remove_from: valid, remove_to: valid, replacement_lines: ["AAA"] }),
+        toolCall("s1", "replace", { remove_from: "ZZZZ", remove_to: "ZZZZ", replacement_lines: ["XXX"] }),
+      ]) }, ctx) as Promise<unknown>);
+      await expect(editTool.execute("v1", { remove_from: valid, remove_to: valid, replacement_lines: ["AAA"] }, undefined, undefined, ctx)).rejects.toThrow(/E_OP_ABORTED/);
+      await expect(editTool.execute("s1", { remove_from: "ZZZZ", remove_to: "ZZZZ", replacement_lines: ["XXX"] }, undefined, undefined, ctx)).rejects.toThrow(/E_STALE_ANCHOR/);
+      expect(await readFile(path, "utf-8")).toBe("aaa\nbbb\nccc\n");
+    });
+  });
+  it("unresolved same-turn stale aborts single-file batch stale first", async () => {
+    await withTempFile("sample.txt", "aaa\nbbb\nccc\n", async ({ cwd, path }) => {
+      const { getTool, handlers, ctx } = await setupTools(cwd);
+      const readTool = getTool("read");
+      const editTool = getTool("replace");
+      const text = getText(await readTool.execute("r1", { path: "sample.txt" }, undefined, undefined, ctx));
+      const valid = anchorFor(text, "aaa");
+      await (handlers.get("message_end")!({ type: "message_end", message: assistantMessage([
+        toolCall("s1", "replace", { remove_from: "ZZZZ", remove_to: "ZZZZ", replacement_lines: ["XXX"] }),
+        toolCall("v1", "replace", { remove_from: valid, remove_to: valid, replacement_lines: ["AAA"] }),
+      ]) }, ctx) as Promise<unknown>);
+      await expect(editTool.execute("s1", { remove_from: "ZZZZ", remove_to: "ZZZZ", replacement_lines: ["XXX"] }, undefined, undefined, ctx)).rejects.toThrow(/E_STALE_ANCHOR/);
+      await expect(editTool.execute("v1", { remove_from: valid, remove_to: valid, replacement_lines: ["AAA"] }, undefined, undefined, ctx)).rejects.toThrow(/E_OP_ABORTED/);
+      expect(await readFile(path, "utf-8")).toBe("aaa\nbbb\nccc\n");
+    });
+  });
+  it("aborted batch preserves prior undo", async () => {
+    await withTempFile("sample.txt", "aaa\nbbb\nccc\n", async ({ cwd, path }) => {
+      const { getTool, handlers, ctx } = await setupTools(cwd);
+      const readTool = getTool("read");
+      const editTool = getTool("replace");
+      const undoTool = getTool("undo_last_change");
+      const first = getText(await readTool.execute("r1", { path: "sample.txt" }, undefined, undefined, ctx));
+      const bbb = anchorFor(first, "bbb");
+      await editTool.execute("base", { remove_from: bbb, remove_to: bbb, replacement_lines: ["BBB"] }, undefined, undefined, ctx);
+      expect(await readFile(path, "utf-8")).toBe("aaa\nBBB\nccc\n");
+      const second = getText(await readTool.execute("r2", { path: "sample.txt" }, undefined, undefined, ctx));
+      const valid = anchorFor(second, "aaa");
+      await (handlers.get("message_end")!({ type: "message_end", message: assistantMessage([
+        toolCall("v1", "replace", { remove_from: valid, remove_to: valid, replacement_lines: ["AAA"] }),
+        toolCall("s1", "replace", { remove_from: "ZZZZ", remove_to: "ZZZZ", replacement_lines: ["XXX"] }),
+      ]) }, ctx) as Promise<unknown>);
+      await expect(editTool.execute("v1", { remove_from: valid, remove_to: valid, replacement_lines: ["AAA"] }, undefined, undefined, ctx)).rejects.toThrow(/E_OP_ABORTED/);
+      await expect(editTool.execute("s1", { remove_from: "ZZZZ", remove_to: "ZZZZ", replacement_lines: ["XXX"] }, undefined, undefined, ctx)).rejects.toThrow(/E_STALE_ANCHOR/);
+      expect(await readFile(path, "utf-8")).toBe("aaa\nBBB\nccc\n");
+      await undoTool.execute("u1", { path: "sample.txt" }, undefined, undefined, ctx);
+      expect(await readFile(path, "utf-8")).toBe("aaa\nbbb\nccc\n");
+    });
+  });
 });

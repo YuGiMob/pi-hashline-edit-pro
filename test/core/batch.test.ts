@@ -109,7 +109,7 @@ describe("planAssistantMessage", () => {
     });
   });
 
-  it("excludes unresolvable anchors from batches", async () => {
+  it("poisons single-file batch on unresolvable sibling", async () => {
     await withTempFile("sample.txt", "aaa\nbbb\nccc\n", async ({ cwd, path }) => {
       setupIntegrationTest(cwd);
       const hashes = await lineHashes("aaa\nbbb\nccc\n", path);
@@ -120,7 +120,7 @@ describe("planAssistantMessage", () => {
         ]),
         cwd,
       );
-      expect(batchMemberFor("c1")).toBeUndefined();
+      expect(batchMemberFor("c1")).toMatchObject({ display: 1, size: 1, last: true });
       expect(batchMemberFor("c2")).toBeUndefined();
     });
   });

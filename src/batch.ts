@@ -2,7 +2,7 @@ import { readFile } from "fs/promises";
 import { constants } from "fs";
 import { relative } from "path";
 import { readConfig, getDiffContextLines } from "./config";
-import { throwIfStrictInput, tryResolveEditTarget } from "./edit-common";
+import { resolveEditTarget, throwIfStrictInput, tryResolveEditTarget } from "./edit-common";
 import { readNormFile, safeSnapId } from "./file-reader";
 import { resolveInCwd, writeAtomic, type FileIdentity } from "./fs-write";
 import {
@@ -147,12 +147,22 @@ function normalizeEditArgs(args: unknown): NormalizedEditArgs | undefined {
   }
   return undefined;
 }
-
 function anchorTargetFor(args: unknown): string | undefined {
   const normalized = normalizeEditArgs(args);
   if (!normalized) return undefined;
   if (normalized.kind === "replace") return tryResolveEditTarget(normalized.removeFrom, normalized.removeTo);
   return tryResolveEditTarget(normalized.anchor);
+}
+function unresolvedErrorFor(call: EditCall): Error {
+  const normalized = normalizeEditArgs(call.args);
+  if (!normalized) return new Error(`[E_BAD_SHAPE] Edit call "${call.id}" has unknown or invalid fields; aborting batch conservatively.`);
+  try {
+    if (normalized.kind === "replace") resolveEditTarget(normalized.removeFrom, normalized.removeTo);
+    else resolveEditTarget(normalized.anchor);
+  } catch (error) {
+    return error instanceof Error ? error : new Error(String(error));
+  }
+  return new Error(`[E_STALE_ANCHOR] Edit call "${call.id}" could not be resolved; aborting batch conservatively.`);
 }
 async function inferredTargetFor(args: unknown, cwd: string, requirePath: boolean): Promise<string | undefined> {
   const normalized = normalizeEditArgs(args);
@@ -224,7 +234,6 @@ export async function planAssistantMessage(message: unknown, cwd: string): Promi
     groups.set(item.target, group);
   }
   const multi = [...groups.values()].filter((group) => group.length >= 2);
-  if (multi.length === 0) return;
   const finalGroups: ResolvedCall[][] = [];
   if (requirePath) {
     for (const group of multi) {
@@ -234,11 +243,21 @@ export async function planAssistantMessage(message: unknown, cwd: string): Promi
   } else {
     finalGroups.push(...multi);
   }
-  if (finalGroups.length === 0) return;
+  const resolvedIds = new Set(resolved.map((item) => item.id));
+  const unplanned = calls.filter((call) => !resolvedIds.has(call.id));
+  let poison: { target: string; error: unknown } | undefined;
+  if (unplanned.length > 0 && groups.size === 1) {
+    const sole = [...groups.values()][0]!;
+    const poisonTarget = sole[0]!.target;
+    poison = { target: poisonTarget, error: unresolvedErrorFor(unplanned[0]!) };
+    if (!finalGroups.some((group) => group[0]!.target === poisonTarget)) finalGroups.push(sole);
+  }
   let display = 0;
   for (const group of finalGroups) {
     display += 1;
     const key = nextBatchKey++;
+    const matchingPoison = poison !== undefined && group[0]!.target === poison.target ? poison : undefined;
+    const poisoned = matchingPoison !== undefined;
     batches.set(key, {
       display,
       target: group[0]!.target,
@@ -248,8 +267,9 @@ export async function planAssistantMessage(message: unknown, cwd: string): Promi
       pieces: [],
       applied: 0,
       noops: 0,
-      failures: 0,
-      failed: false,
+      failures: poisoned ? 1 : 0,
+      failed: poisoned,
+      ...(matchingPoison ? { firstError: matchingPoison.error } : {}),
       warnings: [],
     });
     group.forEach((item, index) => {
