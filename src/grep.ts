@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { formatSize, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, type TruncationResult } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { stat } from "fs/promises";
-import { dirname, join, relative } from "path";
+import { dirname, isAbsolute, join, relative, win32 } from "path";
 import { spawn, spawnSync } from "child_process";
 import { createInterface } from "readline";
 import { tryReadNormFile } from "./file-reader";
@@ -372,7 +372,7 @@ async function collectRgMatches(
         if (typeof filePath === "string" && typeof lineNumber === "number") {
           let abs: string;
           try {
-            abs = filePath.startsWith("/") || /^[A-Za-z]:\\/.test(filePath) ? filePath : join(searchPath, filePath);
+            abs = isAbsolute(filePath) || win32.isAbsolute(filePath) ? filePath : join(searchPath, filePath);
           } catch {
             abs = filePath;
           }
