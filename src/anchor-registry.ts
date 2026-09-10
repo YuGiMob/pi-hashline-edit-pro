@@ -219,7 +219,7 @@ function fingerprintIndex(state: SessionState, path: string): Map<string, string
   return index;
 }
 
-const MINT_PROBE_LIMIT = 8192;
+export const MINT_PROBE_LIMIT = 8192;
 
 export function mintAnchor(state: SessionState): string {
   for (let probe = 0; probe < MINT_PROBE_LIMIT; probe++) {
