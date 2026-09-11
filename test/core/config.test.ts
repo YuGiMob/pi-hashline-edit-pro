@@ -9,6 +9,7 @@ import {
   cycleBoundaryDedupMode,
   adjustDiffContextLines,
   readConfig,
+  readConfigWithStatus,
   writeConfig,
 } from "../../src/config";
 import { getWritableTempRoot } from "../support/fixtures";
@@ -255,7 +256,23 @@ describe("config - wrong-shape config", () => {
       const configDir = pathJoin(tmpHome, ".config", "pi-hashline-edit-pro");
       await mkdir(configDir, { recursive: true });
       await writeFile(pathJoin(configDir, "config.json"), JSON.stringify({ autoRead: "yes" }));
-      expect((await readConfig()).autoRead).toBe(true);
+      const { config, corrupted } = await readConfigWithStatus();
+      expect(corrupted).toBe(true);
+      expect(config.autoRead).toBe(true);
+    });
+  });
+
+  it("uses the default when autoRead is omitted", async () => {
+    await withTempHome(async () => {
+      const { writeFile, mkdir } = await import("fs/promises");
+      const { join: pathJoin } = await import("path");
+      const configDir = pathJoin(tmpHome, ".config", "pi-hashline-edit-pro");
+      await mkdir(configDir, { recursive: true });
+      await writeFile(pathJoin(configDir, "config.json"), JSON.stringify({ requirePath: true }));
+      const { config, corrupted } = await readConfigWithStatus();
+      expect(corrupted).toBe(false);
+      expect(config.autoRead).toBe(true);
+      expect(config.requirePath).toBe(true);
     });
   });
 });

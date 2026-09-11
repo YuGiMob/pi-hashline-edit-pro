@@ -46,10 +46,10 @@ export function normalizeDiffContextLines(value: unknown): number {
 
 function parseConfig(content: string): Config {
   const parsed = JSON.parse(content) as unknown;
-  const autoRead = isRec(parsed) ? parsed.autoRead : undefined;
-  if (typeof autoRead !== "boolean") {
+  if (!isRec(parsed) || (parsed.autoRead !== undefined && typeof parsed.autoRead !== "boolean")) {
     throw new Error("config.json must be an object with a boolean autoRead field");
   }
+  const autoRead = parsed.autoRead;
   const anchorGrepEnabled = isRec(parsed) ? parsed.anchorGrepEnabled : undefined;
   const requirePath = isRec(parsed) ? parsed.requirePath : undefined;
   const strictInput = isRec(parsed) ? parsed.strictInput : undefined;
@@ -57,7 +57,7 @@ function parseConfig(content: string): Config {
   const legacyBoundaryDedup = isRec(parsed) ? parsed.boundaryDedupEnabled : undefined;
   const diffContextLines = isRec(parsed) ? parsed.diffContextLines : undefined;
   return {
-    autoRead,
+    autoRead: typeof autoRead === "boolean" ? autoRead : DEFAULT_CONFIG.autoRead,
     anchorGrepEnabled: typeof anchorGrepEnabled === "boolean" ? anchorGrepEnabled : DEFAULT_CONFIG.anchorGrepEnabled,
     requirePath: typeof requirePath === "boolean" ? requirePath : DEFAULT_CONFIG.requirePath,
     strictInput: typeof strictInput === "boolean" ? strictInput : DEFAULT_CONFIG.strictInput,
