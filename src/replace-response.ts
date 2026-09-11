@@ -2,7 +2,7 @@ import { formatSize, DEFAULT_MAX_BYTES } from "@earendil-works/pi-coding-agent";
 import type { NEdit } from "./hashline";
 import { HASH_SEP } from "./hashline";
 import type { ReplaceDetails } from "./replace";
-import { genDiff, genPatch } from "./replace-diff";
+import { genDiff, genPatch, type DiffSpan } from "./replace-diff";
 import { visLines, clipLine } from "./utils";
 import { DEDUP_ANCHOR } from "./constants";
 
@@ -51,6 +51,7 @@ export interface SuccessInput {
   editMeta: RMeta;
   boundaryDedupAbove?: string[];
   boundaryDedupBelow?: string[];
+  spans?: DiffSpan[];
 }
 
 
@@ -171,9 +172,9 @@ export function withDedupRows(diff: string, lineNumbers: (number | undefined)[],
 }
 
 export function buildChanged(input: SuccessInput, verb = "replaced", diffContextLines = 1): TResult {
-  const { path, result, warnings, snapshotId, originalNormalized, originalHashes, editMeta, resultHashes, boundaryDedupAbove, boundaryDedupBelow } = input;
+  const { path, result, warnings, snapshotId, originalNormalized, originalHashes, editMeta, resultHashes, boundaryDedupAbove, boundaryDedupBelow, spans } = input;
   const resultLines = visLines(result);
-  const baseDiff = genDiff(originalNormalized, result, diffContextLines, resultHashes, originalHashes);
+  const baseDiff = genDiff(originalNormalized, result, diffContextLines, resultHashes, originalHashes, undefined, spans);
   const diffResult = withDedupRows(baseDiff.diff, baseDiff.lineNumbers, boundaryDedupAbove, boundaryDedupBelow);
   const addedLines = editMeta.addedLines;
   const removedLines = editMeta.removedLines;

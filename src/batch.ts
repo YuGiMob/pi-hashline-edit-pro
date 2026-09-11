@@ -656,6 +656,7 @@ async function finishBatch(member: PlannedMember, signal?: AbortSignal): Promise
       },
       boundaryDedupAbove: [],
       boundaryDedupBelow: [],
+      spans,
     },
     batchVerb(runtime),
     await getDiffContextLines(),
