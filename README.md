@@ -97,7 +97,9 @@ An edit that produces identical content reports `No changes made` and leaves the
 
 After a successful edit, the diff is capped at 50KB. A row over 50KB is shown as a marker that keeps the row's anchor, and only the rows shown in the capped diff are recorded as served. The same caps apply to the `insert` and `undo_last_change` diffs, to the interactive previews, and to `details.patch`.
 
-Multiple `replace` and `insert` calls on the same file in one message are grouped per file into one batch that validates every call against the pre-batch state and then applies them together on the batch's last call: earlier calls reply `In batch` (`In batch N` when several files batch) and the batch's last call shows the combined diff, with one undo reverting the whole batch. Batched calls must target disjoint ranges; overlapping ranges, or any failing call, aborts the whole batch. Calls with stale anchors join their file's batch through a `requirePath` path hint or a valid co-anchor and abort it instead of applying partially; a same-turn sibling whose anchors resolve nowhere still aborts the batch when no other file is being edited. An error that aborts a batch ends with `Aborts batch N.`, while the abort itself reads `[E_OP_ABORTED] Batch N aborted.` Anchor capacity is preflighted before writing; if anchor finalization fails after the write, the error states the file was written with one undo available. Verify each batch diff before the next turn's edits on that file.
+Multiple `replace` and `insert` calls on the same file in one assistant message are grouped per file into one batch. The batch unit is the message, not the turn: calls from separate messages in the same turn run solo, one after another. A solo edit commits before its result returns; a batch validates every call against the pre-batch state and commits once, during the batch's last call: earlier calls reply `In batch` (`In batch N` when several files batch) and the batch's last call shows the combined diff, with one undo reverting the whole batch. Nothing commits at turn end.
+Tools in one message run concurrently, so a `read` or shell `cat` issued alongside an edit can observe the pre-commit state; verify in the next message with the post-edit diff or a fresh `read`.
+Batched calls must target disjoint ranges; overlapping ranges, or any failing call, aborts the whole batch unwritten. A resolvable failure aborts its batch-mates, while an anchor that resolves nowhere cannot join a batch: same-message [resolvable-fail + resolvable-valid] on one file fails fast with `[E_OP_ABORTED]`, but the same pair split across messages runs as two solos (fail, then apply). Calls with stale anchors join their file's batch through a `requirePath` path hint or a valid co-anchor and abort it instead of applying partially; a same-message sibling whose anchors resolve nowhere still aborts the batch when no other file is being edited. An error that aborts a batch ends with `Aborts batch N.`, while the abort itself reads `[E_OP_ABORTED] Batch N aborted.` Anchor capacity is preflighted before writing; if anchor finalization fails after the write, the error states the file was written with one undo available. Verify each batch diff before the next turn's edits on that file.
 
 ### insert
 
@@ -139,7 +141,7 @@ Output is capped at `limit` matched lines, 2000 rows, and 50KB of text, whicheve
 
 `undo_last_change` reverts the most recent successful `replace` or `insert` on a file, restoring the exact previous content, BOM and line endings included, plus the previous anchors.
 
-- History is per-file and single-level: only the most recent `replace` or `insert` can be reverted. A same-turn batch of `replace`/`insert` calls on one file counts as one entry: one undo reverts the whole batch.
+- History is per-file and single-level: only the most recent `replace` or `insert` can be reverted. A same-message batch of `replace`/`insert` calls on one file counts as one entry: one undo reverts the whole batch.
 - History is persisted and survives session restarts. A failed `write` does not clear it.
 - Every applied `replace` or `insert` is undoable; the undo record is saved before the edit is written.
 - A successful `write` clears the history for that file.
@@ -151,7 +153,7 @@ Output is capped at `limit` matched lines, 2000 rows, and 50KB of text, whicheve
 
 Auto-read is enabled by default. After a successful `write`, the extension reads the file and appends an `--- Auto-read (hashline anchors) ---` block, so you get fresh `anchor│content` anchors without a separate `read` call.
 
-After `replace`, `insert`, and `undo_last_change`, the result shows the post-edit diff. Inside a same-turn batch, only the batch's last call shows the combined diff, headed by a `batch:` line (`batch N:` when several files batch); earlier calls reply `In batch` (`In batch N` when several files batch). The `+anchor│` and ` anchor│` rows carry the current anchors, so follow-up edits can anchor on the diff directly. The `-anchor│` rows show removed lines with their old anchors, which are stale after the edit. When the context line next to a change is blank or whitespace-only, one more context line is shown in that direction, so the change stays anchored to visible content. Call `read` when you want the full file's anchors.
+After `replace`, `insert`, and `undo_last_change`, the result shows the post-edit diff. Inside a same-message batch, only the batch's last call shows the combined diff, headed by a `batch:` line (`batch N:` when several files batch); earlier calls reply `In batch` (`In batch N` when several files batch). The `+anchor│` and ` anchor│` rows carry the current anchors, so follow-up edits can anchor on the diff directly. The `-anchor│` rows show removed lines with their old anchors, which are stale after the edit. When the context line next to a change is blank or whitespace-only, one more context line is shown in that direction, so the change stays anchored to visible content. Call `read` when you want the full file's anchors.
 
 Auto-read keeps the same 50KB and 2000-line budget as `read`. Change it in `/hashline-config`; both settings persist across sessions. The post-edit diff shows 1 surrounding line by default; change Diff context in `/hashline-config` (0-10, needs Auto-read) to show more or fewer.
 
@@ -211,7 +213,7 @@ On POSIX systems, the state directory is restricted to mode `0700` and the SQLit
 
 ## Error and warning codes
 
-Codes starting with `E_` are errors (the operation failed); codes starting with `W_` are warnings (the operation succeeded with a notice).
+Codes starting with `E_` are errors: nothing was written — except `File was written; anchor finalization failed`, which means the file was written and one undo reverts it. Codes starting with `W_` are warnings: the call succeeded with an auto-fix notice; check `classification` (`applied` vs `noop`) in `details.metrics` to tell whether bytes changed.
 
 | Code | Meaning |
 | --- | --- |
@@ -237,7 +239,7 @@ Codes starting with `E_` are errors (the operation failed); codes starting with 
 | `[E_WRITE_HASH_ECHO]` | A `write` `content` line begins with the exact `anchor│` served for this file at the same line. The write is refused, file byte-identical; retry with bare content (remove the copied anchors). |
 | `[E_PATH_CHANGED]` | A write target changed identity after it was read; the write was refused to avoid following a swapped symlink or overwriting a replacement file. |
 | `[E_BATCH_OVERLAP]` | Batched `replace`/`insert` calls target overlapping ranges; the whole batch was refused. Retry with disjoint ranges. |
-| `[E_OP_ABORTED]` | An edit aborted (a same-turn batch member failed, or the file changed or was deleted after the edit started). Fix the sibling failure and retry the batch, otherwise call `read` for fresh anchors and retry. |
+| `[E_OP_ABORTED]` | An edit aborted (a same-message batch member failed, or the file changed or was deleted after the edit started). Nothing was written. Fix the sibling failure and retry the batch, otherwise call `read` for fresh anchors and retry. |
 | `[E_UNSAFE_REGEX]` | A grep regex can trigger excessive backtracking; simplify it or search with `literal: true`. |
 
 ## Troubleshooting
