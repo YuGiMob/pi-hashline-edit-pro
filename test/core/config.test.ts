@@ -245,7 +245,9 @@ describe("config - wrong-shape config", () => {
       const configDir = pathJoin(tmpHome, ".config", "pi-hashline-edit-pro");
       await mkdir(configDir, { recursive: true });
       await writeFile(pathJoin(configDir, "config.json"), JSON.stringify([1, 2]));
-      expect((await readConfig()).autoRead).toBe(true);
+      const { config, corrupted } = await readConfigWithStatus();
+      expect(corrupted).toBe(true);
+      expect(config.autoRead).toBe(true);
     });
   });
 

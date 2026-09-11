@@ -16,6 +16,7 @@ import {
   alignOwnershipWithSpans,
   parseRegistryLog,
   foldRegistryEvents,
+  mintAnchor,
   gcRegistrySidecars,
 } from "../../src/anchor-registry";
 import { sessionClaimsDir } from "../../src/paths";
@@ -74,6 +75,13 @@ describe("anchor registry", () => {
     for (let i = 0; i < 50; i++) {
       expect(spent.has(allocateAnchor("a.ts", `ck${i}`))).toBe(false);
     }
+  });
+
+  it("starts the mint walk from the given seed", () => {
+    const first = mintAnchor(foldRegistryEvents([], "seed-one"));
+    const second = mintAnchor(foldRegistryEvents([], "seed-two"));
+    expect(first).not.toBe(second);
+    expect(mintAnchor(foldRegistryEvents([], "seed-one"))).toBe(first);
   });
 
   it("throws E_REGISTRY when allocating without an initialized session", async () => {
