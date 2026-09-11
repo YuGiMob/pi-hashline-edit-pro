@@ -32,15 +32,48 @@ afterEach(() => {
 });
 
 describe("anchor registry", () => {
-  it("allocates unique anchors from a deterministic probe", () => {
+  it("allocates unique well-formed anchors within a session", () => {
     const first = allocateAnchor("a.ts", "ck0");
     const second = allocateAnchor("b.ts", "ck1");
     const third = allocateAnchor("c.ts", "ck2");
     expect(new Set([first, second, third]).size).toBe(3);
     expect(first).toMatch(/^[A-Za-z0-9]{4}$/);
+  });
+
+  it("does not repeat the mint sequence after an ephemeral re-init", async () => {
+    const first = allocateAnchor("a.ts", "ck0");
     resetRegistryForTests();
-    initRegistry(undefined);
-    expect(allocateAnchor("a.ts", "ck0")).toBe(first);
+    await initRegistry(undefined);
+    expect(allocateAnchor("a.ts", "ck0")).not.toBe(first);
+  });
+
+  it("mints disjoint anchor sequences across sessions", async () => {
+    const sessionA = join(sessionClaimsDir(), "session-a.json");
+    const sessionB = join(sessionClaimsDir(), "session-b.json");
+    await mkdir(sessionClaimsDir(), { recursive: true });
+    await writeFile(sessionA, "", "utf-8");
+    await writeFile(sessionB, "", "utf-8");
+    await initRegistry(sessionA);
+    const spent = new Set<string>();
+    for (let i = 0; i < 200; i++) spent.add(allocateAnchor("a.ts", `ck${i}`));
+    await initRegistry(sessionB);
+    for (let i = 0; i < 200; i++) {
+      expect(spent.has(allocateAnchor("b.ts", `ck${i}`))).toBe(false);
+    }
+  });
+
+  it("does not re-mint folded anchors after a same-session restart", async () => {
+    const sessionFile = join(sessionClaimsDir(), "restart.json");
+    await mkdir(sessionClaimsDir(), { recursive: true });
+    await writeFile(sessionFile, "", "utf-8");
+    await initRegistry(sessionFile);
+    const spent = new Set<string>();
+    for (let i = 0; i < 50; i++) spent.add(allocateAnchor("a.ts", `ck${i}`));
+    resetRegistryForTests();
+    await initRegistry(sessionFile);
+    for (let i = 0; i < 50; i++) {
+      expect(spent.has(allocateAnchor("a.ts", `ck${i}`))).toBe(false);
+    }
   });
 
   it("throws E_REGISTRY when allocating without an initialized session", async () => {

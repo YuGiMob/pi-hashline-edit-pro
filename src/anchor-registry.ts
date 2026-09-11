@@ -60,8 +60,8 @@ function seedServedFromOwned(state: SessionState): void {
 	}
 }
 
-export function foldRegistryEvents(events: RegistryEvent[]): SessionState {
-  const state = newSessionState();
+export function foldRegistryEvents(events: RegistryEvent[], seed?: string): SessionState {
+  const state = newSessionState(seed);
   for (const event of events) {
     if (event.kind === "clear") {
       state.owned.clear();
@@ -157,7 +157,7 @@ export async function initRegistry(sessionFile: string | undefined): Promise<voi
   if (!sessionFile) {
     currentKey = `__ephemeral__-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     currentSidecar = undefined;
-    registries.set(currentKey, newSessionState());
+    registries.set(currentKey, newSessionState(currentKey));
     return;
   }
   const key = sidecarKeyFor(sessionFile);
@@ -173,7 +173,7 @@ export async function initRegistry(sessionFile: string | undefined): Promise<voi
       console.error("Failed to read anchor registry sidecar:", error);
     }
   }
-  const folded = foldRegistryEvents(events);
+  const folded = foldRegistryEvents(events, `${key}:${process.pid}`);
   seedServedFromOwned(folded);
   registries.set(key, folded);
   if (rawLog.length > 0) {
