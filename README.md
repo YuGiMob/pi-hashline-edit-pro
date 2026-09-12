@@ -218,7 +218,7 @@ Codes starting with `E_` are errors: nothing was written — except `File was wr
 | Code | Meaning |
 | --- | --- |
 | `[E_BAD_SHAPE]` | Request envelope or edit item has unknown, missing, or wrongly-typed fields (for example `replacement_lines` must be an array of strings, one element per line). |
-| `[W_BAD_SHAPE]` | Auto-corrected request slip reported as a warning (for example unwrapped JSON array syntax or embedded newlines split into lines). |
+| `[W_BAD_SHAPE]` | Auto-corrected request slip reported as a warning (for example unwrapped JSON array syntax, embedded newlines split into lines, or stringified array text that could not be parsed and was kept as one literal line). |
 | `[E_BAD_REF]` | An anchor in `remove_from`/`remove_to` is not a bare 4-char anchor. |
 | `[W_BAD_REF]` | A pasted `anchor│` or diff-preview marker was stripped from an anchor field with a warning. |
 | `[E_STALE_ANCHOR]` | An anchor is not owned in this session (it was never shown to you, or its line was edited or the file was rewritten); call `read` for fresh anchors. |

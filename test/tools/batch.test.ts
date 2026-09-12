@@ -90,6 +90,33 @@ describe("same-turn edit batches", () => {
     });
   });
 
+  it("decodes stringified array text for batched members", async () => {
+    await withTempFile("sample.txt", "alpha\nbeta\ngamma\ndelta\n", async ({ cwd, path }) => {
+      const { getTool, handlers, ctx } = await setupBatchTools(cwd);
+      const readTool = getTool("read");
+      const editTool = getTool("replace");
+      const text = (await readTool.execute("r1", { path: "sample.txt" }, undefined, undefined, ctx)).content[0].text as string;
+      const betaRef = anchorFor(text, "beta");
+      const gammaRef = anchorFor(text, "gamma");
+
+      const firstArgs = { remove_from: betaRef, remove_to: betaRef, replacement_lines: ['["B1", "B2",]'] };
+      const secondArgs = { remove_from: gammaRef, remove_to: gammaRef, replacement_lines: ["GAMMA"] };
+      const message = assistantMessage([
+        toolCall("b1", "replace", firstArgs),
+        toolCall("b2", "replace", secondArgs),
+      ]);
+      await (handlers.get("message_end")!({ type: "message_end", message }, ctx) as Promise<unknown>);
+
+      const first = await editTool.execute("b1", firstArgs, undefined, undefined, ctx);
+      expect(first.content[0].text).toBe("In batch");
+
+      const second = await editTool.execute("b2", secondArgs, undefined, undefined, ctx);
+      expect(second.content[0].text).toContain("Unwrapped JSON array syntax");
+      expect(second.details.metrics.classification).toBe("applied");
+      expect(await readFile(path, "utf-8")).toBe("alpha\nB1\nB2\nGAMMA\ndelta\n");
+    });
+  });
+
   it("batches mixed replace and insert calls on one file", async () => {
     await withTempFile("sample.txt", "one\ntwo\nthree\n", async ({ cwd, path }) => {
       const { getTool, handlers, ctx } = await setupBatchTools(cwd);

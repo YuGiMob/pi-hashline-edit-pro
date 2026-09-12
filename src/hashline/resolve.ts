@@ -1,4 +1,4 @@
-import { abortIf, rejectUnknownFields, firstNonEmptyIndex, lastNonEmptyIndex, clipLine, getCached } from "../utils";
+import { abortIf, rejectUnknownFields, firstNonEmptyIndex, lastNonEmptyIndex, clipLine, getCached, decodeStringArray } from "../utils";
 import { parseHashRef, parseText, type Anchor } from "./parse";
 import { HASH_SEP, stripRowPrefix, canon } from "./hash";
 import { HASH_RUN } from "./alphabet";
@@ -171,7 +171,7 @@ export function stripAnchorRow(
 export function resEdit(edit: HTEdit, warnings?: string[]): HEdit {
   assertItem(edit as Record<string, unknown>);
 
-  const replaceLines = parseText(edit.replacement_lines, warnings);
+  const replaceLines = parseText(decodeStringArray(edit.replacement_lines, warnings) ?? edit.replacement_lines, warnings);
   const bounds = [edit.remove_from, edit.remove_to].map((ref) => {
     return stripAnchorRow(ref.trim(), "remove_from/remove_to entry", warnings);
   }) as [string, string];

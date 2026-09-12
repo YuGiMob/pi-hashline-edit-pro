@@ -340,6 +340,23 @@ describe("insert tool", () => {
     });
   });
 
+  it("applies stringified lines with trailing commas", async () => {
+    await withTempFile("sample.ts", "alpha\nbeta\ngamma\n", async ({ cwd, path }) => {
+      const { ctx, readTool, getTool } = setupIntegrationTest(cwd);
+      const insertTool = getTool("insert");
+      const readResult = await readTool.execute("r1", { path: "sample.ts" }, undefined, undefined, ctx);
+      const betaHash = extractHash(getText(readResult).split("\n").find((l) => l.includes("beta"))!);
+
+      const result = await insertTool.execute(
+        "i1",
+        { anchor: betaHash, direction: "after", lines: ['["beta1", "beta2",]'] },
+        undefined, undefined, ctx,
+      );
+      expect(result.content[0].text).toContain("Successfully inserted in sample.ts");
+      expect(await readFile(path, "utf-8")).toBe("alpha\nbeta\nbeta1\nbeta2\ngamma\n");
+    });
+  });
+
   it("previews expanded lines for a stringified array", async () => {
     await withTempFile("sample.ts", "alpha\nbeta\ngamma\n", async ({ cwd }) => {
       const { ctx, readTool } = setupIntegrationTest(cwd);

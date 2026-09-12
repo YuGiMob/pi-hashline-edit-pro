@@ -361,13 +361,82 @@ describe("decodeStringArray", () => {
     expect(decodeStringArray("[1, 2]")).toBeUndefined();
     expect(decodeStringArray('["ok", 7]')).toBeUndefined();
     expect(decodeStringArray("[bare]")).toBeUndefined();
-    expect(decodeStringArray('["trailing",]')).toBeUndefined();
     expect(decodeStringArray('["open"')).toBeUndefined();
     expect(decodeStringArray("   ")).toBeUndefined();
     expect(decodeStringArray(42)).toBeUndefined();
     expect(decodeStringArray(null)).toBeUndefined();
     expect(decodeStringArray(["alpha", "beta"])).toBeUndefined();
     expect(decodeStringArray([])).toBeUndefined();
+  });
+});
+
+describe("decodeStringArray leniency", () => {
+  it("decodes trailing commas", () => {
+    expect(decodeStringArray('["alpha", "beta",]')).toEqual(["alpha", "beta"]);
+    expect(decodeStringArray(['["alpha", "beta",]'])).toEqual(["alpha", "beta"]);
+    expect(decodeStringArray('["solo", ]')).toEqual(["solo"]);
+  });
+
+  it("decodes single-quoted strings", () => {
+    expect(decodeStringArray("['alpha', 'beta']")).toEqual(["alpha", "beta"]);
+    expect(decodeStringArray("['it\\'s', \"fine\"]")).toEqual(["it's", "fine"]);
+  });
+
+  it("decodes escaped quotes", () => {
+    expect(decodeStringArray('["say \\"hi\\"", "b"]')).toEqual(['say "hi"', "b"]);
+  });
+
+  it("decodes fenced JSON blocks", () => {
+    expect(decodeStringArray('```json\n["alpha", "beta"]\n```')).toEqual(["alpha", "beta"]);
+    expect(decodeStringArray('```\n["alpha"]\n```')).toEqual(["alpha"]);
+  });
+
+  it("warns when it unwraps array syntax", () => {
+    const warnings: string[] = [];
+    expect(decodeStringArray(['["alpha"]'], warnings)).toEqual(["alpha"]);
+    expect(warnings).toEqual(["[W_BAD_SHAPE] Unwrapped JSON array syntax from a replacement_lines element."]);
+  });
+
+  it("uses the provided label in warnings", () => {
+    const warnings: string[] = [];
+    decodeStringArray("['alpha']", warnings, "lines");
+    expect(warnings[0]).toContain("from a lines element");
+  });
+
+  it("warns instead of silently keeping unparseable string-array text", () => {
+    const warnings: string[] = [];
+    expect(decodeStringArray('["alpha", 7]', warnings)).toBeUndefined();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("looked like a JSON array but could not be parsed");
+    expect(warnings[0]).toContain("literal line");
+  });
+
+  it("does not warn for plain text or non-string arrays", () => {
+    const warnings: string[] = [];
+    expect(decodeStringArray("hello", warnings)).toBeUndefined();
+    expect(decodeStringArray("[1, 2]", warnings)).toBeUndefined();
+    expect(decodeStringArray("[bare]", warnings)).toBeUndefined();
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("decodes standard JSON escapes", () => {
+    expect(decodeStringArray('["a\\\\b", "a\\/b", "a\\bb", "a\\fb", "a\\rb", "a\\tb"]')).toEqual([
+      "a\\b",
+      "a/b",
+      "a\bb",
+      "a\fb",
+      "a\rb",
+      "a\tb",
+    ]);
+  });
+
+  it("rejects malformed escape and comma shapes", () => {
+    expect(decodeStringArray('["\\u12"]')).toBeUndefined();
+    expect(decodeStringArray('["\\uZZZZ"]')).toBeUndefined();
+    expect(decodeStringArray('["a\\]')).toBeUndefined();
+    expect(decodeStringArray("[  ]")).toBeUndefined();
+    expect(decodeStringArray("[,]")).toBeUndefined();
+    expect(decodeStringArray('["a", ,]')).toBeUndefined();
   });
 });
 

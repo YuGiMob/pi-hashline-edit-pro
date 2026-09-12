@@ -95,11 +95,8 @@ export async function insertPreview(request: unknown, cwd: string, signal?: Abor
     const normalized = normReq(request);
     const previewFixes: string[] = [];
     if (isRec(normalized)) {
-      const expanded = decodeStringArray(normalized.lines);
-      if (expanded) {
-        previewFixes.push('[W_BAD_SHAPE] Unwrapped JSON array syntax from a lines element.');
-        normalized.lines = expanded;
-      }
+      const expanded = decodeStringArray(normalized.lines, previewFixes, "lines");
+      if (expanded) normalized.lines = expanded;
     }
     assertInsertReq(normalized);
     const previewReq = normalized as InsertReq;
@@ -178,11 +175,8 @@ export function buildInsertToolDef(flags: EditToolFlags = DEFAULT_EDIT_FLAGS): I
       const canonical = normReq(params);
       const insertWarnings: string[] = [];
       if (isRec(canonical)) {
-        const expanded = decodeStringArray(canonical.lines);
-        if (expanded) {
-          insertWarnings.push('[W_BAD_SHAPE] Unwrapped JSON array syntax from a lines element.');
-          canonical.lines = expanded;
-        }
+        const expanded = decodeStringArray(canonical.lines, insertWarnings, "lines");
+        if (expanded) canonical.lines = expanded;
       }
       assertInsertReq(canonical);
       const req = canonical;

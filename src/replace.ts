@@ -11,7 +11,7 @@ import {
 } from "./replace-diff";
 import { readNormFile, type NormFile } from "./file-reader";
 import { editToolSchema, buildEditToolSchema, type ReqParams, assertReq, normReq } from "./payload-contract";
-import { decodeStringArray, splitLines } from "./utils";
+import { splitLines } from "./utils";
 import { loadP, loadGuide } from "./prompts";
 import { type FileIdentity } from "./fs-write";
 import { applyEdit,
@@ -118,17 +118,11 @@ function countLineChanges(
 
 export function buildReplaceHEdit(params: ReqParams): { edit: HEdit; warnings: string[] } {
   const editWarnings: string[] = [];
-  let replacementLines = params.replacement_lines;
-  const expandedReplacement = decodeStringArray(replacementLines);
-  if (expandedReplacement) {
-    editWarnings.push('[W_BAD_SHAPE] Unwrapped JSON array syntax from a replacement_lines element.');
-    replacementLines = expandedReplacement;
-  }
   const edit = resEdit(
     {
       remove_from: params.remove_from,
       remove_to: params.remove_to,
-      replacement_lines: replacementLines,
+      replacement_lines: params.replacement_lines,
     },
     editWarnings,
   );
