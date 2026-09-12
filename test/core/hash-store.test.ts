@@ -217,6 +217,14 @@ describe("hash-store - loadHashStore", () => {
       }
     });
   });
+
+  it("selects the runtime's native SQLite engine", async () => {
+    await withTempHome(async () => {
+      const store = await loadHashStore();
+      const isBun = typeof (process.versions as Record<string, string | undefined>).bun === "string";
+      expect(store.engine).toBe(isBun ? "bun:sqlite" : "node:sqlite");
+    });
+  });
 });
 
 describe("hash-store - snapshot get / upsert / delete", () => {

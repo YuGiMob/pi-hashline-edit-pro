@@ -236,6 +236,7 @@ Codes starting with `E_` are errors: nothing was written — except `File was wr
 | `[E_BOUNDARY_STRICT]` | Strict boundary dedup rejected the edit because replacement lines re-include edge lines; resend without those lines. |
 | `[E_FILE_TOO_LARGE]` | The file exceeds the 1,353,139-line hashline limit or the 100MB size limit. |
 | `[E_REGISTRY]` | The anchor registry was not initialized; a serve or edit ran outside an initialized session. |
+| `[E_STORE_UNAVAILABLE]` | No SQLite runtime could be loaded: the host exposes neither `node:sqlite` (Node 22.19+) nor `bun:sqlite`. The pi release binary's bundled Bun lacks `node:sqlite`; run pi under Node or a Bun build that ships SQLite. |
 | `[E_WRITE_HASH_ECHO]` | A `write` `content` line begins with the exact `anchor│` served for this file at the same line. The write is refused, file byte-identical; retry with bare content (remove the copied anchors). |
 | `[E_PATH_CHANGED]` | A write target changed identity after it was read; the write was refused to avoid following a swapped symlink or overwriting a replacement file. |
 | `[E_BATCH_OVERLAP]` | Batched `replace`/`insert` calls target overlapping ranges; the whole batch was refused. Retry with disjoint ranges. |

@@ -39,10 +39,81 @@ interface RawDb {
   close(): void;
   readonly isOpen: boolean;
 }
-export type SqliteEngine = "node:sqlite";
-const sqliteEngine: SqliteEngine = "node:sqlite";
-const { DatabaseSync } = await import("node:sqlite");
-const openDbFn = (path: string): RawDb => new DatabaseSync(path, { timeout: HASH_STORE_BUSY_TIMEOUT }) as unknown as RawDb;
+export type SqliteEngine = "node:sqlite" | "bun:sqlite";
+
+interface BunStatementLike {
+  get(...params: SqlParams): unknown;
+  all(...params: SqlParams): unknown[];
+  run(...params: SqlParams): unknown;
+}
+
+interface BunDbLike {
+  exec(sql: string): void;
+  prepare(sql: string): BunStatementLike;
+  close(): void;
+}
+
+function wrapBunDatabase(mod: { Database: new (path: string) => BunDbLike }): (path: string) => RawDb {
+  return (path) => {
+    const db = new mod.Database(path);
+    db.exec(`PRAGMA busy_timeout = ${HASH_STORE_BUSY_TIMEOUT}`);
+    let closed = false;
+    return {
+      exec: (sql) => db.exec(sql),
+      prepare: (sql) => {
+        const stmt = db.prepare(sql);
+        return {
+          get: (...params) => stmt.get(...params) ?? undefined,
+          all: (...params) => stmt.all(...params),
+          run: (...params) => stmt.run(...params),
+        };
+      },
+      close: () => {
+        if (!closed) {
+          closed = true;
+          db.close();
+        }
+      },
+      get isOpen() {
+        return !closed;
+      },
+    };
+  };
+}
+
+async function loadNodeEngine(): Promise<{ engine: SqliteEngine; open: (path: string) => RawDb }> {
+  const { DatabaseSync } = await import("node:sqlite");
+  return {
+    engine: "node:sqlite",
+    open: (path) => new DatabaseSync(path, { timeout: HASH_STORE_BUSY_TIMEOUT }) as unknown as RawDb,
+  };
+}
+
+async function loadBunEngine(): Promise<{ engine: SqliteEngine; open: (path: string) => RawDb }> {
+  const specifier = "bun:sqlite";
+  const mod = await import(specifier) as { Database: new (path: string) => BunDbLike };
+  return { engine: "bun:sqlite", open: wrapBunDatabase(mod) };
+}
+
+const isBunRuntime = typeof process !== "undefined" && typeof (process.versions as Record<string, string | undefined>).bun === "string";
+
+async function selectSqliteEngine(): Promise<{ engine: SqliteEngine; open: (path: string) => RawDb }> {
+  const candidates = isBunRuntime ? [loadBunEngine, loadNodeEngine] : [loadNodeEngine, loadBunEngine];
+  let lastError: unknown;
+  for (const candidate of candidates) {
+    try {
+      return await candidate();
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  const detail = lastError instanceof Error ? lastError.message : String(lastError);
+  throw new Error(`[E_STORE_UNAVAILABLE] No SQLite runtime available (node:sqlite and bun:sqlite both failed to load): ${detail}`);
+}
+
+const selectedEngine = await selectSqliteEngine();
+const sqliteEngine: SqliteEngine = selectedEngine.engine;
+const openDbFn = selectedEngine.open;
 
 interface Prepared {
   get: (...params: SqlParams) => Record<string, unknown> | undefined;
