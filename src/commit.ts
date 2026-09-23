@@ -1,15 +1,13 @@
 import { readFile } from "node:fs/promises";
 import type { PipelineResult } from "./replace";
 import { abortIf, assertByteLimit, errCode, splitLines } from "./utils";
-import { DEDUP_ANCHOR } from "./constants";
-import { HASH_SEP } from "./hashline";
 import { buildChanged, buildNoop, type RMeta, type TResult } from "./replace-response";
 import { saveUndo } from "./replace-undo";
 import { getDiffContextLines } from "./config";
 import { safeSnapId } from "./file-reader";
 import { writeAtomic } from "./fs-write";
 import { servedHashesFromDiff, serveRows } from "./served";
-import { lineHashes, type AutoFix } from "./hashline";
+import { lineHashes } from "./hashline";
 import { spanForEdit } from "./replace";
 import { restoreEndings, stripBOM, toLF } from "./normalize";
 export interface CommitMeta {
@@ -22,27 +20,6 @@ export interface CommitMeta {
   noopNoun?: string;
   prefixWarnings?: string[];
   foldedAnchorLines?: number;
-}
-
-export function boundaryDedupWarning(count: number): string {
-  const noun = count === 1 ? "1 line" : `${count} lines`;
-  const row = count === 1 ? "row" : "rows";
-  return `Boundary dedup: ${noun} not added again (see ${DEDUP_ANCHOR}${HASH_SEP} ${row}).`;
-}
-
-export function boundaryDedupNoopWarning(orders: number[], removedLines: number): string {
-  const noun = removedLines === 1 ? "1 line" : `${removedLines} lines`;
-  if (orders.length === 1) {
-    return `Boundary dedup: edit #${orders[0]!} produced no change (${noun} not added again).`;
-  }
-  return `Boundary dedup: edits ${orders.map((order) => `#${order}`).join(", ")} produced no change (${noun} not added again).`;
-}
-
-export function dedupRowsFromFixes(fixes: AutoFix[]): { removedTexts: string[]; above: string[]; below: string[] } {
-  const sorted = [...fixes].sort((a, b) => a.removedLineIndex - b.removedLineIndex);
-  const above = sorted.filter((fix) => fix.kind === "leading" || fix.kind === "last-new-before").map((fix) => fix.removedLine);
-  const below = sorted.filter((fix) => fix.kind === "trailing" || fix.kind === "first-new-after").map((fix) => fix.removedLine);
-  return { removedTexts: sorted.map((fix) => fix.removedLine), above, below };
 }
 
 export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promise<TResult> {
@@ -64,7 +41,6 @@ export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promis
           removedLines: 0,
         },
         warnings,
-        boundaryRemovedLines: pipe.boundaryRemovedLines,
       },
       meta.noopNoun,
     );
@@ -77,9 +53,6 @@ export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promis
     warnings.push(
       "Non-UTF-8 bytes were shown as U+FFFD; this edit rewrote the file as UTF-8.",
     );
-  }
-  if (pipe.boundaryRemovedLineTexts.length > 0) {
-    warnings.push(boundaryDedupWarning(pipe.boundaryRemovedLineTexts.length));
   }
 
   abortIf(signal);
@@ -154,8 +127,6 @@ export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promis
     warnings,
     snapshotId: updatedSnapshotId,
     editMeta,
-    boundaryDedupAbove: pipe.boundaryDedupAbove,
-    boundaryDedupBelow: pipe.boundaryDedupBelow,
     ...(span ? { spans: [span] } : {}),
   };
   const changed = buildChanged(successInput, meta.verb, await getDiffContextLines());

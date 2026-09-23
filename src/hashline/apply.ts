@@ -1,4 +1,4 @@
-import { abortIf, clipLine, splitLines } from "../utils";
+import { abortIf, splitLines } from "../utils";
 import {
 	valEdit,
 	stripBarePrefixes,
@@ -11,8 +11,6 @@ import {
 	type RHEdit,
 	type NEdit,
 	type HEdit,
-	type AutoFix,
-	type BDup,
 } from "./resolve";
 
 type LIdx = {
@@ -150,19 +148,9 @@ function assemble(
 export interface PlannedEdit {
   resolved: RHEdit;
   warnings: string[];
-  autoFixes?: AutoFix[];
 }
 
 
-function throwStrictBoundaryDedup(edit: HEdit, boundaryDups: BDup[], resolved: RHEdit): never {
-  const startLine = resolved.hash_bounds[0].line;
-  const endLine = resolved.hash_bounds[1].line;
-  const range = startLine === endLine ? `line ${startLine}` : `lines ${startLine}-${endLine}`;
-  const seen = new Set<number>();
-  for (const dup of boundaryDups) seen.add(dup.replacementLineIndex);
-  const removed = [...seen].sort((a, b) => a - b).map((index) => `replacement_lines line ${index + 1}: ${clipLine(edit.content_lines[index] ?? "")}`);
-  throw new Error(`[E_BOUNDARY_STRICT] Strict boundary dedup rejects this edit: ${seen.size} replacement line(s) re-include edge lines (${range}). ${removed.join("; ")}. Resend without those lines.`);
-}
 export function planEdit(
   content: string,
   edit: HEdit,
@@ -170,8 +158,6 @@ export function planEdit(
   options?: {
     filePath?: string;
     servedHashes?: ReadonlyMap<string, string>;
-    skipBoundaryDedup?: boolean;
-    strictBoundaryDedup?: boolean;
     signal?: AbortSignal;
     baseFileLines?: string[];
   },
@@ -189,7 +175,7 @@ export function planEdit(
     warnings,
   );
 
-  const { resolved: initialResolved, mismatches, boundaryDups } = valEdit(
+  const { resolved: initialResolved, mismatches } = valEdit(
     prefixFixed,
     lineIndex.fileLines,
     fileHashes,
@@ -208,51 +194,7 @@ export function planEdit(
 
   warnUnicodeEsc(prefixFixed, warnings);
 
-  if (options?.strictBoundaryDedup === true && boundaryDups.length > 0) {
-    throwStrictBoundaryDedup(prefixFixed, boundaryDups, initialResolved);
-  }
-  let resolved = initialResolved;
-  let autoFixes: AutoFix[] | undefined;
-  if (boundaryDups.length > 0 && !(options?.skipBoundaryDedup === true)) {
-    autoFixes = [];
-    const correctedEdit: HEdit = {
-      ...prefixFixed,
-      content_lines: [...prefixFixed.content_lines],
-    };
-    const seen = new Set<number>();
-    const uniqueDups: BDup[] = [];
-    for (const dup of boundaryDups) {
-      if (seen.has(dup.replacementLineIndex)) continue;
-      seen.add(dup.replacementLineIndex);
-      uniqueDups.push(dup);
-    }
-    const dupsByIndex = uniqueDups.sort(
-      (a, b) => b.replacementLineIndex - a.replacementLineIndex,
-    );
-    for (const dup of dupsByIndex) {
-      const idx = dup.replacementLineIndex;
-      if (idx < 0 || idx >= correctedEdit.content_lines.length) continue;
-      const removed = correctedEdit.content_lines.splice(idx, 1)[0];
-      autoFixes.push({ kind: dup.kind, removedLine: removed, removedLineIndex: idx });
-    }
-    const correctedResult = valEdit(
-      correctedEdit,
-      lineIndex.fileLines,
-      fileHashes,
-      warnings,
-      signal,
-    );
-    if (correctedResult.mismatches.length || !correctedResult.resolved) {
-      const feedback = fmtMismatchWithHashes(
-        correctedResult.mismatches,
-        lineIndex.fileLines,
-        fileHashes,
-        options?.filePath,
-      );
-      throw new AnchorMismatchError(feedback.text, feedback.hashes, feedback.servedMap);
-    }
-    resolved = correctedResult.resolved;
-  }
+  const resolved = initialResolved;
 
   if (options?.servedHashes) {
     abortIf(signal);
@@ -262,7 +204,6 @@ export function planEdit(
   return {
     resolved,
     warnings,
-    ...(autoFixes ? { autoFixes } : {}),
   };
 }
 export function applyEdit(
@@ -272,25 +213,21 @@ export function applyEdit(
 	precomputedHashes?: string[],
 	filePath?: string,
 	servedHashes?: ReadonlyMap<string, string>,
-	skipBoundaryDedup?: boolean,
-	strictBoundaryDedup?: boolean,
 	): {
 	content: string;
 	firstChangedLine: number | undefined;
 	lastChangedLine: number | undefined;
 	warnings?: string[];
 	noopEdit?: NEdit;
-	autoFixes?: AutoFix[];
 } {
   abortIf(signal);
   if (precomputedHashes === undefined) {
     throw new Error("[E_BAD_SHAPE] applyEdit requires the file's allocated anchors; derive them via lineHashes(content, path) first.");
   }
-  const planned = planEdit(content, edit, precomputedHashes, { filePath, servedHashes, skipBoundaryDedup, strictBoundaryDedup, signal });
+  const planned = planEdit(content, edit, precomputedHashes, { filePath, servedHashes, signal });
   const lineIndex = buildIdx(content);
   const warnings = planned.warnings;
   const resolved = planned.resolved;
-  const autoFixes = planned.autoFixes;
 	const spanResult = resToSpan(resolved, content, lineIndex);
 	if (spanResult.kind === "noop") {
 		return {
@@ -298,7 +235,6 @@ export function applyEdit(
 			firstChangedLine: undefined,
 			lastChangedLine: undefined,
 			...(warnings.length ? { warnings } : {}),
-			...(autoFixes ? { autoFixes } : {}),
 			noopEdit: { loc: spanResult.loc, currentContent: spanResult.currentContent },
 		};
 	}
@@ -312,7 +248,6 @@ export function applyEdit(
 		firstChangedLine: range?.firstChangedLine,
 		lastChangedLine: range?.lastChangedLine,
 		...(warnings.length ? { warnings } : {}),
-		...(autoFixes ? { autoFixes } : {}),
 	};
 }
 

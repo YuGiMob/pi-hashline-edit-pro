@@ -7,7 +7,7 @@ import {
   HASH_CLASS,
   changedRange,
 } from "./hashline";
-import { MAX_DIFF_INPUT_BYTES, DEDUP_ANCHOR } from "./constants";
+import { MAX_DIFF_INPUT_BYTES } from "./constants";
 import { splitLines } from "./utils";
 import {
   detectEnding,
@@ -23,8 +23,6 @@ export interface DiffSpan {
   start: number;
   end: number;
   replacementCount: number;
-  dedupAbove?: string[];
-  dedupBelow?: string[];
 }
 
 interface PlacedSpan {
@@ -32,16 +30,6 @@ interface PlacedSpan {
   oldEnd: number;
   newStart: number;
   newEnd: number;
-  dedupAbove?: string[];
-  dedupBelow?: string[];
-}
-
-export function fmtDedupRow(line: string): string {
-  const row = `${DEDUP_ANCHOR}${HASH_SEP}${line}`;
-  if (Buffer.byteLength(row, "utf-8") <= DEFAULT_MAX_BYTES) return row;
-  const size = formatSize(Buffer.byteLength(row, "utf-8"));
-  const limit = formatSize(DEFAULT_MAX_BYTES);
-  return `${DEDUP_ANCHOR}${HASH_SEP}[Row is ${size}, exceeds ${limit}; content not shown. Use read to see the full line.]`;
 }
 
 function fmtDiffLine(
@@ -168,7 +156,7 @@ function placeSpans(
     if (span.replacementCount === 0) {
       if (newEnd !== newStart - 1) return undefined;
     } else if (newEnd >= newLen) return undefined;
-    placed.push({ oldStart: span.start, oldEnd: span.end, newStart, newEnd, dedupAbove: span.dedupAbove, dedupBelow: span.dedupBelow });
+    placed.push({ oldStart: span.start, oldEnd: span.end, newStart, newEnd });
     offset += span.replacementCount - spanLen;
     removedSum += spanLen;
     addedSum += span.replacementCount;
@@ -197,7 +185,7 @@ function trimPlacedSpans(
       newEnd -= 1;
     }
     if (oldStart > oldEnd && newStart > newEnd) continue;
-    out.push({ oldStart, oldEnd, newStart, newEnd, dedupAbove: span.dedupAbove, dedupBelow: span.dedupBelow });
+    out.push({ oldStart, oldEnd, newStart, newEnd });
   }
   return out;
 }
@@ -212,7 +200,6 @@ function createRowEmitter(
   readonly truncated: boolean;
   emitPlain(line: string, num?: number): void;
   emitRow(prefix: " " | "+" | "-", line: string, hash: string | undefined, num?: number): void;
-  emitDedup(line: string): boolean;
 } {
   let outBytes = 0;
   let stopped = false;
@@ -247,26 +234,11 @@ function createRowEmitter(
     output.push(full);
     lineNumbers.push(num);
   };
-  const emitDedup = (line: string): boolean => {
-    if (stopped) return false;
-    const row = fmtDedupRow(line);
-    const rowBytes = Buffer.byteLength(row, "utf-8") + 1;
-    if (outBytes + rowBytes > maxBytes) {
-      stopped = true;
-      truncated = true;
-      return false;
-    }
-    outBytes += rowBytes;
-    output.push(row);
-    lineNumbers.push(undefined);
-    return true;
-  };
   return {
     get stopped() { return stopped; },
     get truncated() { return truncated; },
     emitPlain,
     emitRow,
-    emitDedup,
   };
 }
 
@@ -279,7 +251,7 @@ function genSpanDiff(
   maxLineBytes: number,
   maxBytes: number,
   spans: DiffSpan[],
-): { diff: string; firstChangedLine: number | undefined; lineNumbers: (number | undefined)[]; dedupEmitted: boolean } | undefined {
+): { diff: string; firstChangedLine: number | undefined; lineNumbers: (number | undefined)[] } | undefined {
   const oldLines = splitLines(oldContent);
   const newLines = splitLines(newContent);
   if (oldHashes.length !== oldLines.length || newHashes.length !== newLines.length) return undefined;
@@ -301,7 +273,6 @@ function genSpanDiff(
     return undefined;
   }
   const output: string[] = [];
-  let dedupEmitted = false;
   const lineNumbers: (number | undefined)[] = [];
   let firstChangedLine: number | undefined;
   const em = createRowEmitter(output, lineNumbers, maxLineBytes, maxBytes);
@@ -360,19 +331,11 @@ function genSpanDiff(
     emitGap(newPos, gapLen, spanIdx === 0 ? "leading" : "middle");
     if (em.stopped) break;
     if (firstChangedLine === undefined) firstChangedLine = span.newStart + 1;
-    for (const dedup of span.dedupAbove ?? []) {
-      if (em.stopped) break;
-      if (em.emitDedup(dedup)) dedupEmitted = true;
-    }
     for (let oldIdx = span.oldStart; oldIdx <= span.oldEnd && !em.stopped; oldIdx++) {
       em.emitRow("-", oldLines[oldIdx]!, oldHashes[oldIdx], oldIdx + 1);
     }
     for (let newIdx = span.newStart; newIdx <= span.newEnd && !em.stopped; newIdx++) {
       em.emitRow("+", newLines[newIdx]!, newHashes[newIdx], newIdx + 1);
-    }
-    for (const dedup of span.dedupBelow ?? []) {
-      if (em.stopped) break;
-      if (em.emitDedup(dedup)) dedupEmitted = true;
     }
     oldPos = span.oldEnd + 1;
     newPos = span.newEnd + 1;
@@ -387,7 +350,7 @@ function genSpanDiff(
     output.push(`[diff truncated at ${formatSize(maxBytes)}; use read to see the rest.]`);
     lineNumbers.push(undefined);
   }
-  return { diff: output.join("\n"), firstChangedLine, lineNumbers, dedupEmitted };
+  return { diff: output.join("\n"), firstChangedLine, lineNumbers };
 }
 
 function overDiffInputLimit(oldContent: string, newContent: string): boolean {
@@ -402,14 +365,14 @@ export function genDiff(
   oldContentHashes?: string[],
   limits?: DiffLimits,
   spans?: DiffSpan[],
-): { diff: string; firstChangedLine: number | undefined; lineNumbers: (number|undefined)[]; spanDedupEmitted?: boolean } {
+): { diff: string; firstChangedLine: number | undefined; lineNumbers: (number|undefined)[] } {
   const maxLineBytes = limits?.unlimited ? Number.POSITIVE_INFINITY : (limits?.maxLineBytes ?? DEFAULT_MAX_BYTES);
   const maxBytes = limits?.unlimited ? Number.POSITIVE_INFINITY : (limits?.maxBytes ?? DEFAULT_MAX_BYTES);
   if (spans && newContentHashes && oldContentHashes) {
     const anchored = genSpanDiff(oldContent, newContent, contextLines, newContentHashes, oldContentHashes, maxLineBytes, maxBytes, spans);
     if (anchored) {
       const diff = disambiguateDuplicateAnchors(anchored.diff);
-      return { diff, firstChangedLine: anchored.firstChangedLine, lineNumbers: anchored.lineNumbers, ...(anchored.dedupEmitted ? { spanDedupEmitted: true as const } : {}) };
+      return { diff, firstChangedLine: anchored.firstChangedLine, lineNumbers: anchored.lineNumbers };
     }
   }
   if (!limits?.unlimited && overDiffInputLimit(oldContent, newContent)) {

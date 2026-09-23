@@ -3,7 +3,6 @@ import { keyHint, type Theme } from "@earendil-works/pi-coding-agent";
 import type { ReplaceDetails } from "./replace";
 import { abortedBatchMessageFor } from "./batch";
 import { withLineNumbers } from "./utils";
-import { isDedupRow } from "./replace-response";
 import { getPreviewInput } from "./payload-contract";
 export { getPreviewInput };
 
@@ -28,7 +27,6 @@ type DiffRowKind = "added" | "removed" | "context";
 
 function diffRowKind(line: string): DiffRowKind {
 	const withoutGutter = line.replace(/^\s*\d+\s+│\s*/, "");
-	if (isDedupRow(withoutGutter) || isDedupRow(withoutGutter.replace(/^\s*│\s*/, ""))) return "removed";
 	if (withoutGutter.startsWith("+") && !withoutGutter.startsWith("+++")) return "added";
 	if (withoutGutter.startsWith("-") && !withoutGutter.startsWith("---")) return "removed";
 	return "context";

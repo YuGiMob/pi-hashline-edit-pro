@@ -3,7 +3,6 @@ import { dirname } from "node:path";
 import { configPath } from "./paths";
 import { errCode, isRec } from "./utils";
 import { writeAtomic } from "./fs-write";
-export type BoundaryDedupMode = "on" | "off" | "strict";
 export type AutoReadAllMode = "off" | "on" | "git";
 const AUTO_READ_ALL_MODES: AutoReadAllMode[] = ["off", "on", "git"];
 
@@ -18,7 +17,6 @@ export interface Config {
   autoReadAllIgnore?: string[];
   requirePath?: boolean;
   strictInput?: boolean;
-  boundaryDedupMode?: BoundaryDedupMode;
   diffContextLines?: number;
 }
 
@@ -29,18 +27,8 @@ const DEFAULT_CONFIG: Config = {
   autoReadAllIgnore: [],
   requirePath: false,
   strictInput: false,
-  boundaryDedupMode: "off",
   diffContextLines: DEFAULT_DIFF_CONTEXT_LINES
 };
-
-const BOUNDARY_DEDUP_MODES: BoundaryDedupMode[] = ["on", "strict", "off"];
-
-function parseBoundaryDedupMode(mode: unknown, legacy: unknown): BoundaryDedupMode {
-  if (mode === "on" || mode === "strict" || mode === "off") return mode;
-  if (legacy === true) return "on";
-  if (legacy === false) return "off";
-  return DEFAULT_CONFIG.boundaryDedupMode ?? "off";
-}
 
 function parseAutoReadAllMode(value: unknown): AutoReadAllMode {
   if (value === "off" || value === "on" || value === "git") return value;
@@ -87,8 +75,6 @@ function parseConfig(content: string): Config {
   const autoReadAll = parsed.autoReadAll;
   const requirePath = parsed.requirePath;
   const strictInput = parsed.strictInput;
-  const boundaryDedupMode = parsed.boundaryDedupMode;
-  const legacyBoundaryDedup = parsed.boundaryDedupEnabled;
   const diffContextLines = parsed.diffContextLines;
   const autoReadAllIgnore = parsed.autoReadAllIgnore;
   return {
@@ -97,7 +83,6 @@ function parseConfig(content: string): Config {
     autoReadAll: parseAutoReadAllMode(autoReadAll),
     requirePath: typeof requirePath === "boolean" ? requirePath : DEFAULT_CONFIG.requirePath,
     strictInput: typeof strictInput === "boolean" ? strictInput : DEFAULT_CONFIG.strictInput,
-    boundaryDedupMode: parseBoundaryDedupMode(boundaryDedupMode, legacyBoundaryDedup),
     diffContextLines: normalizeDiffContextLines(diffContextLines),
     autoReadAllIgnore: parseAutoReadAllIgnore(autoReadAllIgnore),
   };
@@ -226,15 +211,6 @@ export async function cycleAutoReadAllMode(): Promise<AutoReadAllMode> {
 }
 export const toggleRequirePath = (): Promise<boolean> => toggleFlag("requirePath");
 export const toggleStrictInput = (): Promise<boolean> => toggleFlag("strictInput");
-export async function cycleBoundaryDedupMode(): Promise<BoundaryDedupMode> {
-  let next: BoundaryDedupMode = "off";
-  await updateConfig((c) => {
-    const current = c.boundaryDedupMode ?? "off";
-    next = BOUNDARY_DEDUP_MODES[(BOUNDARY_DEDUP_MODES.indexOf(current) + 1) % BOUNDARY_DEDUP_MODES.length] ?? "off";
-    c.boundaryDedupMode = next;
-  });
-  return next;
-}
 export async function getDiffContextLines(): Promise<number> {
   return normalizeDiffContextLines((await readConfig()).diffContextLines);
 }

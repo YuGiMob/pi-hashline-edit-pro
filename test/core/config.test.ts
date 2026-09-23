@@ -5,7 +5,6 @@ import {
   toggleAnchorGrep,
   toggleRequirePath,
   toggleStrictInput,
-  cycleBoundaryDedupMode,
   adjustDiffContextLines,
   readConfig,
   readConfigWithStatus,
@@ -145,44 +144,6 @@ describe("config - toggleStrictInput", () => {
       await writeConfig({ autoRead: true, anchorGrepEnabled: true, strictInput: true });
       expect(await toggleStrictInput()).toBe(false);
       expect((await readConfig()).strictInput).toBe(false);
-    });
-  });
-});
-
-describe("config - cycleBoundaryDedupMode", () => {
-  it("cycles off to on", async () => {
-    await withTempDir("pi-hashline-config-test-", async () => {
-      expect((await readConfig()).boundaryDedupMode).toBe("off");
-      expect(await cycleBoundaryDedupMode()).toBe("on");
-      expect((await readConfig()).boundaryDedupMode).toBe("on");
-    });
-  });
-
-  it("cycles strict to off to on", async () => {
-    await withTempDir("pi-hashline-config-test-", async () => {
-      await writeConfig({ autoRead: true, anchorGrepEnabled: true, boundaryDedupMode: "strict" });
-      expect(await cycleBoundaryDedupMode()).toBe("off");
-      expect(await cycleBoundaryDedupMode()).toBe("on");
-      expect((await readConfig()).boundaryDedupMode).toBe("on");
-    });
-  });
-
-  it("migrates legacy boolean config values", async () => {
-    await withTempDir("pi-hashline-config-test-", async (dir) => {
-      const { writeFile, mkdir } = await import("fs/promises");
-      const { join: pathJoin } = await import("path");
-      const configDir = pathJoin(dir, ".config", "pi-hashline-edit-pro");
-      await mkdir(configDir, { recursive: true });
-      await writeFile(
-        pathJoin(configDir, "config.json"),
-        JSON.stringify({ autoRead: true, boundaryDedupEnabled: false }),
-      );
-      expect((await readConfig()).boundaryDedupMode).toBe("off");
-      await writeFile(
-        pathJoin(configDir, "config.json"),
-        JSON.stringify({ autoRead: true, boundaryDedupEnabled: true }),
-      );
-      expect((await readConfig()).boundaryDedupMode).toBe("on");
     });
   });
 });

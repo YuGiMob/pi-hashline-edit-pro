@@ -4,7 +4,6 @@ import { lineHashes } from "../../src/hashline";
 import { applyEdit, fmtRegion } from "../../src/hashline";
 import { valEdit, resEdit, resolveAnchorLine } from "../../src/hashline/resolve";
 import { mkMdTheme, renderEditResult } from "../../src/replace-render";
-import { fmtDedupRow, withDedupRows, isDedupRow, isChangeRow } from "../../src/replace-response";
 import { assertReq, assertInsertReq, getPreviewInput } from "../../src/payload-contract";
 import { decodeStringArray, cntDiff } from "../../src/utils";
 import { parseHashList } from "../../src/hash-store/validation";
@@ -69,55 +68,6 @@ describe("gap mkMdTheme", () => {
     clearTimeout(timer);
     expect(context.state.previewTimer).toBeUndefined();
     expect(context.state.previewAbort).toBeUndefined();
-  });
-});
-
-describe("gap dedup rows", () => {
-  it("truncates oversized dedup rows", () => {
-    const big = "x".repeat(60000);
-    const row = fmtDedupRow(big);
-    expect(row).toContain("exceeds");
-    expect(isDedupRow(row)).toBe(true);
-    expect(isDedupRow("plain")).toBe(false);
-    expect(isChangeRow("+a")).toBe(true);
-    expect(isChangeRow("-a")).toBe(true);
-    expect(isChangeRow(" a")).toBe(false);
-  });
-  it("handles empty diff with dedup rows", () => {
-    const out = withDedupRows("", [undefined], ["a"], ["b"]);
-    expect(out.diff).toContain("a");
-    expect(out.diff).toContain("b");
-  });
-  it("appends dedup rows when diff has no change rows", () => {
-    const out = withDedupRows(" context", [1], ["a"], ["b"]);
-    expect(out.diff).toContain("a");
-    expect(out.diff).toContain("context");
-  });
-  it("caps dedup rows at the byte budget and reports the omissions", () => {
-    const above = Array.from({ length: 400 }, () => "x".repeat(200));
-    const below = Array.from({ length: 400 }, () => "y".repeat(200));
-    const diff = " aaa\n-   │bbb\n+XYZ│BBB\n ccc";
-    const out = withDedupRows(diff, [1, undefined, 2, 3], above, below);
-    expect(Buffer.byteLength(out.diff, "utf-8")).toBeLessThanOrEqual(50 * 1024);
-    expect(out.diff).toContain("not shown again");
-    expect(out.lineNumbers).toHaveLength(out.diff.split("\n").length);
-    const dedupRows = out.diff.split("\n").filter((row) => row.startsWith("dedup│") && !row.includes("not shown again"));
-    expect(dedupRows.length).toBeGreaterThan(0);
-    expect(dedupRows.length).toBeLessThan(400);
-  });
-  it("reserves the omission note before capping dedup rows", () => {
-    const rows = Array.from({ length: 300 }, () => "z".repeat(190));
-    const out = withDedupRows("+a\n-b", [1, 2], rows, []);
-    expect(out.diff).toContain("not shown again");
-    expect(Buffer.byteLength(out.diff, "utf-8")).toBeLessThanOrEqual(50 * 1024);
-    expect(out.diff.split("\n")).toHaveLength(out.lineNumbers.length);
-  });
-  it("honors an explicit byte budget and keeps the note inside it", () => {
-    const rows = Array.from({ length: 100 }, () => "z".repeat(50));
-    const out = withDedupRows("+a\n-b", [1, 2], rows, [], 400);
-    expect(out.diff).toContain("not shown again");
-    expect(Buffer.byteLength(out.diff, "utf-8")).toBeLessThanOrEqual(400);
-    expect(out.diff.split("\n")).toHaveLength(out.lineNumbers.length);
   });
 });
 
@@ -278,10 +228,6 @@ describe("gap commit guards", () => {
         resultHashes: ["arvm"],
         totalAddedLines: 1,
         totalRemovedLines: 1,
-        boundaryRemovedLines: 0,
-        boundaryRemovedLineTexts: [],
-        boundaryDedupAbove: [],
-        boundaryDedupBelow: [],
         identity: { dev: 1, ino: 1 },
       };
       await expect(commitEdit(pipe as never, { path: "missing.txt", absolutePath: missing, mutationTargetPath: missing } as never)).rejects.toThrow("[E_OP_ABORTED]");
@@ -303,10 +249,6 @@ describe("gap commit guards", () => {
         resultHashes: ["arvm"],
         totalAddedLines: 1,
         totalRemovedLines: 1,
-        boundaryRemovedLines: 0,
-        boundaryRemovedLineTexts: [],
-        boundaryDedupAbove: [],
-        boundaryDedupBelow: [],
         identity: { dev: 1, ino: 1 },
       };
       await expect(commitEdit(pipe as never, { path: "f.txt", absolutePath: target, mutationTargetPath: target } as never)).rejects.toThrow("[E_OP_ABORTED]");

@@ -58,28 +58,6 @@ describe("buildNoop", () => {
     expect(result.content[0].text).not.toContain("old\n".repeat(300));
     expect(result.content[0].text).toContain("...");
   });
-  it("notes boundary dedup removals in the noop message", () => {
-    const result = buildNoop({
-      path: "test.txt",
-      noopEdit: { loc: "ABC", currentContent: "old" },
-      snapshotId: "snap1",
-      editMeta: { editsAttempted: 1, noopEditsCount: 1, addedLines: 0, removedLines: 0 },
-      warnings: undefined,
-      boundaryRemovedLines: 1,
-    });
-    expect(result.content[0].text).toContain("Boundary dedup removed 1 line(s) that duplicated adjacent lines.");
-    expect(result.content[0].text).not.toContain("resend");
-  });
-  it("omits the dedup note when nothing was removed", () => {
-    const result = buildNoop({
-      path: "test.txt",
-      noopEdit: { loc: "ABC", currentContent: "old" },
-      snapshotId: "snap1",
-      editMeta: { editsAttempted: 1, noopEditsCount: 1, addedLines: 0, removedLines: 0 },
-      warnings: undefined,
-    });
-    expect(result.content[0].text).not.toContain("Boundary dedup removed");
-  });
 });
 
 describe("buildChanged", () => {
@@ -140,12 +118,12 @@ describe("buildChanged", () => {
       originalHashes,
       result,
       resultHashes,
-      warnings: ["Boundary duplication (leading)"],
+      warnings: ["Example warning (leading)"],
       snapshotId: "snap1",
       editMeta: { editsAttempted: 1, noopEditsCount: 0, firstChangedLine: 2, lastChangedLine: 2, addedLines: 1, removedLines: 1 },
     });
     expect(output.content[0].text).toContain("Warnings:");
-    expect(output.content[0].text).toContain("Boundary duplication (leading)");
+    expect(output.content[0].text).toContain("Example warning (leading)");
   });
 
   it("shows empty file message when result is empty", async () => {

@@ -3,7 +3,7 @@ import { resolveInCwd } from "./fs-write";
 import { abortIf, makePrepareArguments } from "./utils";
 import { ownerOf } from "./anchor-registry";
 import { parseHashRef, stripAnchorRow } from "./hashline";
-import { readConfig, type BoundaryDedupMode } from "./config";
+import { readConfig } from "./config";
 import { makeRenderCall, renderEditResult, type RPreview, type FgT } from "./replace-render";
 import type { ReplaceDetails } from "./replace";
 export const editPrepare = makePrepareArguments();
@@ -11,7 +11,6 @@ export const editPrepare = makePrepareArguments();
 export interface EditToolFlags {
   requirePath: boolean;
   strictInput: boolean;
-  boundaryDedupMode: BoundaryDedupMode;
   autoRead: boolean;
   autoReadAllActive: boolean;
 }
@@ -19,7 +18,6 @@ export interface EditToolFlags {
 export const DEFAULT_EDIT_FLAGS: EditToolFlags = {
   requirePath: false,
   strictInput: false,
-  boundaryDedupMode: "off",
   autoRead: true,
   autoReadAllActive: false
 };
@@ -29,7 +27,6 @@ export async function currentEditFlags(): Promise<EditToolFlags> {
   return {
     requirePath: config.requirePath === true,
     strictInput: config.strictInput === true,
-    boundaryDedupMode: config.boundaryDedupMode ?? "off",
     autoRead: config.autoRead !== false,
     autoReadAllActive: (config.autoReadAll ?? "off") !== "off"
   };
@@ -56,16 +53,6 @@ export function withReplacePrompts(base: { description: string; snippet: string;
   if (flags.strictInput) {
     descriptionParts.push("Strict-input mode is on: auto-fixable slips are rejected instead of fixed with warnings.");
     guidelines.push("`replace`: strict-input is on: auto-fixable slips are rejected instead of fixed.");
-  }
-  if (flags.boundaryDedupMode !== "on") {
-    guidelines = guidelines.filter((guideline) => !guideline.includes("deduplicated automatically"));
-  }
-  if (flags.boundaryDedupMode === "off") {
-    descriptionParts.push("Boundary dedup is off: edits apply literally.");
-    guidelines.push("`replace`: boundary dedup is off: edits apply literally.");
-  } else if (flags.boundaryDedupMode === "strict") {
-    descriptionParts.push("Boundary dedup is strict: edits that re-include edge lines are rejected instead of stripped.");
-    guidelines.push("`replace`: boundary dedup is strict: edits that re-include edge lines are rejected instead of stripped.");
   }
   return { description: descriptionParts.join(" "), snippet: snippetParts.join(""), guidelines };
 }
@@ -170,10 +157,6 @@ export async function throwIfStrictInput(warnings: string[]): Promise<void> {
   if (strictInput === true) {
     throw new Error(`[E_BAD_SHAPE] Strict-input mode rejects auto-fixable input:\n${fixes.join("\n")}`);
   }
-}
-
-export async function getBoundaryDedupMode(): Promise<BoundaryDedupMode> {
-  return (await readConfig()).boundaryDedupMode ?? "off";
 }
 
 export function editRenderCallWrapper(

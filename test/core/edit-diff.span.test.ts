@@ -91,46 +91,4 @@ describe("genDiff with true spans", () => {
       { start: 4, end: 3, replacementCount: 1 },
     ]);
   });
-  it("caps inline dedup rows at the byte budget", () => {
-    const repeat = "y".repeat(200);
-    const oldLines = ["TARGET", ...Array.from({ length: 1000 }, () => repeat)];
-    const newLines = ["NEW", ...Array.from({ length: 1000 }, () => repeat)];
-    const oldHashes = oldLines.map((_, index) => `A${String(index).padStart(3, "0")}`);
-    const newHashes = newLines.map((_, index) => `Z${String(index).padStart(3, "0")}`);
-    const spans = [{ start: 0, end: 0, replacementCount: 1, dedupBelow: Array.from({ length: 1000 }, () => repeat) }];
-    const result = genDiff(oldLines.join("\n") + "\n", newLines.join("\n") + "\n", 1, newHashes, oldHashes, undefined, spans);
-    expect(result.spanDedupEmitted).toBe(true);
-    expect(Buffer.byteLength(result.diff, "utf-8")).toBeLessThanOrEqual(50 * 1024 + 256);
-    expect(result.diff).toContain("diff truncated at");
-    const dedupRows = result.diff.split("\n").filter((row) => row.startsWith("dedup│"));
-    expect(dedupRows.length).toBeGreaterThan(0);
-    expect(dedupRows.length).toBeLessThan(1000);
-    expect(result.diff.split("\n")).toHaveLength(result.lineNumbers.length);
-  });
-  it("caps inline dedupAbove rows at the byte budget", () => {
-    const repeat = "y".repeat(200);
-    const oldLines = ["TARGET", ...Array.from({ length: 1000 }, () => repeat)];
-    const newLines = ["NEW", ...Array.from({ length: 1000 }, () => repeat)];
-    const oldHashes = oldLines.map((_, index) => `A${String(index).padStart(3, "0")}`);
-    const newHashes = newLines.map((_, index) => `Z${String(index).padStart(3, "0")}`);
-    const spans = [{ start: 0, end: 0, replacementCount: 1, dedupAbove: Array.from({ length: 1000 }, () => repeat) }];
-    const result = genDiff(oldLines.join("\n") + "\n", newLines.join("\n") + "\n", 1, newHashes, oldHashes, undefined, spans);
-    expect(result.spanDedupEmitted).toBe(true);
-    expect(Buffer.byteLength(result.diff, "utf-8")).toBeLessThanOrEqual(50 * 1024 + 256);
-    expect(result.diff).toContain("diff truncated at");
-    expect(result.diff.split("\n")).toHaveLength(result.lineNumbers.length);
-  });
-  it("leaves spanDedupEmitted unset when the byte budget rejects the first dedup row", () => {
-    const fill = "c".repeat(150);
-    const oldLines = [fill, fill, fill, "TARGET", fill];
-    const newLines = [fill, fill, fill, "NEW", fill];
-    const oldHashes = oldLines.map((_, index) => `A${String(index).padStart(3, "0")}`);
-    const newHashes = newLines.map((_, index) => `Z${String(index).padStart(3, "0")}`);
-    const spans = [{ start: 3, end: 3, replacementCount: 1, dedupAbove: ["x".repeat(700)] }];
-    const result = genDiff(oldLines.join("\n") + "\n", newLines.join("\n") + "\n", 3, newHashes, oldHashes, { maxBytes: 1000 }, spans);
-    expect(result.spanDedupEmitted).toBeUndefined();
-    expect(result.diff.split("\n").some((row) => row.startsWith("dedup│"))).toBe(false);
-    expect(result.diff).toContain("diff truncated at");
-    expect(result.diff.split("\n")).toHaveLength(result.lineNumbers.length);
-  });
 });

@@ -1,6 +1,6 @@
-import { abortIf, rejectUnknownFields, firstNonEmptyIndex, lastNonEmptyIndex, clipLine, getCached, decodeStringArray, assertNoNul } from "../utils";
+import { abortIf, rejectUnknownFields, clipLine, decodeStringArray, assertNoNul } from "../utils";
 import { parseHashRef, parseText, type Anchor } from "./parse";
-import { HASH_SEP, stripRowPrefix, canon, lineChecksum, type RowPrefixKind } from "./hash";
+import { HASH_SEP, stripRowPrefix, lineChecksum, type RowPrefixKind } from "./hash";
 import { HASH_RUN } from "./alphabet";
 import { NEW_CONTENT_NOT_ARRAY_MSG, MAX_RANGE_STALE_LINES } from "../constants";
 
@@ -19,17 +19,6 @@ interface HMismatch {
 	ref: Anchor;
 	kind: "not_found";
 	context?: RAnchor;
-}
-
-export interface BDup {
-	kind: "trailing" | "leading" | "first-new-after" | "last-new-before";
-	replacementLineIndex: number;
-}
-
-export interface AutoFix {
-	kind: "trailing" | "leading" | "first-new-after" | "last-new-before";
-	removedLine: string;
-	removedLineIndex: number;
 }
 
 export interface NEdit {
@@ -240,147 +229,15 @@ export function swapReversedRanges(
 	return { ...edit, hash_bounds: [endRef, startRef] as [Anchor, Anchor] };
 }
 
-function trailingDups(
-	contentLines: string[],
-	fileLines: string[],
-	endLine: number,
-): BDup[] {
-	const start = lastNonEmptyIndex(contentLines);
-	if (start < 0) return [];
-	const dups: BDup[] = [];
-	const maxK = Math.min(start + 1, fileLines.length - endLine);
-	for (let k = 0; k < maxK; k++) {
-		if (contentLines[start - k] !== fileLines[endLine + k]) break;
-		dups.push({ kind: "trailing", replacementLineIndex: start - k });
-	}
-	return dups;
-}
-
-function leadingDups(
-	contentLines: string[],
-	fileLines: string[],
-	startLine: number,
-): BDup[] {
-	const start = firstNonEmptyIndex(contentLines);
-	if (start < 0) return [];
-	const dups: BDup[] = [];
-	const maxK = Math.min(contentLines.length - start, startLine - 1);
-	for (let k = 0; k < maxK; k++) {
-		if (contentLines[start + k] !== fileLines[startLine - 2 - k]) break;
-		dups.push({ kind: "leading", replacementLineIndex: start + k });
-	}
-	return dups;
-}
-
-function sectionIsUnique(
-	canonLines: string[],
-	start: number,
-	length: number,
-): boolean {
-	let count = 0;
-	for (let i = 0; i + length <= canonLines.length; i++) {
-		let k = 0;
-		while (k < length && canonLines[i + k] === canonLines[start + k]) k++;
-		if (k < length) continue;
-		count++;
-		if (count > 1) return false;
-	}
-	return true;
-}
-
-function firstNewAfterDups(
-	contentLines: string[],
-	rangeLines: string[],
-	canonLines: string[],
-	endLine: number,
-): BDup[] {
-	const firstNew = findNewEdge(contentLines, rangeLines, false);
-	if (!firstNew) return [];
-	const maxK = Math.min(contentLines.length - firstNew.index, canonLines.length - endLine);
-	let runLen = 0;
-	while (
-		runLen < maxK &&
-		canonLines[endLine + runLen]!.length > 0 &&
-		canon(contentLines[firstNew.index + runLen]!) === canonLines[endLine + runLen]!
-	) {
-		runLen++;
-	}
-	if (runLen === 0 || !sectionIsUnique(canonLines, endLine, runLen)) return [];
-	const dups: BDup[] = [];
-	for (let k = 0; k < runLen; k++) {
-		dups.push({ kind: "first-new-after", replacementLineIndex: firstNew.index + k });
-	}
-	return dups;
-}
-
-function lastNewBeforeDups(
-	contentLines: string[],
-	rangeLines: string[],
-	canonLines: string[],
-	startLine: number,
-): BDup[] {
-	const lastNew = findNewEdge(contentLines, rangeLines, true);
-	if (!lastNew) return [];
-	const maxK = Math.min(lastNew.index + 1, startLine - 1);
-	let runLen = 0;
-	while (
-		runLen < maxK &&
-		canonLines[startLine - 2 - runLen]!.length > 0 &&
-		canon(contentLines[lastNew.index - runLen]!) === canonLines[startLine - 2 - runLen]!
-	) {
-		runLen++;
-	}
-	if (runLen === 0) return [];
-	const sectionStart = startLine - 1 - runLen;
-	if (!sectionIsUnique(canonLines, sectionStart, runLen)) return [];
-	const dups: BDup[] = [];
-	for (let k = 0; k < runLen; k++) {
-		dups.push({ kind: "last-new-before", replacementLineIndex: lastNew.index - k });
-	}
-	return dups;
-}
-
-function canonCounts(lines: string[]): Map<string, number> {
-	const counts = new Map<string, number>();
-	for (const line of lines) {
-		const key = canon(line);
-		counts.set(key, (counts.get(key) ?? 0) + 1);
-	}
-	return counts;
-}
-
-export function findNewEdge(
-	contentLines: string[],
-	rangeLines: string[],
-	fromEnd: boolean,
-): { index: number; line: string } | undefined {
-	const multiset = canonCounts(rangeLines);
-	const step = fromEnd ? -1 : 1;
-	const start = fromEnd ? contentLines.length - 1 : 0;
-	for (let i = start; i >= 0 && i < contentLines.length; i += step) {
-		const line = contentLines[i]!;
-		const key = canon(line);
-		if (key.length === 0) continue;
-		const count = multiset.get(key) ?? 0;
-		if (count > 0) {
-			multiset.set(key, count - 1);
-		} else {
-			return { index: i, line };
-		}
-	}
-	return undefined;
-}
-
 export function valEdit(
 	edit: HEdit,
 	fileLines: string[],
 	fileHashes: string[],
 	warnings: string[],
 	signal: AbortSignal | undefined,
-): { resolved: RHEdit | undefined; mismatches: HMismatch[]; boundaryDups: BDup[] } {
+): { resolved: RHEdit | undefined; mismatches: HMismatch[] } {
 	assertAligned(fileLines, fileHashes, "valEdit");
 	const mismatches: HMismatch[] = [];
-	const boundaryDups: BDup[] = [];
 
 	const hashIndex = new Map<string, number[]>();
 	for (let i = 0; i < fileHashes.length; i++) {
@@ -410,26 +267,14 @@ export function valEdit(
 			const endMismatch = mismatches.findLast((m) => m.ref === edit.hash_bounds[1]);
 			if (endMismatch && endMismatch.kind === "not_found") endMismatch.context = startResolved;
 		}
-		return { resolved: undefined, mismatches, boundaryDups };
+		return { resolved: undefined, mismatches };
 	}
-	const endLine = endResolved.line;
-	const rangeLines = fileLines.slice(startResolved.line - 1, endLine);
-	const canonCache = new Map<string, string>();
-	const canonLines = fileLines.map((line) => getCached(canonCache, line, canon));
-	boundaryDups.push(
-		...trailingDups(edit.content_lines, fileLines, endLine),
-		...leadingDups(edit.content_lines, fileLines, startResolved.line),
-		...firstNewAfterDups(edit.content_lines, rangeLines, canonLines, endLine),
-		...lastNewBeforeDups(edit.content_lines, rangeLines, canonLines, startResolved.line),
-	);
-
 	return {
 		resolved: {
 			content_lines: edit.content_lines,
 			hash_bounds: [startResolved, endResolved],
 		},
 		mismatches,
-		boundaryDups,
 	};
 }
 

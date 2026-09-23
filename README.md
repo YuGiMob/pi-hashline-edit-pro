@@ -89,16 +89,16 @@ Single line: use the same anchor for `remove_from` and `remove_to`. `replace_fro
 
 The request is checked before any file I/O, so a bad request never touches the file.
 
-Common copy-paste slips are fixed automatically: a leftover `anchor│` prefix in `replacement_lines` or the anchor fields (a prefix of 4 to 5 letters before `│`, for example `abde│`), diff-preview rows pasted into the replacement, and a boundary line pasted twice are reported as warnings, while a reversed range, stringified array text (even with a trailing JS method call, for example `[…].map(s => s)`), and embedded newlines are corrected silently. With Boundary dedup `on`, new lines that re-include a block adjacent to the range are stripped when that block is unique in the file, and the whole run is stripped as one unit, so re-including an unchanged block next to the range never duplicates it. Boundary dedup has three modes in `/hashline-config` and is `off` by default: `on` strips with a warning, `strict` rejects the edit with `[E_BOUNDARY_STRICT]` when any replacement line would be stripped, and `off` applies edits literally.
+Common copy-paste slips are fixed automatically: a leftover `anchor│` prefix in `replacement_lines` or the anchor fields (a prefix of 4 to 5 letters before `│`, for example `abde│`), and diff-preview rows pasted into the replacement are reported as warnings, while a reversed range, stringified array text (even with a trailing JS method call, for example `[…].map(s => s)`), and embedded newlines are corrected silently.
 Content containing a NUL byte (`U+0000`) is rejected with `[E_BAD_SHAPE]` before any file I/O: writing it would make the file binary, so use an empty replacement to delete. This applies to `replace`'s `replacement_lines` and `insert`'s `lines`.
 
 Every line in the removed range must match what was last shown to you. The extension records the `anchor│content` rows it serves (`read` output, `anchor_grep` output, the auto-read block after `write`, the `+anchor│` and ` anchor│` rows of post-edit diffs, the current-range rows of `[E_RANGE_STALE]` feedback, and the context rows of stale-anchor feedback) and verifies the whole range against that record before writing. A line that changed on disk since it was shown, or an anchor that is not owned in this session, refuses the edit with `[E_RANGE_STALE]` or `[E_STALE_ANCHOR]` and returns the current range with fresh anchors, so the retry needs no `read`. An owned anchor enters the served record when its row is shown (after a restart, restored ownership counts as shown), so a file with no owned anchors cannot be edited by anchor at all; call `read` first. An owned line that was never shown — for example beyond an auto-read preview's truncation cap — is refused with `[E_RANGE_STALE]` and returns the current range, so the retry still needs no `read`.
 
-An edit that produces identical content reports `No changes made` and leaves the anchors alone. When a noop happened because the boundary anti-duplication cut a line from the replacement, the result states how many lines were removed; sending the same replacement again goes through the same dedup. To apply such lines literally, turn Boundary dedup off in `/hashline-config`.
+An edit that produces identical content reports `No changes made` and leaves the anchors alone.
 
 After a successful edit, the diff is capped at 50KB. A row over 50KB is shown as a marker that keeps the row's anchor, and only the rows shown in the capped diff are recorded as served. The same caps apply to the `insert` and `undo_last_change` diffs, to the interactive previews, and to `details.patch`.
 
-Multiple `replace` and `insert` calls on the same file in one assistant message are grouped per file into one batch. The batch unit is the message, not the turn: calls from separate messages in the same turn run solo, one after another. A solo edit commits before its result returns; a batch validates every call against the pre-batch state and commits once, during the batch's last call: earlier calls reply `In batch N` and the batch's last call shows the combined diff, with one undo reverting the whole batch. If the batch aborts, an earlier member's row renders the abort message instead of the placeholder. Nothing commits at turn end. A batch member accepts the same request shapes and auto-fixes as a solo call. A member whose boundary dedup cuts it to a noop contributes no hunk to the combined diff: the batch warning names it instead of pointing at `dedup│` rows. The `dedup│` rows in a batch diff cover its applied members only.
+Multiple `replace` and `insert` calls on the same file in one assistant message are grouped per file into one batch. The batch unit is the message, not the turn: calls from separate messages in the same turn run solo, one after another. A solo edit commits before its result returns; a batch validates every call against the pre-batch state and commits once, during the batch's last call: earlier calls reply `In batch N` and the batch's last call shows the combined diff, with one undo reverting the whole batch. If the batch aborts, an earlier member's row renders the abort message instead of the placeholder. Nothing commits at turn end. A batch member accepts the same request shapes and auto-fixes as a solo call.
 The hashline tools are sequential in pi, so a message that contains one runs all of its tool calls one at a time in the order given; a `read` or shell `cat` issued before the edit commits can still observe the pre-commit state, so verify in the next message with the post-edit diff or a fresh `read`.
 Batched calls must target disjoint ranges; overlapping ranges, or any failing call, aborts the whole batch unwritten. One `insert` with `direction: "before"` and one with `direction: "after"` may target the same anchor line: the pair composes into a single insertion. A batch member that fails aborts its batch-mates with `[E_OP_ABORTED]`. A call whose anchors resolve nowhere never joins a batch: it runs solo and fails with its own error (`[E_STALE_ANCHOR]`, or `[E_BAD_SHAPE]` when its request cannot be parsed), while the same-file batch in the message still commits. Calls with one stale anchor and a valid co-anchor, or with a `requirePath` path hint, join their file's batch and abort it instead of applying partially. An error that aborts a batch ends with `Aborts batch N.`; an aborted call reads `[E_OP_ABORTED] Batch N aborted: [<kind>] Call Nr <X> errored [<code>]`, naming the failing call and its error code (or `[E_OP_ABORTED] Batch N aborted.` when the failing error carries no code). Anchor capacity is preflighted before writing; if anchor finalization fails after the write, the error states the file was written with one undo available. Verify each batch diff before the next turn's edits on that file.
 
@@ -112,7 +112,7 @@ Batched calls must target disjoint ranges; overlapping ranges, or any failing ca
 | `direction` | `"after"` inserts below the anchor line, `"before"` above it. |
 | `lines` | Lines to insert, one element per line. `[""]` is a blank line. Never include the anchor line, and never embed `\n` inside an element. A lone string is split on newlines, and stringified array text is unwrapped. |
 
-Lines are applied literally: nothing is removed, and a line that duplicates its neighbor is kept. `replace`'s boundary anti-duplication never runs for `insert`. Inserting nothing (`lines: []`) reports a noop. To seed an empty file, read it and insert after the `anchor│` empty-line row.
+Nothing is removed and the inserted lines are written exactly as given; the anchor line and every other line stay in place. Inserting nothing (`lines: []`) reports a noop. To seed an empty file, read it and insert after the `anchor│` empty-line row.
 
 The same safety machinery as `replace` applies: undo is saved before the write (a failed write restores the previous undo record), and line endings and BOMs survive.
 
@@ -184,7 +184,7 @@ All five tools return machine-readable metadata in `details` alongside the model
 
 | Command | Description |
 | --- | --- |
-| `/hashline-config` | Open the settings window: auto-read anchors, auto-read all mode, ignore folders/files, diff context lines, `anchor_grep` tool, required `path`, strict input, and boundary dedup. Persists across sessions. |
+| `/hashline-config` | Open the settings window: auto-read anchors, auto-read all mode, ignore folders/files, diff context lines, `anchor_grep` tool, required `path`, and strict input. Persists across sessions. |
 | `/clear-anchors` | Clear the session's anchor claims. Anchors are re-claimed on the next `read`. |
 
 Settings live in `~/.config/pi-hashline-edit-pro/config.json`, created when a setting is first changed in `/hashline-config`:
@@ -197,7 +197,6 @@ Settings live in `~/.config/pi-hashline-edit-pro/config.json`, created when a se
   "anchorGrepEnabled": true,
   "requirePath": false,
   "strictInput": false,
-  "boundaryDedupMode": "off",
   "diffContextLines": 1
 }
 ```
@@ -245,7 +244,6 @@ Codes starting with `E_` are errors: nothing was written — except `File was wr
 | `[E_UNDO_STALE]` | `undo_last_change` refused: the file was modified after the last edit. The undo record is kept until the file matches the edited state again or a new edit replaces it. |
 | `[E_UNDO_UNAVAILABLE]` | Undo history could not be persisted to the hash store; the edit was refused and the file was left unchanged. |
 | `[E_RANGE_STALE]` | A line in the replaced range no longer matches what was last shown (the file changed on disk, or the line was never shown). The edit was refused; the current range is returned with fresh anchors. |
-| `[E_BOUNDARY_STRICT]` | Strict boundary dedup rejected the edit because replacement lines re-include edge lines; resend without those lines. |
 | `[E_FILE_TOO_LARGE]` | The file exceeds the 1,353,139-line hashline limit or the 100MB size limit. |
 | `[E_REGISTRY]` | The anchor registry was not initialized; a serve or edit ran outside an initialized session. |
 | `[E_STORE_UNAVAILABLE]` | No SQLite runtime could be loaded: the host exposes neither `node:sqlite` (Node 22.19+) nor `bun:sqlite`. The pi release binary's bundled Bun lacks `node:sqlite`; run pi under Node or a Bun build that ships SQLite. |

@@ -20,7 +20,6 @@ import {
   toggleAnchorGrep,
   toggleRequirePath,
   toggleStrictInput,
-  cycleBoundaryDedupMode,
   adjustDiffContextLines,
   setAutoReadAllIgnoreFromText,
 } from "./src/config";
@@ -126,7 +125,7 @@ export default function (pi: ExtensionAPI): void {
   }));
 
   pi.registerCommand("hashline-config", {
-    description: "Open the hashline settings window (auto-read, auto-read all, ignore folders/files, diff context, grep, path, strict input, dedup)",
+    description: "Open the hashline settings window (auto-read, auto-read all, ignore folders/files, diff context, grep, path, strict input)",
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) {
         ctx.ui.notify("/hashline-config requires interactive mode", "error");
@@ -149,7 +148,6 @@ export default function (pi: ExtensionAPI): void {
             }
             else if (key === "requirePath") await toggleRequirePath();
             else if (key === "strictInput") await toggleStrictInput();
-            else await cycleBoundaryDedupMode();
             await refreshEditTools();
           },
         });

@@ -19,8 +19,6 @@ export const NUL_CONTENT_MSG =
 export const ANCHOR_POOL_EXHAUSTED_PREFIX =
   "[E_FILE_TOO_LARGE] The session's anchor pool is exhausted";
 
-export const DEDUP_ANCHOR = "dedup";
-
 export const AUTO_READ_ALL_CUSTOM_TYPE = "hashline-auto-read-all";
 export const AUTO_READ_ALL_MAX_FILES = 500;
 export const AUTO_READ_ALL_MAX_FILE_BYTES = 200_000;

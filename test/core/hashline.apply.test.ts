@@ -135,38 +135,6 @@ describe("applyEdit - noop detection", () => {
 	});
 });
 
-describe("applyEdit - auto-fix heuristics", () => {
-	it("auto-fixes leading duplication by stripping the first replacement line", async () => {
-		const content = "before\nold one\nold two\nafter";
-		const edit: HEdit = {
-			hash_bounds: [await makeTag(content, 2, home.testPath), await makeTag(content, 3, home.testPath)],
-			content_lines: ["before", "new one", "new two"],
-		};
-
-		const result = await applyWithAnchors(content, edit);
-
-		expect(result.content).toBe("before\nnew one\nnew two\nafter");
-		expect(result.autoFixes).toHaveLength(1);
-		expect(result.autoFixes![0]!.kind).toBe("leading");
-		expect(result.autoFixes![0]!.removedLine).toBe("before");
-	});
-
-	it("auto-fixes trailing duplication by stripping the last replacement line", async () => {
-		const content = "before\nold one\nold two\nafter";
-		const edit: HEdit = {
-			hash_bounds: [await makeTag(content, 2, home.testPath), await makeTag(content, 3, home.testPath)],
-			content_lines: ["new one", "new two", "after"],
-		};
-
-		const result = await applyWithAnchors(content, edit);
-
-		expect(result.content).toBe("before\nnew one\nnew two\nafter");
-		expect(result.autoFixes).toHaveLength(1);
-		expect(result.autoFixes![0]!.kind).toBe("trailing");
-		expect(result.autoFixes![0]!.removedLine).toBe("after");
-	});
-});
-
 describe("applyEdit - lastChangedLine tracking", () => {
 	it("tracks lastChangedLine when single-line replace expands to multiple lines", async () => {
 		const content = "aaa\nbbb\nccc";

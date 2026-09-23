@@ -22,7 +22,7 @@ import { applyEdit,
   type HEdit,
   type NEdit,
 } from "./hashline";
-import { withDedupRows, type RMetrics } from "./replace-response";
+import { type RMetrics } from "./replace-response";
 import {
   type RPreview,
   type RRState,
@@ -31,8 +31,8 @@ import { loadHashStore, type HashStore } from "./hash-store";
 import { adoptAnchors, servedForPath, withAnchorSession } from "./anchor-registry";
 import { resolveTarget } from "./fs-write";
 import { toCwd, toDisplayPath } from "./paths";
-import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper, resolveEditTargetWithRequirement, throwIfStrictInput, getBoundaryDedupMode, withReplacePrompts, DEFAULT_EDIT_FLAGS, type EditToolFlags } from "./edit-common";
-import { commitEdit, dedupRowsFromFixes } from "./commit";
+import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper, resolveEditTargetWithRequirement, throwIfStrictInput, withReplacePrompts, DEFAULT_EDIT_FLAGS, type EditToolFlags } from "./edit-common";
+import { commitEdit } from "./commit";
 import { batchMemberFor, executeBatchMember, noteBatchFailure } from "./batch";
 
 export { editToolSchema, type ReqParams, assertReq };
@@ -65,10 +65,6 @@ export interface PipelineResult {
   resultHashes: string[];
   totalAddedLines: number;
   totalRemovedLines: number;
-  boundaryRemovedLines: number;
-  boundaryRemovedLineTexts: string[];
-  boundaryDedupAbove: string[];
-  boundaryDedupBelow: string[];
   identity: FileIdentity;
   spans?: DiffSpan[];
 }
@@ -79,7 +75,6 @@ export interface ExecPipelineOptions {
   signal?: AbortSignal;
   store?: HashStore;
   noPersist?: boolean;
-  skipBoundaryDedup?: boolean;
   preloadedNorm?: NormFile;
 }
 
@@ -109,13 +104,12 @@ function countLineChanges(
   edit: HEdit,
   originalHashes: string[],
   isNoop: boolean,
-  removedAutoFixes: number,
 ): { totalAddedLines: number; totalRemovedLines: number } {
   if (isNoop) return { totalAddedLines: 0, totalRemovedLines: 0 };
   const span = hashSpan(originalHashes, edit.hash_bounds[0].hash, edit.hash_bounds[1].hash);
   const totalRemovedLines = span ? span[1] - span[0] + 1 : 0;
   return {
-    totalAddedLines: Math.max(0, edit.content_lines.length - removedAutoFixes),
+    totalAddedLines: edit.content_lines.length,
     totalRemovedLines,
   };
 }
@@ -149,9 +143,6 @@ export async function execPipeline(
   );
   const displayPath = toDisplayPath(cwd, absolutePath, targetPath);
 
-  const dedupMode = await getBoundaryDedupMode();
-  const effectiveSkipBoundaryDedup = options?.skipBoundaryDedup === true || dedupMode === "off";
-  const strictBoundaryDedup = options?.skipBoundaryDedup !== true && dedupMode === "strict";
   let anchorResult: ReturnType<typeof applyEdit>;
   try {
     anchorResult = applyEdit(
@@ -161,8 +152,6 @@ export async function execPipeline(
       originalHashes,
       displayPath,
       served,
-      effectiveSkipBoundaryDedup,
-      strictBoundaryDedup,
     );
   } catch (error) {
     await noteAnchorError(absolutePath, error, options?.noPersist);
@@ -181,10 +170,9 @@ export async function execPipeline(
   const warnings = [...editWarnings, ...(anchorResult.warnings ?? [])];
   await throwIfStrictInput(warnings);
   const { totalAddedLines, totalRemovedLines } = countLineChanges(
-    edit, originalHashes, isNoop, anchorResult.autoFixes?.length ?? 0,
+    edit, originalHashes, isNoop,
   );
 
-  const sortedFixes = dedupRowsFromFixes(anchorResult.autoFixes ?? []);
   const pipeSpan = isNoop ? undefined : spanForEdit(originalHashes, edit.hash_bounds[0].hash, edit.hash_bounds[1].hash, result);
   const pipeSpans = pipeSpan ? [pipeSpan] : undefined;
   return {
@@ -202,10 +190,6 @@ export async function execPipeline(
     originalHashes,
     totalAddedLines,
     totalRemovedLines,
-    boundaryRemovedLines: anchorResult.autoFixes?.length ?? 0,
-    boundaryRemovedLineTexts: sortedFixes.removedTexts,
-    boundaryDedupAbove: sortedFixes.above,
-    boundaryDedupBelow: sortedFixes.below,
     identity,
     ...(pipeSpans ? { spans: pipeSpans } : {}),
   };
@@ -219,7 +203,7 @@ export function previewFromPipe(pipe: PipelineResult): RPreview {
     };
   }
   const base = genDiff(pipe.originalNormalized, pipe.result, 4, pipe.resultHashes, pipe.originalHashes, undefined, pipe.spans);
-  return { diff: withDedupRows(base.diff, base.lineNumbers, pipe.boundaryDedupAbove, pipe.boundaryDedupBelow).diff, path: pipe.path };
+  return { diff: base.diff, path: pipe.path };
 }
 export function previewError(error: unknown): RPreview {
   return { error: error instanceof Error ? error.message : String(error) };
@@ -290,8 +274,6 @@ export function buildToolDef(flags: EditToolFlags = DEFAULT_EDIT_FLAGS): ToolDef
           throw error;
         });
         return queuedEdit(targetPath, ctx.cwd, signal, async (absolutePath, mutationTargetPath) => {
-          const dedupMode = await getBoundaryDedupMode();
-          const strictBoundaryDedup = dedupMode === "strict";
           const member = batchMemberFor(_toolCallId);
           if (!member) {
             const pipe = await execPipeline(
@@ -324,8 +306,6 @@ export function buildToolDef(flags: EditToolFlags = DEFAULT_EDIT_FLAGS): ToolDef
             signal,
             hedit: built.edit,
             extraWarnings: built.warnings,
-            skipBoundaryDedup: dedupMode === "off",
-            strictBoundaryDedup,
           });
         });
       });

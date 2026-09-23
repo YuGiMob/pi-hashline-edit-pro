@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { readFile } from "fs/promises";
 import { lineHashes } from "../../src/hashline";
 import { withTempFile, makeFakePiRegistry, setupIntegrationTest, getText, extractHash } from "../support/fixtures";
-import { writeConfig } from "../../src/config";
 import { resolveTarget } from "../../src/fs-write";
 import { toCwd } from "../../src/paths";
 import register from "../../index";
@@ -314,36 +313,6 @@ describe("insert tool", () => {
       const undone = await undo.execute("u1", { path: "sample.ts" }, undefined, undefined, ctx);
       expect(undone.isError).toBeFalsy();
       expect(await readFile(path, "utf-8")).toBe("alpha\nbeta\ngamma\n");
-    });
-  });
-
-  it("keeps a dedup-cut noop a noop after an unrelated insert", async () => {
-    await withTempFile("sample.ts", "aaa\nbbb\nccc\n", async ({ cwd, path }) => {
-      const { ctx, readTool, getTool } = setupIntegrationTest(cwd);
-      await writeConfig({ autoRead: true, anchorGrepEnabled: true, boundaryDedupMode: "on" });
-      const insertTool = getTool("insert");
-      const editTool = getTool("replace");
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", await resolveTarget(toCwd("sample.ts", cwd)));
-      await readTool.execute("r1", { path: "sample.ts" }, undefined, undefined, ctx);
-      const payload = {
-        remove_from: hashes[1]!,
-        remove_to: hashes[1]!,
-        replacement_lines: ["bbb", "ccc"],
-      };
-
-      const first = await editTool.execute("e1", payload, undefined, undefined, ctx);
-      expect(first.details.classification).toBe("noop");
-
-      await insertTool.execute(
-        "i1",
-        { anchor: hashes[0]!, direction: "after", lines: ["AAA2"] },
-        undefined, undefined, ctx,
-      );
-      expect(await readFile(path, "utf-8")).toBe("aaa\nAAA2\nbbb\nccc\n");
-
-      const resend = await editTool.execute("e2", payload, undefined, undefined, ctx);
-      expect(resend.details.classification).toBe("noop");
-      expect(await readFile(path, "utf-8")).toBe("aaa\nAAA2\nbbb\nccc\n");
     });
   });
 

@@ -17,7 +17,6 @@ export const mockIsolatedFiles = [
 
 export const heavyTestFiles = [
   "test/core/hashline-stress.test.ts",
-  "test/core/hashline-fuzz-autofix.test.ts",
   "test/core/hashline-property.test.ts",
   "test/core/hashline-limit.test.ts",
   "test/core/hashline-stable-mapping.test.ts",

@@ -3,7 +3,6 @@ import { join } from "path";
 import { describe, expect, it } from "vitest";
 import { Value } from "typebox/value";
 import register from "../../index";
-import { updateConfig, writeConfig } from "../../src/config";
 import { initRegistry, resetRegistryForTests } from "../../src/anchor-registry";
 import { resetBatchStateForTests } from "../../src/batch";
 import { makeFakePiRegistry, withTempDir, withTempFile, toolCall, assistantMessage, anchorFor } from "../support/fixtures";
@@ -17,9 +16,6 @@ async function setupBatchTools(cwd: string) {
   resetRegistryForTests();
   resetBatchStateForTests();
   await initRegistry(undefined);
-  await updateConfig((config) => {
-    config.boundaryDedupMode = "on";
-  });
   const { pi, getTool, handlers } = makeFakePiRegistry();
   register(pi);
   const ctx = { cwd, ui: { notify() {} } } as any;
@@ -605,45 +601,6 @@ describe("same-turn edit batches", () => {
     });
   });
 
-  it("reports a dedup-cut noop member when the batch nets to no change", async () => {
-    await withTempFile("sample.txt", "a\nb\nc\n", async ({ cwd, path }) => {
-      const { getTool, handlers, ctx } = await setupBatchTools(cwd);
-      const readTool = getTool("read");
-      const editTool = getTool("replace");
-      const insertTool = getTool("insert");
-      const text = (await readTool.execute("r1", { path: "sample.txt" }, undefined, undefined, ctx)).content[0].text as string;
-      const aRef = anchorFor(text, "a");
-      const bRef = anchorFor(text, "b");
-      const cRef = anchorFor(text, "c");
-
-      const firstArgs = { remove_from: bRef, remove_to: bRef, replacement_lines: [] };
-      const insertArgs = { anchor: aRef, direction: "after", lines: ["b"] };
-      const thirdArgs = { remove_from: cRef, remove_to: cRef, replacement_lines: ["b", "c"] };
-      const message = assistantMessage([
-        toolCall("y1", "replace", firstArgs),
-        toolCall("y2", "insert", insertArgs),
-        toolCall("y3", "replace", thirdArgs),
-      ]);
-      await (handlers.get("message_end")!({ type: "message_end", message }, ctx) as Promise<unknown>);
-
-      await editTool.execute("y1", firstArgs, undefined, undefined, ctx);
-      await insertTool.execute("y2", insertArgs, undefined, undefined, ctx);
-      const third = await editTool.execute("y3", thirdArgs, undefined, undefined, ctx);
-      expect(third.details.metrics.classification).toBe("noop");
-      expect(third.details.warnings).toEqual(["Boundary dedup: edit #3 produced no change (1 line not added again)."]);
-      expect(await readFile(path, "utf-8")).toBe("a\nb\nc\n");
-
-      await (handlers.get("turn_end")!(
-        { type: "turn_end", turnIndex: 0, message, toolResults: [{ toolCallId: "y1" }, { toolCallId: "y2" }, { toolCallId: "y3" }] },
-        ctx,
-      ) as Promise<unknown>);
-
-      const resent = await editTool.execute("y3b", thirdArgs, undefined, undefined, ctx);
-      expect(resent.details.metrics.classification).toBe("noop");
-      expect(await readFile(path, "utf-8")).toBe("a\nb\nc\n");
-    });
-  });
-
   it("fails fast on later calls after the first call fails", async () => {
     await withTempFile("sample.txt", "a\nb\nc\n", async ({ cwd, path }) => {
       const { getTool, handlers, ctx } = await setupBatchTools(cwd);
@@ -896,58 +853,6 @@ describe("same-turn edit batches", () => {
     });
   });
 
-  it("reports dedup-cut noops in an all-noop batch", async () => {
-    await withTempFile("sample.txt", "x\ny\nz\n", async ({ cwd, path }) => {
-      const { getTool, handlers, ctx } = await setupBatchTools(cwd);
-      const readTool = getTool("read");
-      const editTool = getTool("replace");
-
-      const firstRead = await readTool.execute("r1", { path: "sample.txt" }, undefined, undefined, ctx);
-      const text = firstRead.content[0].text as string;
-      const xRef = anchorFor(text, "x");
-      const yRef = anchorFor(text, "y");
-
-      const message = assistantMessage([
-        toolCall("p1", "replace", { remove_from: xRef, remove_to: xRef, replacement_lines: ["x", "y"] }),
-        toolCall("p2", "replace", { remove_from: yRef, remove_to: yRef, replacement_lines: ["y", "z"] }),
-      ]);
-      await (handlers.get("message_end")!({ type: "message_end", message }, ctx) as Promise<unknown>);
-
-      await editTool.execute(
-        "p1",
-        { remove_from: xRef, remove_to: xRef, replacement_lines: ["x", "y"] },
-        undefined,
-        undefined,
-        ctx,
-      );
-      const second = await editTool.execute(
-        "p2",
-        { remove_from: yRef, remove_to: yRef, replacement_lines: ["y", "z"] },
-        undefined,
-        undefined,
-        ctx,
-      );
-      expect(second.details.metrics.classification).toBe("noop");
-      expect(second.content[0].text).toContain("Boundary dedup: edits #1, #2 produced no change (2 lines not added again).");
-      expect(await readFile(path, "utf-8")).toBe("x\ny\nz\n");
-
-      await (handlers.get("turn_end")!(
-        { type: "turn_end", turnIndex: 0, message, toolResults: [{ toolCallId: "p1" }, { toolCallId: "p2" }] },
-        ctx,
-      ) as Promise<unknown>);
-
-      const resent = await editTool.execute(
-        "solo-resend",
-        { remove_from: yRef, remove_to: yRef, replacement_lines: ["y", "z"] },
-        undefined,
-        undefined,
-        ctx,
-      );
-      expect(resent.details.metrics.classification).toBe("noop");
-      expect(await readFile(path, "utf-8")).toBe("x\ny\nz\n");
-    });
-  });
-
   it("applies a batch whose member sent replacement_lines as a string after host coercion", async () => {
     await withTempFile("sample.txt", "alpha\nbeta\ngamma\ndelta\n", async ({ cwd, path }) => {
       const { getTool, handlers, ctx } = await setupBatchTools(cwd);
@@ -1103,80 +1008,6 @@ describe("same-turn edit batches", () => {
     });
   });
 
-  it("shows the dedup rows the batch warning references", async () => {
-    await withTempFile("sample.txt", "a\nb\nc\nd\n", async ({ cwd, path }) => {
-      const { getTool, handlers, ctx } = await setupBatchTools(cwd);
-      const readTool = getTool("read");
-      const editTool = getTool("replace");
-      const text = (await readTool.execute("r1", { path: "sample.txt" }, undefined, undefined, ctx)).content[0].text as string;
-      const bRef = anchorFor(text, "b");
-      const cRef = anchorFor(text, "c");
-
-      const firstArgs = { remove_from: bRef, remove_to: bRef, replacement_lines: ["a", "B"] };
-      const secondArgs = { remove_from: cRef, remove_to: cRef, replacement_lines: ["X", "d"] };
-      const message = assistantMessage([
-        toolCall("w1", "replace", firstArgs),
-        toolCall("w2", "replace", secondArgs),
-      ]);
-      await (handlers.get("message_end")!({ type: "message_end", message }, ctx) as Promise<unknown>);
-
-      const first = await editTool.execute("w1", firstArgs, undefined, undefined, ctx);
-      expect(first.content[0].text).toBe("In batch 1");
-
-      const second = await editTool.execute("w2", secondArgs, undefined, undefined, ctx);
-      expect(second.content[0].text).toContain("Boundary dedup: 2 lines not added again (see dedup│ rows).");
-      const rows = second.details.diff.split("\n");
-      const aboveIdx = rows.findIndex((row: string) => row.startsWith("dedup│a"));
-      const bIdx = rows.findIndex((row: string) => row.startsWith("-") && row.endsWith("│b"));
-      const xIdx = rows.findIndex((row: string) => row.startsWith("+") && row.endsWith("│X"));
-      const belowIdx = rows.findIndex((row: string) => row.startsWith("dedup│d"));
-      expect(aboveIdx).toBe(bIdx - 1);
-      expect(belowIdx).toBe(xIdx + 1);
-      expect(await readFile(path, "utf-8")).toBe("a\nB\nX\nd\n");
-
-      await (handlers.get("turn_end")!(
-        { type: "turn_end", turnIndex: 0, message, toolResults: [{ toolCallId: "w1" }, { toolCallId: "w2" }] },
-        ctx,
-      ) as Promise<unknown>);
-    });
-  });
-
-  it("reports a dedup-cut noop member without dedup rows", async () => {
-    await withTempFile("sample.txt", "a\nb\nc\nd\n", async ({ cwd, path }) => {
-      const { getTool, handlers, ctx } = await setupBatchTools(cwd);
-      const readTool = getTool("read");
-      const editTool = getTool("replace");
-      const text = (await readTool.execute("r1", { path: "sample.txt" }, undefined, undefined, ctx)).content[0].text as string;
-      const bRef = anchorFor(text, "b");
-      const dRef = anchorFor(text, "d");
-
-      const firstArgs = { remove_from: bRef, remove_to: bRef, replacement_lines: ["a", "b", "c"] };
-      const secondArgs = { remove_from: dRef, remove_to: dRef, replacement_lines: ["D"] };
-      const message = assistantMessage([
-        toolCall("z1", "replace", firstArgs),
-        toolCall("z2", "replace", secondArgs),
-      ]);
-      await (handlers.get("message_end")!({ type: "message_end", message }, ctx) as Promise<unknown>);
-
-      const first = await editTool.execute("z1", firstArgs, undefined, undefined, ctx);
-      expect(first.content[0].text).toBe("In batch 1");
-
-      const second = await editTool.execute("z2", secondArgs, undefined, undefined, ctx);
-      expect(second.details.diff).not.toContain("dedup│");
-      expect(second.details.warnings).toEqual(["Boundary dedup: edit #1 produced no change (2 lines not added again)."]);
-      expect(await readFile(path, "utf-8")).toBe("a\nb\nc\nD\n");
-
-      await (handlers.get("turn_end")!(
-        { type: "turn_end", turnIndex: 0, message, toolResults: [{ toolCallId: "z1" }, { toolCallId: "z2" }] },
-        ctx,
-      ) as Promise<unknown>);
-
-      const resent = await editTool.execute("z1b", firstArgs, undefined, undefined, ctx);
-      expect(resent.details.metrics.classification).toBe("noop");
-      expect(await readFile(path, "utf-8")).toBe("a\nb\nc\nD\n");
-    });
-  });
-
   it("renders an aborted batch member as aborted on re-render", async () => {
     await withTempFile("sample.txt", "a\nb\nc\n", async ({ cwd, path }) => {
       const { getTool, handlers, ctx } = await setupBatchTools(cwd);
@@ -1263,34 +1094,6 @@ describe("same-turn edit batches", () => {
         { type: "turn_end", turnIndex: 0, message, toolResults: [{ toolCallId: "s1" }, { toolCallId: "s2" }] },
         ctx,
       ) as Promise<unknown>);
-    });
-  });
-  it("applies batch replacements literally when boundary dedup is off", async () => {
-    await withTempFile("sample.txt", "a\nb\nc\nd\n", async ({ cwd, path }) => {
-      const { getTool, handlers, ctx } = await setupBatchTools(cwd);
-      await writeConfig({ autoRead: true, anchorGrepEnabled: true, boundaryDedupMode: "off" });
-      const readTool = getTool("read");
-      const editTool = getTool("replace");
-      const text = (await readTool.execute("r1", { path: "sample.txt" }, undefined, undefined, ctx)).content[0].text as string;
-      const bRef = anchorFor(text, "b");
-      const cRef = anchorFor(text, "c");
-
-      const firstArgs = { remove_from: bRef, remove_to: bRef, replacement_lines: ["a", "B"] };
-      const secondArgs = { remove_from: cRef, remove_to: cRef, replacement_lines: ["X", "d"] };
-      const message = assistantMessage([
-        toolCall("o1", "replace", firstArgs),
-        toolCall("o2", "replace", secondArgs),
-      ]);
-      await (handlers.get("message_end")!({ type: "message_end", message }, ctx) as Promise<unknown>);
-
-      const first = await editTool.execute("o1", firstArgs, undefined, undefined, ctx);
-      expect(first.content[0].text).toBe("In batch 1");
-
-      const second = await editTool.execute("o2", secondArgs, undefined, undefined, ctx);
-      expect(second.content[0].text).toContain("Batch 1: 2 edits applied as one commit");
-      expect(second.details.warnings).toBeUndefined();
-      expect(second.details.diff).not.toContain("dedup│");
-      expect(await readFile(path, "utf-8")).toBe("a\na\nB\nX\nd\nd\n");
     });
   });
 });

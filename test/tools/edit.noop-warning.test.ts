@@ -2,7 +2,6 @@ import { join } from "path";
 import { describe, expect, it } from "vitest";
 import { lineHashes } from "../../src/hashline";
 import { withTempFile, setupIntegrationTest, useTestHome } from "../support/fixtures";
-import { writeConfig } from "../../src/config";
 
 useTestHome();
 
@@ -25,25 +24,4 @@ describe("edit tool noop + warnings", () => {
     });
   });
 
-  it("auto-fixes trailing duplicate silently, file is correct", async () => {
-    await withTempFile("sample.ts", "aaa\nbbb\nccc\n", async ({ cwd, path }) => {
-      const { ctx, editTool } = setupIntegrationTest(cwd);
-      await writeConfig({ autoRead: true, anchorGrepEnabled: true, boundaryDedupMode: "on" });
-      const hashes = await lineHashes("aaa\nbbb\nccc\n", path);
-
-      await editTool.execute(
-        "e1",
-        {
-          remove_from: hashes[1]!, remove_to: hashes[1]!, replacement_lines: ["BBB", "ccc"],
-        },
-        undefined,
-        undefined,
-        ctx,
-      );
-
-      const { readFile } = await import("fs/promises");
-      const content = await readFile(path, "utf-8");
-      expect(content).toBe("aaa\nBBB\nccc\n");
-    });
-  });
 });
