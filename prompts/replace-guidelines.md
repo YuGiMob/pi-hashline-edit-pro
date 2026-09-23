@@ -1,4 +1,5 @@
-- `replace`: edit with `replace`/`insert`, not `sed -i` or heredocs — anchor edits are verified against what was shown and undoable.
-- `replace`: `replacement_lines` `[""]` is one blank line; pasted `anchor│` prefixes are stripped automatically (single line: same anchor for `remove_from` and `remove_to`).
-- `replace`: never anchor on `-anchor│` rows of the post-edit diff, those anchors were freed by the edit. Check each batch diff before the next turn's edits on that file.
-- `replace`: same-file same-message batches must target disjoint ranges; an overlap or member failure aborts only that file's batch unwritten. Unresolvable calls stay solo and don't abort.
+- `replace`: `-anchor│` rows in a post-edit diff are dead anchors; only `+anchor│` and ` anchor│` rows are live. Check the batch diff before the next turn's edits on that file.
+- `replace`: `[E_STALE_ANCHOR]` → read; `[E_RANGE_STALE]` → retry with the returned anchors; `[E_BATCH_OVERLAP]` → disjoint ranges; `[E_OP_ABORTED]` → fix the sibling failure or read.
+- `replace`: use `replace`/`insert`, not `sed -i` or heredocs — anchor edits are verified against what was shown and undoable.
+- `replace`: same-file same-message calls batch: disjoint ranges, one undo. An anchor that resolves nowhere stays solo.
+- `replace`: `replacement_lines`: one string per line, `[""]` is one blank line, `[]` deletes. Pasted `anchor│` prefixes are stripped. Single line: same anchor for `remove_from` and `remove_to`.
