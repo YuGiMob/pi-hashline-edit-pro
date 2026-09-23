@@ -25,7 +25,7 @@ export function configRows(config: Config): ConfigRow[] {
     { key: "anchorGrepEnabled", label: "Anchor grep", hint: "anchor_grep tool (builtin grep off while on)", enabled: config.anchorGrepEnabled === true },
     { key: "requirePath", label: "Require path", hint: "replace + insert need path (RPC visibility)", enabled: config.requirePath === true },
     { key: "strictInput", label: "Strict input", hint: "Reject auto-fixable slips instead of warnings", enabled: config.strictInput === true },
-    { key: "boundaryDedupMode", label: "Boundary dedup", hint: "Strip edge lines: on, strict (reject), off (literal)", enabled: (config.boundaryDedupMode ?? "on") !== "off", mode: config.boundaryDedupMode ?? "on", cycle: ["on", "strict", "off"] },
+    { key: "boundaryDedupMode", label: "Boundary dedup", hint: "Strip edge lines: on, strict (reject), off (literal)", enabled: (config.boundaryDedupMode ?? "off") !== "off", mode: config.boundaryDedupMode ?? "off", cycle: ["on", "strict", "off"] },
   ];
 }
 

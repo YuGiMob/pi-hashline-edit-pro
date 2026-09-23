@@ -19,7 +19,7 @@ export interface EditToolFlags {
 export const DEFAULT_EDIT_FLAGS: EditToolFlags = {
   requirePath: false,
   strictInput: false,
-  boundaryDedupMode: "on",
+  boundaryDedupMode: "off",
   autoRead: true,
   autoReadAllActive: false
 };
@@ -29,7 +29,7 @@ export async function currentEditFlags(): Promise<EditToolFlags> {
   return {
     requirePath: config.requirePath === true,
     strictInput: config.strictInput === true,
-    boundaryDedupMode: config.boundaryDedupMode ?? "on",
+    boundaryDedupMode: config.boundaryDedupMode ?? "off",
     autoRead: config.autoRead !== false,
     autoReadAllActive: (config.autoReadAll ?? "off") !== "off"
   };
@@ -56,6 +56,9 @@ export function withReplacePrompts(base: { description: string; snippet: string;
   if (flags.strictInput) {
     descriptionParts.push("Strict-input mode is on: auto-fixable slips are rejected instead of fixed with warnings.");
     guidelines.push("`replace`: strict-input is on: auto-fixable slips are rejected instead of fixed.");
+  }
+  if (flags.boundaryDedupMode !== "on") {
+    guidelines = guidelines.filter((guideline) => !guideline.includes("deduplicated automatically"));
   }
   if (flags.boundaryDedupMode === "off") {
     descriptionParts.push("Boundary dedup is off: edits apply literally.");
@@ -170,7 +173,7 @@ export async function throwIfStrictInput(warnings: string[]): Promise<void> {
 }
 
 export async function getBoundaryDedupMode(): Promise<BoundaryDedupMode> {
-  return (await readConfig()).boundaryDedupMode ?? "on";
+  return (await readConfig()).boundaryDedupMode ?? "off";
 }
 
 export function editRenderCallWrapper(

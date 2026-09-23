@@ -324,7 +324,7 @@ export function buildToolDef(flags: EditToolFlags = DEFAULT_EDIT_FLAGS): ToolDef
             signal,
             hedit: built.edit,
             extraWarnings: built.warnings,
-            skipBoundaryDedup: false,
+            skipBoundaryDedup: dedupMode === "off",
             strictBoundaryDedup,
           });
         });

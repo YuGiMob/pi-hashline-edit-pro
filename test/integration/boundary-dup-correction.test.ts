@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { readFile } from "fs/promises";
 import { withTempFile, setupIntegrationTest, getText, extractHash } from "../support/fixtures";
+import { writeConfig } from "../../src/config";
+
+async function setupDedupTest(cwd: string) {
+  await writeConfig({ autoRead: true, anchorGrepEnabled: true, boundaryDedupMode: "on" });
+  return setupIntegrationTest(cwd);
+}
 
 describe("boundary duplication auto-fix", () => {
   it("trailing }: auto-fix strips duplicate, file is correct after one edit", async () => {
     const file = "function foo() {\n  const x = 1;\n  return x;\n}\n";
     await withTempFile("sample.ts", file, async ({ cwd, path }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const { ctx, readTool, editTool } = await setupDedupTest(cwd);
 
       const read1 = await readTool.execute("r1", { path: "sample.ts" }, undefined, undefined, ctx);
       const text1 = getText(read1);
@@ -34,7 +40,7 @@ describe("boundary duplication auto-fix", () => {
   it("reports accurate added-line counts when the boundary-dup fix removes a line", async () => {
     const file = "function foo() {\n  const x = 1;\n  return x;\n}\n";
     await withTempFile("sample.ts", file, async ({ cwd, path }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const { ctx, readTool, editTool } = await setupDedupTest(cwd);
 
       const read1 = await readTool.execute("r1", { path: "sample.ts" }, undefined, undefined, ctx);
       const lines1 = getText(read1).split("\n");
@@ -65,7 +71,7 @@ describe("boundary duplication auto-fix", () => {
   it("trailing });: auto-fix strips duplicate, file is correct after one edit", async () => {
     const file = 'app.get("/api", (req, res) => {\n  const data = fetchData();\n  res.json(data);\n});\n';
     await withTempFile("server.ts", file, async ({ cwd, path }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const { ctx, readTool, editTool } = await setupDedupTest(cwd);
 
       const read1 = await readTool.execute("r1", { path: "server.ts" }, undefined, undefined, ctx);
       const lines1 = getText(read1).split("\n");
@@ -91,7 +97,7 @@ describe("boundary duplication auto-fix", () => {
   it("leading: auto-fix strips duplicate, file is correct after one edit", async () => {
     const file = "before();\nif (ok) {\n  run();\n}\nafter();\n";
     await withTempFile("logic.ts", file, async ({ cwd, path }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const { ctx, readTool, editTool } = await setupDedupTest(cwd);
 
       const read1 = await readTool.execute("r1", { path: "logic.ts" }, undefined, undefined, ctx);
       const lines1 = getText(read1).split("\n");
@@ -117,7 +123,7 @@ describe("boundary duplication auto-fix", () => {
   it("trailing } with multiple identical lines: auto-fix preserves correct hash", async () => {
     const file = "if (a) {\n  x();\n}\nif (b) {\n  y();\n}\nif (c) {\n  z();\n}\n";
     await withTempFile("multi.ts", file, async ({ cwd }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const { ctx, readTool, editTool } = await setupDedupTest(cwd);
 
       const read1 = await readTool.execute("r1", { path: "multi.ts" }, undefined, undefined, ctx);
       const lines1 = getText(read1).split("\n");
@@ -162,7 +168,7 @@ describe("boundary duplication auto-fix", () => {
       "}",
     ].join("\n") + "\n";
     await withTempFile("fourth.ts", file, async ({ cwd, path }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const { ctx, readTool, editTool } = await setupDedupTest(cwd);
 
       const read1 = await readTool.execute("r1", { path: "fourth.ts" }, undefined, undefined, ctx);
       const lines1 = getText(read1).split("\n");
@@ -204,7 +210,7 @@ describe("new-line boundary duplication (auto-fix)", () => {
       "}",
     ].join("\n") + "\n";
     await withTempFile("overlay.ts", file, async ({ cwd, path }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const { ctx, readTool, editTool } = await setupDedupTest(cwd);
 
       const read1 = await readTool.execute("r1", { path: "overlay.ts" }, undefined, undefined, ctx);
       const lines1 = getText(read1).split("\n");
@@ -242,7 +248,7 @@ describe("new-line boundary duplication (auto-fix)", () => {
   it("strips a new line duplicating a unique line before the range (noop)", async () => {
     const file = "foo();\nbar();\nbaz();\n";
     await withTempFile("reorder.ts", file, async ({ cwd, path }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const { ctx, readTool, editTool } = await setupDedupTest(cwd);
 
       const read1 = await readTool.execute("r1", { path: "reorder.ts" }, undefined, undefined, ctx);
       const lines1 = getText(read1).split("\n");
@@ -278,7 +284,7 @@ describe("new-line boundary duplication (auto-fix)", () => {
       "}",
     ].join("\n") + "\n";
     await withTempFile("multi.ts", file, async ({ cwd, path }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const { ctx, readTool, editTool } = await setupDedupTest(cwd);
 
       const read1 = await readTool.execute("r1", { path: "multi.ts" }, undefined, undefined, ctx);
       const lines1 = getText(read1).split("\n");
@@ -308,7 +314,7 @@ describe("new-line boundary duplication (auto-fix)", () => {
   it("does not strip when the first new line differs from the line after the range", async () => {
     const file = "a\nb\nc\nd\n";
     await withTempFile("plain.ts", file, async ({ cwd, path }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const { ctx, readTool, editTool } = await setupDedupTest(cwd);
 
       const read1 = await readTool.execute("r1", { path: "plain.ts" }, undefined, undefined, ctx);
       const lines1 = getText(read1).split("\n");
@@ -345,7 +351,7 @@ describe("multi-line boundary duplication runs (auto-fix)", () => {
       `export function main() {}`,
     ].join("\n") + "\n";
     await withTempFile("imports.ts", file, async ({ cwd, path }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const { ctx, readTool, editTool } = await setupDedupTest(cwd);
 
       const read1 = await readTool.execute("r1", { path: "imports.ts" }, undefined, undefined, ctx);
       const lines1 = getText(read1).split("\n");
@@ -389,7 +395,7 @@ describe("multi-line boundary duplication runs (auto-fix)", () => {
   it("strips a run of trailing closing braces matching consecutive lines after the range", async () => {
     const file = "function a() {\n  const x = 1;\n}\n}\nafter();\n";
     await withTempFile("nested.ts", file, async ({ cwd, path }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const { ctx, readTool, editTool } = await setupDedupTest(cwd);
 
       const read1 = await readTool.execute("r1", { path: "nested.ts" }, undefined, undefined, ctx);
       const lines1 = getText(read1).split("\n");
@@ -415,7 +421,7 @@ describe("multi-line boundary duplication runs (auto-fix)", () => {
   it("strips a run of new lines duplicating unique lines before the range", async () => {
     const file = "before1();\nbefore2();\ntarget();\nafter();\n";
     await withTempFile("before-run.ts", file, async ({ cwd, path }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const { ctx, readTool, editTool } = await setupDedupTest(cwd);
 
       const read1 = await readTool.execute("r1", { path: "before-run.ts" }, undefined, undefined, ctx);
       const lines1 = getText(read1).split("\n");
@@ -441,7 +447,7 @@ describe("multi-line boundary duplication runs (auto-fix)", () => {
   it("strips a run of leading lines duplicating consecutive lines before the range", async () => {
     const file = "a\nb\nc\ntarget\nafter\n";
     await withTempFile("leading-run.ts", file, async ({ cwd, path }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const { ctx, readTool, editTool } = await setupDedupTest(cwd);
 
       const read1 = await readTool.execute("r1", { path: "leading-run.ts" }, undefined, undefined, ctx);
       const lines1 = getText(read1).split("\n");
@@ -467,7 +473,7 @@ describe("multi-line boundary duplication runs (auto-fix)", () => {
   it("does not strip a file-order prefix copy from before the range", async () => {
     const file = "a\nb\nc\ntarget\nafter\n";
     await withTempFile("prefix-copy.ts", file, async ({ cwd, path }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const { ctx, readTool, editTool } = await setupDedupTest(cwd);
 
       const read1 = await readTool.execute("r1", { path: "prefix-copy.ts" }, undefined, undefined, ctx);
       const lines1 = getText(read1).split("\n");
@@ -493,7 +499,7 @@ describe("multi-line boundary duplication runs (auto-fix)", () => {
   it("strips a single line flagged by both edge checks exactly once", async () => {
     const file = "X\ntarget\nX\n";
     await withTempFile("both-edges.ts", file, async ({ cwd, path }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const { ctx, readTool, editTool } = await setupDedupTest(cwd);
 
       const read1 = await readTool.execute("r1", { path: "both-edges.ts" }, undefined, undefined, ctx);
       const lines1 = getText(read1).split("\n");
@@ -522,7 +528,7 @@ describe("section-unique boundary duplication (auto-fix)", () => {
   it("strips a re-included block ending in a repeated brace after the range", async () => {
     const file = "import a\n\nexport interface Foo {\n  x: number;\n}\nexport function main() {}\n";
     await withTempFile("iface.ts", file, async ({ cwd, path }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const { ctx, readTool, editTool } = await setupDedupTest(cwd);
 
       const read1 = await readTool.execute("r1", { path: "iface.ts" }, undefined, undefined, ctx);
       const lines1 = getText(read1).split("\n");
@@ -550,7 +556,7 @@ describe("section-unique boundary duplication (auto-fix)", () => {
   it("strips a re-included block ending in a repeated brace before the range", async () => {
     const file = "if (a) {\n  x();\n}\nif (b) {\n  y();\n}\ntarget\n";
     await withTempFile("pre-block.ts", file, async ({ cwd, path }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const { ctx, readTool, editTool } = await setupDedupTest(cwd);
 
       const read1 = await readTool.execute("r1", { path: "pre-block.ts" }, undefined, undefined, ctx);
       const lines1 = getText(read1).split("\n");
@@ -576,7 +582,7 @@ describe("section-unique boundary duplication (auto-fix)", () => {
   it("does not strip when the re-included section repeats elsewhere in the file", async () => {
     const file = "Y\nZ\nX\nY\nZ\n";
     await withTempFile("repeat.ts", file, async ({ cwd, path }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const { ctx, readTool, editTool } = await setupDedupTest(cwd);
 
       const read1 = await readTool.execute("r1", { path: "repeat.ts" }, undefined, undefined, ctx);
       const lines1 = getText(read1).split("\n");
@@ -604,7 +610,7 @@ describe("whitespace-only lines next to empty lines (regression)", () => {
   it("inserts a whitespace-only line before the range next to a unique empty line", async () => {
     const file = "\nsecond\n";
     await withTempFile("sample.ts", file, async ({ cwd, path }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const { ctx, readTool, editTool } = await setupDedupTest(cwd);
       const read1 = await readTool.execute("r1", { path: "sample.ts" }, undefined, undefined, ctx);
       const lines1 = getText(read1).split("\n");
       const secondHash = extractHash(lines1.find((l) => l.includes("│second"))!);
@@ -626,7 +632,7 @@ describe("whitespace-only lines next to empty lines (regression)", () => {
   it("inserts a whitespace-only line after the range next to a unique empty line", async () => {
     const file = "second\n";
     await withTempFile("sample.ts", file, async ({ cwd, path }) => {
-      const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      const { ctx, readTool, editTool } = await setupDedupTest(cwd);
       const read1 = await readTool.execute("r1", { path: "sample.ts" }, undefined, undefined, ctx);
       const lines1 = getText(read1).split("\n");
       const secondHash = extractHash(lines1.find((l) => l.includes("│second"))!);

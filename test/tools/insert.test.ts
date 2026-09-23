@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFile } from "fs/promises";
 import { lineHashes } from "../../src/hashline";
 import { withTempFile, makeFakePiRegistry, setupIntegrationTest, getText, extractHash } from "../support/fixtures";
+import { writeConfig } from "../../src/config";
 import { resolveTarget } from "../../src/fs-write";
 import { toCwd } from "../../src/paths";
 import register from "../../index";
@@ -319,6 +320,7 @@ describe("insert tool", () => {
   it("keeps a dedup-cut noop a noop after an unrelated insert", async () => {
     await withTempFile("sample.ts", "aaa\nbbb\nccc\n", async ({ cwd, path }) => {
       const { ctx, readTool, getTool } = setupIntegrationTest(cwd);
+      await writeConfig({ autoRead: true, anchorGrepEnabled: true, boundaryDedupMode: "on" });
       const insertTool = getTool("insert");
       const editTool = getTool("replace");
       const hashes = await lineHashes("aaa\nbbb\nccc\n", await resolveTarget(toCwd("sample.ts", cwd)));

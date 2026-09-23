@@ -29,7 +29,7 @@ const DEFAULT_CONFIG: Config = {
   autoReadAllIgnore: [],
   requirePath: false,
   strictInput: false,
-  boundaryDedupMode: "on",
+  boundaryDedupMode: "off",
   diffContextLines: DEFAULT_DIFF_CONTEXT_LINES
 };
 
@@ -39,7 +39,7 @@ function parseBoundaryDedupMode(mode: unknown, legacy: unknown): BoundaryDedupMo
   if (mode === "on" || mode === "strict" || mode === "off") return mode;
   if (legacy === true) return "on";
   if (legacy === false) return "off";
-  return DEFAULT_CONFIG.boundaryDedupMode ?? "on";
+  return DEFAULT_CONFIG.boundaryDedupMode ?? "off";
 }
 
 function parseAutoReadAllMode(value: unknown): AutoReadAllMode {
@@ -227,10 +227,10 @@ export async function cycleAutoReadAllMode(): Promise<AutoReadAllMode> {
 export const toggleRequirePath = (): Promise<boolean> => toggleFlag("requirePath");
 export const toggleStrictInput = (): Promise<boolean> => toggleFlag("strictInput");
 export async function cycleBoundaryDedupMode(): Promise<BoundaryDedupMode> {
-  let next: BoundaryDedupMode = "on";
+  let next: BoundaryDedupMode = "off";
   await updateConfig((c) => {
-    const current = c.boundaryDedupMode ?? "on";
-    next = BOUNDARY_DEDUP_MODES[(BOUNDARY_DEDUP_MODES.indexOf(current) + 1) % BOUNDARY_DEDUP_MODES.length] ?? "on";
+    const current = c.boundaryDedupMode ?? "off";
+    next = BOUNDARY_DEDUP_MODES[(BOUNDARY_DEDUP_MODES.indexOf(current) + 1) % BOUNDARY_DEDUP_MODES.length] ?? "off";
     c.boundaryDedupMode = next;
   });
   return next;

@@ -150,10 +150,11 @@ describe("config - toggleStrictInput", () => {
 });
 
 describe("config - cycleBoundaryDedupMode", () => {
-  it("cycles on to strict", async () => {
+  it("cycles off to on", async () => {
     await withTempDir("pi-hashline-config-test-", async () => {
-      expect(await cycleBoundaryDedupMode()).toBe("strict");
-      expect((await readConfig()).boundaryDedupMode).toBe("strict");
+      expect((await readConfig()).boundaryDedupMode).toBe("off");
+      expect(await cycleBoundaryDedupMode()).toBe("on");
+      expect((await readConfig()).boundaryDedupMode).toBe("on");
     });
   });
 

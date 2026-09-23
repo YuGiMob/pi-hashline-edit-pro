@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { readFile } from "fs/promises";
 import { withTempFile, setupIntegrationTest, getText, anchorFor } from "../support/fixtures";
+import { writeConfig } from "../../src/config";
 
 describe("boundary dedup diagnostics", () => {
   it("reports stripped lines and does not re-insert them", async () => {
     await withTempFile("sample.ts", "aaa\nbbb\nccc\n", async ({ cwd, path }) => {
       const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      await writeConfig({ autoRead: true, anchorGrepEnabled: true, boundaryDedupMode: "on" });
       const text = getText(await readTool.execute("r1", { path: "sample.ts" }, undefined, undefined, ctx));
       const ref = anchorFor(text, "bbb");
 
@@ -32,6 +34,7 @@ describe("boundary dedup diagnostics", () => {
   it("places a trailing dedup row beside the surviving line below the change", async () => {
     await withTempFile("sample.ts", "aaa\nbbb\nccc\n", async ({ cwd, path }) => {
       const { ctx, readTool, editTool } = setupIntegrationTest(cwd);
+      await writeConfig({ autoRead: true, anchorGrepEnabled: true, boundaryDedupMode: "on" });
       const text = getText(await readTool.execute("r1", { path: "sample.ts" }, undefined, undefined, ctx));
       const ref = anchorFor(text, "bbb");
 

@@ -254,8 +254,8 @@ describe("hashline-config overlay rendering", () => {
         expect(lines.some((line) => line.includes("↑↓ navigate"))).toBe(true);
         expect(lines.filter((line) => line.includes("[x]")).length).toBe(2);
         expect(lines.filter((line) => line.includes("[ ]")).length).toBe(2);
-        expect(lines.filter((line) => line.includes("[on]")).length).toBe(1);
-        expect(lines.filter((line) => line.includes("[off]")).length).toBe(1);
+        expect(lines.filter((line) => line.includes("[on]")).length).toBe(0);
+        expect(lines.filter((line) => line.includes("[off]")).length).toBe(2);
         overlay.handleInput("k");
         expect(overlay.render(60).find((line) => line.includes("Boundary dedup"))!).toContain("> ");
         overlay.handleInput("j");
@@ -308,9 +308,9 @@ describe("hashline-config overlay rendering", () => {
 
         overlay.handleInput("j");
         overlay.handleInput(" ");
-        await waitForConfig(async () => (await readConfig()).boundaryDedupMode === "strict");
+        await waitForConfig(async () => (await readConfig()).boundaryDedupMode === "on");
         overlay.handleInput(" ");
-        await waitForConfig(async () => (await readConfig()).boundaryDedupMode === "off");
+        await waitForConfig(async () => (await readConfig()).boundaryDedupMode === "strict");
 
         const config = await readConfig();
         expect(config.autoRead).toBe(false);
@@ -318,7 +318,7 @@ describe("hashline-config overlay rendering", () => {
         expect(config.autoReadAll).toBe("on");
         expect(config.requirePath).toBe(true);
         expect(config.strictInput).toBe(true);
-        expect(config.boundaryDedupMode).toBe("off");
+        expect(config.boundaryDedupMode).toBe("strict");
         expect(config.diffContextLines).toBe(1);
         expect(getActive()).toContain("grep");
         expect(getActive()).not.toContain("anchor_grep");

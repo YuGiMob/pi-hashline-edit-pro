@@ -166,12 +166,19 @@ describe("edit prompt flag variants", () => {
     const result = withReplacePrompts(replaceBase, { ...DEFAULT_EDIT_FLAGS, boundaryDedupMode: "off" });
     expect(result.description).toContain("Boundary dedup is off: edits apply literally.");
     expect(result.guidelines.some((g) => g.includes("boundary dedup is off"))).toBe(true);
+    expect(result.guidelines.some((g) => g.includes("deduplicated automatically"))).toBe(false);
+  });
+  it("withReplacePrompts keeps the dedup guideline when boundary dedup is on", () => {
+    const result = withReplacePrompts(replaceBase, { ...DEFAULT_EDIT_FLAGS, boundaryDedupMode: "on" });
+    expect(result.guidelines.some((g) => g.includes("deduplicated automatically"))).toBe(true);
+    expect(result.guidelines.some((g) => g.includes("boundary dedup is off"))).toBe(false);
   });
 
   it("withReplacePrompts adds the boundary-dedup-strict notice", () => {
     const result = withReplacePrompts(replaceBase, { ...DEFAULT_EDIT_FLAGS, boundaryDedupMode: "strict" });
     expect(result.description).toContain("Boundary dedup is strict: edits that re-include edge lines are rejected instead of stripped.");
     expect(result.guidelines.some((g) => g.includes("boundary dedup is strict"))).toBe(true);
+    expect(result.guidelines.some((g) => g.includes("deduplicated automatically"))).toBe(false);
   });
 
   it("withReplacePrompts drops the diff-follow hint when auto-read is off", () => {

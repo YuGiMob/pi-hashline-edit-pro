@@ -3,6 +3,7 @@ import { join } from "path";
 import { describe, expect, it } from "vitest";
 import { Value } from "typebox/value";
 import register from "../../index";
+import { updateConfig, writeConfig } from "../../src/config";
 import { initRegistry, resetRegistryForTests } from "../../src/anchor-registry";
 import { resetBatchStateForTests } from "../../src/batch";
 import { makeFakePiRegistry, withTempDir, withTempFile, toolCall, assistantMessage, anchorFor } from "../support/fixtures";
@@ -16,6 +17,9 @@ async function setupBatchTools(cwd: string) {
   resetRegistryForTests();
   resetBatchStateForTests();
   await initRegistry(undefined);
+  await updateConfig((config) => {
+    config.boundaryDedupMode = "on";
+  });
   const { pi, getTool, handlers } = makeFakePiRegistry();
   register(pi);
   const ctx = { cwd, ui: { notify() {} } } as any;
@@ -1259,6 +1263,34 @@ describe("same-turn edit batches", () => {
         { type: "turn_end", turnIndex: 0, message, toolResults: [{ toolCallId: "s1" }, { toolCallId: "s2" }] },
         ctx,
       ) as Promise<unknown>);
+    });
+  });
+  it("applies batch replacements literally when boundary dedup is off", async () => {
+    await withTempFile("sample.txt", "a\nb\nc\nd\n", async ({ cwd, path }) => {
+      const { getTool, handlers, ctx } = await setupBatchTools(cwd);
+      await writeConfig({ autoRead: true, anchorGrepEnabled: true, boundaryDedupMode: "off" });
+      const readTool = getTool("read");
+      const editTool = getTool("replace");
+      const text = (await readTool.execute("r1", { path: "sample.txt" }, undefined, undefined, ctx)).content[0].text as string;
+      const bRef = anchorFor(text, "b");
+      const cRef = anchorFor(text, "c");
+
+      const firstArgs = { remove_from: bRef, remove_to: bRef, replacement_lines: ["a", "B"] };
+      const secondArgs = { remove_from: cRef, remove_to: cRef, replacement_lines: ["X", "d"] };
+      const message = assistantMessage([
+        toolCall("o1", "replace", firstArgs),
+        toolCall("o2", "replace", secondArgs),
+      ]);
+      await (handlers.get("message_end")!({ type: "message_end", message }, ctx) as Promise<unknown>);
+
+      const first = await editTool.execute("o1", firstArgs, undefined, undefined, ctx);
+      expect(first.content[0].text).toBe("In batch 1");
+
+      const second = await editTool.execute("o2", secondArgs, undefined, undefined, ctx);
+      expect(second.content[0].text).toContain("Batch 1: 2 edits applied as one commit");
+      expect(second.details.warnings).toBeUndefined();
+      expect(second.details.diff).not.toContain("dedup│");
+      expect(await readFile(path, "utf-8")).toBe("a\na\nB\nX\nd\nd\n");
     });
   });
 });
