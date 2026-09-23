@@ -1,5 +1,5 @@
 - `replace`: `-anchor│` rows in a post-edit diff are dead anchors; only `+anchor│` and ` anchor│` rows are live. Check the post-edit diff before the next turn's edits on that file.
-- `replace`: same-file same-message calls batch: disjoint ranges, one undo. A call whose anchors resolve nowhere fails alone; the rest of the message's batch still commits.
+- `replace`: same-file same-message calls batch: disjoint ranges, one undo. A call whose anchors resolve nowhere fails alone; its file's batch still commits.
 - `replace`: `[E_STALE_ANCHOR]` means the anchor is not owned in this session: call `read` on the file for fresh anchors. `[E_RANGE_STALE]` means a line in the range changed since it was shown, or was never shown: retry with the fresh anchors the error returns.
 - `replace`: `[E_BATCH_OVERLAP]` means two batch calls share lines: retry with disjoint ranges. `[E_OP_ABORTED]` means another batch call failed or the file changed: fix that call, then retry, or call `read` for fresh anchors.
 - `replace`: use `replace`/`insert`, not `sed -i` or heredocs — anchor edits are verified against what was shown and undoable.
