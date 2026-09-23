@@ -47,6 +47,45 @@ describe("resolveEditTarget cross file", () => {
     const b = allocateAnchor("/same-gap.ts", "ck-2");
     expect(resolveEditTarget(a, b)).toBe("/same-gap.ts");
   });
+  it("explains case sensitivity when a ref differs only in case from an owned anchor", () => {
+    const anchor = allocateAnchor("/case-gap.ts", "ck-case");
+    const wrong = anchor === anchor.toLowerCase() ? anchor.toUpperCase() : anchor.toLowerCase();
+    let message = "";
+    try {
+      resolveEditTarget(wrong);
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toContain("[E_STALE_ANCHOR]");
+    expect(message).toContain("not owned in this session");
+    expect(message).toContain("case-sensitive");
+    expect(message).toContain(anchor);
+  });
+  it("omits the case hint for an anchor that is simply unknown", () => {
+    const anchor = allocateAnchor("/case-none.ts", "ck-none");
+    const unknown = (anchor[0] === "A" ? "B" : "A") + anchor.slice(1);
+    let message = "";
+    try {
+      resolveEditTarget(unknown);
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toContain("[E_STALE_ANCHOR]");
+    expect(message).not.toContain("case-sensitive");
+  });
+  it("only reports case matches owned by the file the co-anchor resolved to", () => {
+    const valid = allocateAnchor("/fold-target.ts", "ck-target");
+    const other = allocateAnchor("/fold-other.ts", "ck-other");
+    const wrongCaseOfOther = other === other.toLowerCase() ? other.toUpperCase() : other.toLowerCase();
+    let message = "";
+    try {
+      resolveEditTarget(valid, wrongCaseOfOther);
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toContain("[E_STALE_ANCHOR]");
+    expect(message).not.toContain("case-sensitive");
+  });
 });
 
 describe("buildServedMap duplicates", () => {

@@ -568,6 +568,24 @@ export function ownerOf(anchor: string): OwnedAnchor | undefined {
   return current()?.owned.get(anchor);
 }
 
+export interface CaseFoldedOwner {
+  anchor: string;
+  path: string;
+}
+
+export function ownersDifferingOnlyByCase(anchor: string, paths?: ReadonlySet<string>): CaseFoldedOwner[] {
+  const state = current();
+  if (!state) return [];
+  const lower = anchor.toLowerCase();
+  const matches: CaseFoldedOwner[] = [];
+  for (const [owned, entry] of state.owned) {
+    if (owned === anchor || owned.toLowerCase() !== lower) continue;
+    if (paths && paths.size > 0 && !paths.has(entry.path)) continue;
+    matches.push({ anchor: owned, path: entry.path });
+  }
+  return matches;
+}
+
 export function ownersForPath(path: string): Map<string, string> {
   const claims = new Map<string, string>();
   const state = current();

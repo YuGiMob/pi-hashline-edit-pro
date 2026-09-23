@@ -162,8 +162,11 @@ describe("edit prompt flag variants", () => {
     expect(result.guidelines.some((g) => g.includes("strict-input is on"))).toBe(true);
   });
 
-  it("withReplacePrompts drops the diff-follow hint when auto-read is off", () => {
+  it("withReplacePrompts drops the diff-follow hint and example when auto-read is off", () => {
+    const on = withReplacePrompts(replaceBase, DEFAULT_EDIT_FLAGS);
+    expect(on.description).toContain("Example: read served");
     const result = withReplacePrompts(replaceBase, { ...DEFAULT_EDIT_FLAGS, autoRead: false });
+    expect(result.description).not.toContain("Example: read served");
     expect(result.description).not.toContain("Anchor follow-up edits on the `+anchor│`");
     expect(result.guidelines.some((g) => g.includes("post-edit diff"))).toBe(false);
   });

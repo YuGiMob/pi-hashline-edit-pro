@@ -1,7 +1,7 @@
 import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { resolveInCwd } from "./fs-write";
 import { abortIf, makePrepareArguments } from "./utils";
-import { ownerOf } from "./anchor-registry";
+import { ownerOf, ownersDifferingOnlyByCase, type OwnedAnchor } from "./anchor-registry";
 import { parseHashRef, stripAnchorRow } from "./hashline";
 import { readConfig } from "./config";
 import { makeRenderCall, renderEditResult, type RPreview, type FgT } from "./replace-render";
@@ -37,7 +37,7 @@ export function withReplacePrompts(base: { description: string; snippet: string;
   const snippetParts = [base.snippet];
   let guidelines = [...base.guidelines];
   if (!flags.autoRead) {
-    description = description.replace(" Anchor follow-up edits on the `+anchor│` and ` anchor│` rows of the post-edit diff instead of re-reading.", "");
+    description = description.replace(/\n\nExample:[\s\S]*$/, "");
     guidelines = guidelines.filter((guideline) => !guideline.includes("post-edit diff"));
     description = description.replace("and the last call shows the combined diff,", "and the last call shows the combined result,");
   }
@@ -95,14 +95,27 @@ export function withUndoPrompts(base: { description: string; snippet: string; gu
   const guidelines = base.guidelines.map((guideline) => guideline.includes("bad diff") ? "`undo_last_change`: only the last `replace`/`insert` per file is undoable; a `write` clears it, so undo right after a bad edit — review what you're restoring." : guideline);
   return { description: base.description, snippet: base.snippet, guidelines };
 }
+
+function staleAnchorMessage(ref: string, hash: string, owners: Array<OwnedAnchor | undefined>): string {
+  const knownPaths = new Set<string>();
+  for (const owner of owners) {
+    if (owner) knownPaths.add(owner.path);
+  }
+  const folded = ownersDifferingOnlyByCase(hash, knownPaths);
+  const hint =
+    folded.length > 0
+      ? ` Anchors are case-sensitive; ${folded.map((match) => `"${match.anchor}"`).join(", ")} differs only in case.`
+      : "";
+  return `[E_STALE_ANCHOR] "${ref}" is not owned in this session.${hint} Call read() on the target file first.`;
+}
+
 export function resolveEditTarget(removeFrom: string, removeTo?: string): string {
   const refs = [removeFrom, removeTo].filter((value): value is string => typeof value === "string");
-  const owners = refs.map((ref) => ownerOf(parseHashRef(stripAnchorRow(ref.trim(), "anchor entry")).hash));
+  const hashes = refs.map((ref) => parseHashRef(stripAnchorRow(ref.trim(), "anchor entry")).hash);
+  const owners = hashes.map((hash) => ownerOf(hash));
   const missing = owners.findIndex((owner) => !owner);
   if (missing >= 0) {
-    throw new Error(
-      `[E_STALE_ANCHOR] "${refs[missing]!}" is not owned in this session. Call read() on the target file first.`,
-    );
+    throw new Error(staleAnchorMessage(refs[missing]!, hashes[missing]!, owners));
   }
   const paths = new Set(owners.map((owner) => owner!.path));
   if (paths.size > 1) {
