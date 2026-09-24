@@ -37,10 +37,7 @@ function fmtDiffLine(
   line: string,
   hash: string | undefined,
 ): string {
-  if (hash === undefined) {
-    return `${prefix}${" ".repeat(ANCHOR_LEN)}${HASH_SEP}${line}`;
-  }
-  return `${prefix}${hash}${HASH_SEP}${line}`;
+  return `${prefix}${hash ?? " ".repeat(ANCHOR_LEN)}${HASH_SEP}${line}`;
 }
 
 function isBlankLine(line: string): boolean {

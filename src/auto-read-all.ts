@@ -87,24 +87,17 @@ function isExcludedBySegment(path: string): boolean {
   }
   return false;
 }
+const EXCLUDED_PATTERN_SUFFIXES = [
+  ".min.js", ".min.css", ".min.mjs", "-min.js", "-min.css", ".umd.js", ".map", ".lock",
+  "_pb2.py", ".pb.go", ".g.dart", ".freezed.dart", ".designer.cs", ".g.cs", ".snap",
+];
+const EXCLUDED_PATTERN_INFIXES = [".bundle.", ".chunk.", ".generated.", ".gen."];
+
 function isExcludedByPattern(baseLower: string): boolean {
-  if (baseLower.endsWith(".min.js") || baseLower.endsWith(".min.css") || baseLower.endsWith(".min.mjs")) return true;
-  if (baseLower.endsWith("-min.js") || baseLower.endsWith("-min.css")) return true;
-  if (baseLower.includes(".bundle.") || baseLower.includes(".chunk.")) return true;
-  if (baseLower.endsWith(".umd.js")) return true;
-  if (baseLower.endsWith(".map")) return true;
-  if (baseLower.endsWith(".lock")) return true;
-  if (baseLower.includes(".generated.") || baseLower.includes(".gen.")) return true;
-  if (baseLower.endsWith("_pb2.py")) return true;
-  if (baseLower.endsWith(".pb.go")) return true;
-  if (baseLower.endsWith(".g.dart")) return true;
-  if (baseLower.endsWith(".freezed.dart")) return true;
-  if (baseLower.endsWith(".designer.cs")) return true;
-  if (baseLower.endsWith(".g.cs")) return true;
-  if (baseLower.endsWith(".snap")) return true;
-  if (baseLower.startsWith("coreui-icons.")) return true;
-  if (baseLower === "coreui.css") return true;
-  return false;
+  return EXCLUDED_PATTERN_SUFFIXES.some((suffix) => baseLower.endsWith(suffix))
+    || EXCLUDED_PATTERN_INFIXES.some((infix) => baseLower.includes(infix))
+    || baseLower.startsWith("coreui-icons.")
+    || baseLower === "coreui.css";
 }
 export function normalizeAutoReadAllIgnoreList(entries: readonly string[] | undefined): string[] {
   const seen = new Set<string>();

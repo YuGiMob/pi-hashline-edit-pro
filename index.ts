@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "@earendil-works/pi-coding-agent";
-import { initHasher, lineChecksum } from "./src/hashline";
+import { initHasher } from "./src/hashline";
 import { regReplace } from "./src/replace";
 import { regInsert } from "./src/insert";
 import { regGrep } from "./src/grep";
@@ -23,7 +23,7 @@ import {
   adjustDiffContextLines,
   setAutoReadAllIgnoreFromText,
 } from "./src/config";
-import { loadHashStore, persistSnapshot, pruneMissing } from "./src/hash-store";
+import { loadHashStore, pruneMissing } from "./src/hash-store";
 import { initRegistry, gcRegistrySidecars, clearRegistry, freeAnchors, sessionKeyFor, withAnchorSession, releaseRegistrySession } from "./src/anchor-registry";
 import { serveRows } from "./src/served";
 import { finalizeTurn, planAssistantMessage } from "./src/batch";
@@ -216,7 +216,6 @@ export default function (pi: ExtensionAPI): void {
           DEFAULT_MAX_LINES,
         );
         const fileLines = splitLines(normalized);
-        persistSnapshot(await loadHashStore(), absolutePath, normalized, fileHashes, fileLines.map(lineChecksum));
         serveRows(absolutePath, fileHashes, fileLines, preview.servedHashes);
         return {
           content: [

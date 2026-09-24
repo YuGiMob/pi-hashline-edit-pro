@@ -38,7 +38,7 @@ function diagRef(ref: string): string {
 	return `[E_BAD_REF] Invalid anchor "${trimmed}". Expected a 4-character anchor (letters only, e.g. "Hasu").`;
 }
 
-function parseRef(ref: string): Anchor {
+export function parseHashRef(ref: string): Anchor {
 	const trimmed = ref.trim();
 
 	if (
@@ -50,8 +50,6 @@ function parseRef(ref: string): Anchor {
 
 	throw new Error(diagRef(ref));
 }
-
-export const parseHashRef = parseRef;
 
 const JSON_ENVELOPE_RE = /^\s*\["(.*)"\]\.\s*$/;
 
