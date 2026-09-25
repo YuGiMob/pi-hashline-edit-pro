@@ -529,6 +529,7 @@ export function getAllocatedState(store: HashStore, path: string, deleteCorrupt 
       checksums = undefined;
     }
   }
+  if (checksums !== undefined && checksums.length !== parsedAnchors.length) return undefined;
   return { anchors: parsedAnchors, checksums, contentChecksum: row.checksum };
 }
 
@@ -550,8 +551,13 @@ export function getUndoEntry(store: HashStore, path: string): UndoRecord | undef
   if (!row) return undefined;
   const parsed = parseStoredHashes(row, () => store.stmts.undoDelete(path));
   if (!parsed) return undefined;
+  const content = row.content as string;
+  if (splitLines(content).length !== parsed.length) {
+    store.stmts.undoDelete(path);
+    return undefined;
+  }
   return {
-    content: row.content as string,
+    content,
     bom: row.bom as string,
     ending: row.ending as string,
     hashes: parsed,

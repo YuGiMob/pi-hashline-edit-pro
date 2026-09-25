@@ -3,10 +3,6 @@ import {
   isRec,
   visLines,
   rejectUnknownFields,
-  lastNonEmptyIndex,
-  firstNonEmptyIndex,
-  lastNonEmpty,
-  firstNonEmpty,
   makePrepareArguments,
   truncateToBytes,
   decodeStringArray,
@@ -167,110 +163,6 @@ describe("rejectUnknownFields", () => {
     expect(() => rejectUnknownFields(obj, allowed, "Request")).toThrow(
       /z, a, m/,
     );
-  });
-});
-
-describe("lastNonEmptyIndex", () => {
-  it("returns -1 for empty array", () => {
-    expect(lastNonEmptyIndex([])).toBe(-1);
-  });
-
-  it("returns -1 for all-empty lines", () => {
-    expect(lastNonEmptyIndex(["", "", ""])).toBe(-1);
-  });
-
-  it("returns index of last non-empty line", () => {
-    expect(lastNonEmptyIndex(["a", "", "b"])).toBe(2);
-  });
-
-  it("finds last non-empty when there are trailing empty lines", () => {
-    expect(lastNonEmptyIndex(["a", "b", "", ""])).toBe(1);
-  });
-
-  it("returns index of the only non-empty line", () => {
-    expect(lastNonEmptyIndex(["", "x", ""])).toBe(1);
-  });
-
-  it("handles a single non-empty line", () => {
-    expect(lastNonEmptyIndex(["hello"])).toBe(0);
-  });
-});
-
-describe("firstNonEmptyIndex", () => {
-  it("returns -1 for empty array", () => {
-    expect(firstNonEmptyIndex([])).toBe(-1);
-  });
-
-  it("returns -1 for all-empty lines", () => {
-    expect(firstNonEmptyIndex(["", "", ""])).toBe(-1);
-  });
-
-  it("returns index of first non-empty line", () => {
-    expect(firstNonEmptyIndex(["", "a", "b"])).toBe(1);
-  });
-
-  it("finds first non-empty when there are leading empty lines", () => {
-    expect(firstNonEmptyIndex(["", "", "a", "b"])).toBe(2);
-  });
-
-  it("returns index of the only non-empty line", () => {
-    expect(firstNonEmptyIndex(["", "x", ""])).toBe(1);
-  });
-
-  it("handles a single non-empty line", () => {
-    expect(firstNonEmptyIndex(["hello"])).toBe(0);
-  });
-});
-
-describe("lastNonEmpty", () => {
-  it("returns undefined for empty array", () => {
-    expect(lastNonEmpty([])).toBeUndefined();
-  });
-
-  it("returns undefined for all-empty lines", () => {
-    expect(lastNonEmpty(["", "", ""])).toBeUndefined();
-  });
-
-  it("returns content of last non-empty line", () => {
-    expect(lastNonEmpty(["a", "", "b"])).toBe("b");
-  });
-
-  it("finds last non-empty when there are trailing empty lines", () => {
-    expect(lastNonEmpty(["a", "b", "", ""])).toBe("b");
-  });
-
-  it("returns content of the only non-empty line", () => {
-    expect(lastNonEmpty(["", "x", ""])).toBe("x");
-  });
-
-  it("handles a single non-empty line", () => {
-    expect(lastNonEmpty(["hello"])).toBe("hello");
-  });
-});
-
-describe("firstNonEmpty", () => {
-  it("returns undefined for empty array", () => {
-    expect(firstNonEmpty([])).toBeUndefined();
-  });
-
-  it("returns undefined for all-empty lines", () => {
-    expect(firstNonEmpty(["", "", ""])).toBeUndefined();
-  });
-
-  it("returns content of first non-empty line", () => {
-    expect(firstNonEmpty(["", "a", "b"])).toBe("a");
-  });
-
-  it("finds first non-empty when there are leading empty lines", () => {
-    expect(firstNonEmpty(["", "", "a", "b"])).toBe("a");
-  });
-
-  it("returns content of the only non-empty line", () => {
-    expect(firstNonEmpty(["", "x", ""])).toBe("x");
-  });
-
-  it("handles a single non-empty line", () => {
-    expect(firstNonEmpty(["hello"])).toBe("hello");
   });
 });
 

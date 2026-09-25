@@ -24,7 +24,6 @@ const EXEC_MAX_BYTES = 64 * 1024 * 1024;
 const SCAN_CONCURRENCY = 32;
 const SCAN_LIMIT_MULTIPLIER = 4;
 const MAX_REPORTED_OMISSIONS = 50;
-export const AUTO_READ_ALL_CHUNK_BYTES = 48 * 1024;
 
 const HEADER =
   "[hashline auto-read-all] Every non-ignored project file is attached below as `=== path ===` then `anchor│content` rows with live anchors.\nEdit directly from the attachment with replace and insert; do not call read for files in [files complete: ...].\nFiles listed as omitted or not attached can be read normally.\nAnchors are case-sensitive and stay valid until their line is edited.";
@@ -196,7 +195,6 @@ export interface AutoReadAllInjection {
   files: number;
   bytes: number;
   omitted: string[];
-  chunks: string[];
   completeFiles: number;
 }
 
@@ -364,24 +362,6 @@ export async function discoverAutoReadAllFiles(cwd: string, mode: AutoReadAllMod
   return { files, source, discovered: unique.length, skippedBinary, skippedLarge, skippedOther, skippedByName };
 }
 
-export function chunkAutoReadAllSections(sections: string[], maxBytes: number = AUTO_READ_ALL_CHUNK_BYTES): string[] {
-  const chunks: string[] = [];
-  let current: string[] = [];
-  let currentBytes = 0;
-  for (const section of sections) {
-    const sectionBytes = Buffer.byteLength(section, "utf-8") + 2;
-    if (current.length > 0 && currentBytes + sectionBytes > maxBytes) {
-      chunks.push(current.join("\n\n"));
-      current = [];
-      currentBytes = 0;
-    }
-    current.push(section);
-    currentBytes += sectionBytes;
-  }
-  if (current.length > 0) chunks.push(current.join("\n\n"));
-  return chunks;
-}
-
 async function candidateFileBytes(cwd: string, file: string): Promise<number | undefined> {
   try {
     const stats = await lstat(resolve(cwd, file));
@@ -455,12 +435,11 @@ export async function buildAutoReadAllInjection(cwd: string, budgetBytes: number
   }
   if (sections.length === 0) return undefined;
   const sectionTexts = sections.map((section) => section.text);
-  const chunks = chunkAutoReadAllSections(sectionTexts);
   const coverage = `[coverage: ${completeFiles} complete]`;
   const completeNames = sections.map((section) => section.file);
   const machineList = `[files complete: ${JSON.stringify(completeNames)} omitted: ${JSON.stringify(omitted)}]`;
   const text = `${HEADER}\n\n${coverage}\n${machineList}\n\n${sectionTexts.join("\n\n")}\n\n${buildFooter(sections.length, discovery, omitted)}`;
-  return { text, files: sections.length, bytes, omitted, chunks, completeFiles };
+  return { text, files: sections.length, bytes, omitted, completeFiles };
 }
 
 export function autoReadAllBudget(model: { contextWindow?: number } | undefined): number {

@@ -59,7 +59,7 @@ describe("anchor registry", () => {
     const second = allocateAnchor("b.ts", "ck1");
     const third = allocateAnchor("c.ts", "ck2");
     expect(new Set([first, second, third]).size).toBe(3);
-    expect(first).toMatch(/^[A-Za-z0-9]{4}$/);
+    expect(first).toMatch(/^[A-Za-z]{4}$/);
   });
 
   it("does not repeat the mint sequence after an ephemeral re-init", async () => {
@@ -109,7 +109,7 @@ describe("anchor registry", () => {
     resetRegistryForTests();
     expect(() => allocateAnchor("a.ts", "ck")).toThrow(/E_REGISTRY/);
     await initRegistry(undefined);
-    expect(allocateAnchor("a.ts", "ck")).toMatch(/^[A-Za-z0-9]{4}$/);
+    expect(allocateAnchor("a.ts", "ck")).toMatch(/^[A-Za-z]{4}$/);
   });
 
   it("never mints an owned anchor", () => {

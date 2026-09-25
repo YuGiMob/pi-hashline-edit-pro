@@ -102,7 +102,7 @@ describe("insert tool", () => {
       const insertTool = getTool("insert");
       const readResult = await readTool.execute("r1", { path: "empty.ts" }, undefined, undefined, ctx);
       const emptyHash = getText(readResult).split("\n")[0]!.split("│")[0]!;
-      expect(emptyHash).toMatch(/^[A-Za-z0-9]{4}$/);
+      expect(emptyHash).toMatch(/^[A-Za-z]{4}$/);
 
       await insertTool.execute(
         "i1",

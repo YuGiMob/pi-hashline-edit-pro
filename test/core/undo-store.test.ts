@@ -92,7 +92,7 @@ describe("undo-store", () => {
       content: "old",
       bom: "\uFEFF",
       originalEnding: "\r",
-      hashes: ["ATIm", "BeSR"],
+      hashes: ["ATIm"],
       resultContent: "new",
     });
     shutdownHashStore();
@@ -101,7 +101,7 @@ describe("undo-store", () => {
     expect(entry!.content).toBe("old");
     expect(entry!.bom).toBe("\uFEFF");
     expect(entry!.originalEnding).toBe("\r");
-    expect(entry!.hashes).toEqual(["ATIm", "BeSR"]);
+    expect(entry!.hashes).toEqual(["ATIm"]);
     expect(entry!.resultContent).toBe("new");
   });
 
@@ -133,6 +133,24 @@ describe("undo-store", () => {
     });
     const db = new DatabaseSync(hashStorePath(), { defensive: false } as any);
     db.prepare("UPDATE undo SET ending = ? WHERE path = ?").run("bogus", home.testPath);
+    db.close();
+    expect(await getUndo(home.testPath)).toBeUndefined();
+    const check = new DatabaseSync(hashStorePath(), { defensive: false } as any);
+    const remaining = check.prepare("SELECT COUNT(*) AS n FROM undo WHERE path = ?").get(home.testPath) as { n: number };
+    check.close();
+    expect(remaining.n).toBe(0);
+  });
+
+  it("treats a row whose hash count mismatches its content as a miss", async () => {
+    await saveUndo(home.testPath, {
+      content: "one\ntwo",
+      bom: "",
+      originalEnding: "\n",
+      hashes: ["ATIm", "BeSR"],
+      resultContent: "new",
+    });
+    const db = new DatabaseSync(hashStorePath(), { defensive: false } as any);
+    db.prepare("UPDATE undo SET hashes = ? WHERE path = ?").run(JSON.stringify(["ATIm"]), home.testPath);
     db.close();
     expect(await getUndo(home.testPath)).toBeUndefined();
     const check = new DatabaseSync(hashStorePath(), { defensive: false } as any);

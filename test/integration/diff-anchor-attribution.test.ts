@@ -6,7 +6,7 @@ function minusAnchors(diff: string): string[] {
   const out: string[] = [];
   for (const line of diff.split("\n")) {
     if (!line.startsWith("-")) continue;
-    const match = /^-([A-Za-z0-9]{4})│/.exec(line);
+    const match = /^-([A-Za-z]{4})│/.exec(line);
     out.push(match ? match[1]! : "(blank)");
   }
   return out;
@@ -16,7 +16,7 @@ function liveAnchors(diff: string): Set<string> {
   const live = new Set<string>();
   for (const line of diff.split("\n")) {
     if (!line.startsWith("+") && !line.startsWith(" ")) continue;
-    const match = /^[+ ]([A-Za-z0-9]{4})│/.exec(line);
+    const match = /^[+ ]([A-Za-z]{4})│/.exec(line);
     if (match) live.add(match[1]!);
   }
   return live;

@@ -155,7 +155,7 @@ describe("auto-read handler", () => {
       const content = (result as { content: Array<{ type: string; text: string }> }).content;
       expect(content[1].text).toContain("--- Auto-read (hashline anchors) ---");
       expect(content[1].text).toContain("[File is empty. Use replace to insert content.]");
-      expect(content[1].text).toMatch(/^[A-Za-z0-9]{4}│/m);
+      expect(content[1].text).toMatch(/^[A-Za-z]{4}│/m);
     });
   });
 

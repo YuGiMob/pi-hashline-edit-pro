@@ -11,6 +11,7 @@ import {
   upsertSnapshot,
   upsertUndo,
   getUndoEntry,
+  getAllocatedState,
   isValidHashList,
   SNAPSHOT_CACHE_LIMIT,
   deleteUndo,
@@ -34,7 +35,7 @@ describe("hash-store - undo entries", () => {
         content: "old",
         bom: "\uFEFF",
         ending: "\r\n",
-        hashes: ["ATIm", "BeSR"],
+        hashes: ["ATIm"],
         resultContent: "new",
       });
       const entry = getUndoEntry(store, "/a.ts");
@@ -42,7 +43,7 @@ describe("hash-store - undo entries", () => {
         content: "old",
         bom: "\uFEFF",
         ending: "\r\n",
-        hashes: ["ATIm", "BeSR"],
+        hashes: ["ATIm"],
         resultContent: "new",
       });
     });
@@ -127,6 +128,27 @@ describe("hash-store - undo entries", () => {
       });
       const db = new DatabaseSync(sqlitePath(home), { defensive: false } as any);
       db.prepare("UPDATE undo SET hashes = ? WHERE path = ?").run('["ZZ", "ZZZZ"]', "/a.ts");
+      db.close();
+      expect(getUndoEntry(store, "/a.ts")).toBeUndefined();
+      const check = new DatabaseSync(sqlitePath(home), { defensive: false } as any);
+      const remaining = check.prepare("SELECT COUNT(*) AS n FROM undo WHERE path = ?").get("/a.ts") as { n: number };
+      check.close();
+      expect(remaining.n).toBe(0);
+    });
+  });
+
+  it("treats a row whose hash count mismatches its content as a miss", async () => {
+    await withTempDir("pi-hashline-hashstore-test-", async (home) => {
+      const store = await loadHashStore();
+      upsertUndo(store, "/a.ts", {
+        content: "one\ntwo",
+        bom: "",
+        ending: "\n",
+        hashes: ["ATIm", "BeSR"],
+        resultContent: "new",
+      });
+      const db = new DatabaseSync(sqlitePath(home), { defensive: false } as any);
+      db.prepare("UPDATE undo SET hashes = ? WHERE path = ?").run(JSON.stringify(["ATIm"]), "/a.ts");
       db.close();
       expect(getUndoEntry(store, "/a.ts")).toBeUndefined();
       const check = new DatabaseSync(sqlitePath(home), { defensive: false } as any);
@@ -845,6 +867,28 @@ describe("hash-store - snapshot cache", () => {
       const dbHit = getSnapshot(store, "/mutable.ts", "a\nb\n")!;
       dbHit[1] = "YYY";
       expect(getSnapshot(store, "/mutable.ts", "a\nb\n")).toEqual(["ATIm", "BeSR"]);
+    });
+  });
+});
+
+describe("hash-store - allocated state", () => {
+  it("returns anchors and checksums when their counts agree", async () => {
+    await withTempDir("pi-hashline-hashstore-test-", async () => {
+      const store = await loadHashStore();
+      upsertSnapshot(store, "/aligned.ts", contentChecksum("x\n"), 1, ["ATIm"], ["ck1"]);
+      expect(getAllocatedState(store, "/aligned.ts")).toEqual({
+        anchors: ["ATIm"],
+        checksums: ["ck1"],
+        contentChecksum: contentChecksum("x\n"),
+      });
+    });
+  });
+
+  it("treats a row whose checksum count differs from its anchors as a miss", async () => {
+    await withTempDir("pi-hashline-hashstore-test-", async () => {
+      const store = await loadHashStore();
+      upsertSnapshot(store, "/mismatch.ts", contentChecksum("x\n"), 1, ["ATIm"], ["ck1", "ck2"]);
+      expect(getAllocatedState(store, "/mismatch.ts")).toBeUndefined();
     });
   });
 });

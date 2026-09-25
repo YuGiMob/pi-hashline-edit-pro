@@ -5,8 +5,16 @@ import {
   lineHashes,
   resEdit,
 } from "../../src/hashline";
-import { firstNonEmpty, lastNonEmpty, splitLines } from "../../src/utils";
+import { splitLines } from "../../src/utils";
 import { useTestHome, expectedEditContent } from "../support/fixtures";
+
+function firstNonEmptyLine(lines: string[]): string | undefined {
+  return lines.find((line) => line.length > 0);
+}
+
+function lastNonEmptyLine(lines: string[]): string | undefined {
+  return lines.findLast((line) => line.length > 0);
+}
 
 const home = useTestHome();
 
@@ -70,14 +78,14 @@ function randSpan(
       (isEofDeletion(other) && isMidDeletion(span) && span.e === other.s - 1) ||
       (isEofDeletion(span) && isMidDeletion(other) && other.e === span.s - 1),
     )) continue;
-    const first = firstNonEmpty(repl);
-    const last = lastNonEmpty(repl);
+    const first = firstNonEmptyLine(repl);
+    const last = lastNonEmptyLine(repl);
     const prev = s >= 2 ? lines[s - 2] : undefined;
     const next = e < n ? lines[e] : undefined;
     if ((first !== undefined && first === prev) || (last !== undefined && last === next)) continue;
     if (avoid.some((other) =>
-      (first !== undefined && other.e === s - 1 && lastNonEmpty(other.repl) === first) ||
-      (last !== undefined && other.s === e + 1 && firstNonEmpty(other.repl) === last),
+      (first !== undefined && other.e === s - 1 && lastNonEmptyLine(other.repl) === first) ||
+      (last !== undefined && other.s === e + 1 && firstNonEmptyLine(other.repl) === last),
     )) continue;
     if (repl.length === 0 && s === 1 && e === n) continue;
     return span;

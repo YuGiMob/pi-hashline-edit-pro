@@ -62,7 +62,7 @@ describe("auto-read all", () => {
       const content = first!.message!.content as string;
       expect(content).toContain("[hashline auto-read-all]");
       expect(content).toContain("=== sample.txt ===");
-      const anchor = content.match(/([A-Za-z0-9]{4})│alpha/)![1]!;
+      const anchor = content.match(/([A-Za-z]{4})│alpha/)![1]!;
       expect(await handlers.get("before_agent_start")!({}, ctx)).toBeUndefined();
 
       const editResult = await getTool("replace").execute(

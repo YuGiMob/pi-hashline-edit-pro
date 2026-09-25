@@ -11,7 +11,7 @@ function anchoredRows(diff: string, prefix: "+" | "-" | " "): string[] {
 }
 
 function rowAnchor(row: string): string {
-  const match = /^[+ -]([A-Za-z0-9]{4})│/.exec(row);
+  const match = /^[+ -]([A-Za-z]{4})│/.exec(row);
   return match ? match[1]! : "(blank)";
 }
 
