@@ -23,6 +23,7 @@ export interface DiffSpan {
   start: number;
   end: number;
   replacementCount: number;
+  carry?: number;
 }
 
 interface PlacedSpan {

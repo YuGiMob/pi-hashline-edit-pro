@@ -101,7 +101,7 @@ export function _lineHashesPure(content: string): string[] {
 export async function lineHashes(
   content: string,
   path?: string,
-  previous?: { content: string; hashes: string[]; spans?: { start: number; end: number; replacementCount: number }[] },
+  previous?: { content: string; hashes: string[]; spans?: { start: number; end: number; replacementCount: number; carry?: number }[] },
   store?: HashStore,
   persist?: boolean,
   shadow?: boolean,

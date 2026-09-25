@@ -671,7 +671,7 @@ export function alignOwnershipWithSpans(
   prevAnchors: string[],
   prevChecksums: string[],
   newChecksums: string[],
-  spans: { start: number; end: number; replacementCount: number }[],
+  spans: { start: number; end: number; replacementCount: number; carry?: number }[],
   options?: { shadow?: boolean },
 ): Aligned {
   const state = options?.shadow ? shadowStateFrom(current()!) : current()!;
@@ -699,15 +699,24 @@ export function alignOwnershipWithSpans(
       }
     }
     const replacement: (string | undefined)[] = new Array(span.replacementCount);
-    for (let k = 0; k < span.replacementCount; k++) {
-      const positional = k < spanLength ? prevAnchors[prevStart + k] : undefined;
-      if (
-        positional !== undefined &&
-        prevChecksums[prevStart + k] === newChecksums[start + k] &&
-        (!state.owned.has(positional) || state.owned.get(positional)!.path === path)
-      ) {
-        replacement[k] = positional;
-        reused.add(positional);
+    const carryIndex =
+      span.carry !== undefined && span.carry >= 0 && span.carry < span.replacementCount ? span.carry : undefined;
+    const carried = carryIndex === undefined ? undefined : prevAnchors[prevStart];
+    if (carryIndex !== undefined && carried !== undefined && prevChecksums[prevStart] === newChecksums[start + carryIndex]) {
+      replacement[carryIndex] = carried;
+      reused.add(carried);
+    } else {
+      for (let k = 0; k < span.replacementCount; k++) {
+        if (k === carryIndex) continue;
+        const positional = k < spanLength ? prevAnchors[prevStart + k] : undefined;
+        if (
+          positional !== undefined &&
+          prevChecksums[prevStart + k] === newChecksums[start + k] &&
+          (!state.owned.has(positional) || state.owned.get(positional)!.path === path)
+        ) {
+          replacement[k] = positional;
+          reused.add(positional);
+        }
       }
     }
     for (let k = 0; k < span.replacementCount; k++) {
@@ -819,7 +828,7 @@ export async function allocateFileAnchors(
   options?: {
     persist?: boolean;
     shadow?: boolean;
-    previous?: { content: string; hashes: string[]; spans?: { start: number; end: number; replacementCount: number }[] };
+    previous?: { content: string; hashes: string[]; spans?: { start: number; end: number; replacementCount: number; carry?: number }[] };
   },
 ): Promise<string[]> {
   ensureRegistry();

@@ -63,6 +63,7 @@ export interface BatchPiece {
   warnings: string[];
   noop: boolean;
   foldedLines: number;
+  carryIndex?: number;
 }
 
 export interface BatchMemberInput {
@@ -495,10 +496,18 @@ export async function executeBatchMember(input: BatchMemberInput): Promise<TResu
   const baseLines = base.baseLines;
   const originalSlice = baseLines.slice(start - 1, end);
   const noop = originalSlice.length === newLines.length && originalSlice.every((line, index) => line === newLines[index]);
+  const foldedLines = input.foldedLines ?? 0;
+  const carryIndex =
+    input.kind === "insert" && foldedLines > 0
+      ? input.direction === "after"
+        ? 0
+        : newLines.length - 1
+      : undefined;
   const piece: BatchPiece = {
     order: input.member.order,
     kind: input.kind,
     ...(input.direction !== undefined ? { direction: input.direction } : {}),
+    ...(carryIndex !== undefined ? { carryIndex } : {}),
     start,
     end,
     fromHash: input.hedit.hash_bounds[0].hash,
@@ -506,7 +515,7 @@ export async function executeBatchMember(input: BatchMemberInput): Promise<TResu
     newLines: [...newLines],
     warnings: [...input.extraWarnings, ...planned.warnings],
     noop,
-    foldedLines: input.foldedLines ?? 0,
+    foldedLines,
   };
   runtime.pieces.push(piece);
   if (input.kind === "replace") runtime.replaceCount += 1;
@@ -569,6 +578,15 @@ function mergeInsertPairs(pieces: BatchPiece[]): BatchPiece[] {
     });
   }
   return merged;
+}
+
+function pieceMappingSpans(pieces: BatchPiece[]): { start: number; end: number; replacementCount: number; carry?: number }[] {
+  return pieces.map((piece) => ({
+    start: piece.start - 1,
+    end: piece.end - 1,
+    replacementCount: piece.newLines.length,
+    ...(piece.carryIndex !== undefined ? { carry: piece.carryIndex } : {}),
+  }));
 }
 
 async function finishBatch(member: PlannedMember, signal?: AbortSignal): Promise<TResult> {
@@ -637,7 +655,7 @@ async function finishBatch(member: PlannedMember, signal?: AbortSignal): Promise
     discardBatchState(runtime);
     throw new Error(`[E_OP_ABORTED] Batch ${runtime.display} aborted: the file changed after the batch started. Call read for fresh anchors and retry.`);
   }
-  const preflightSpans = effectivePieces.map((piece) => ({ start: piece.start - 1, end: piece.end - 1, replacementCount: piece.newLines.length }));
+  const preflightSpans = pieceMappingSpans(effectivePieces);
   try {
     await lineHashes(composed, runtime.target, {
       content: base.content,
@@ -670,7 +688,7 @@ async function finishBatch(member: PlannedMember, signal?: AbortSignal): Promise
     throw error;
   }
   const updatedSnapshotId = await safeSnapId(paths.absolutePath, "post-edit");
-  const spans = effectivePieces.map((piece) => ({ start: piece.start - 1, end: piece.end - 1, replacementCount: piece.newLines.length }));
+  const spans = pieceMappingSpans(effectivePieces);
   let resultHashes: string[];
   try {
     resultHashes = await lineHashes(composed, runtime.target, {

@@ -63,7 +63,7 @@ describe("resolveEditTarget cross file", () => {
   });
   it("omits the case hint for an anchor that is simply unknown", () => {
     const anchor = allocateAnchor("/case-none.ts", "ck-none");
-    const unknown = (anchor[0] === "A" ? "B" : "A") + anchor.slice(1);
+    const unknown = (anchor[0].toLowerCase() === "a" ? "B" : "A") + anchor.slice(1);
     let message = "";
     try {
       resolveEditTarget(unknown);

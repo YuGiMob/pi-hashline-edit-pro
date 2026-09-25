@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
-import { mkdir, readFile, readdir, rm, writeFile } from "fs/promises";
+import { mkdir, readFile, rm, writeFile } from "fs/promises";
 import { createHash } from "crypto";
 import { join } from "path";
 import {
@@ -288,8 +288,8 @@ describe("anchor registry", () => {
     const anchor = allocateAnchor("restored.ts", "ckR");
     markServed("restored.ts", [[anchor, "ckR"]]);
 
-    const sidecars = await readdir(sessionClaimsDir());
-    const sidecarPath = join(sessionClaimsDir(), sidecars.find((n) => n.endsWith(".registry.jsonl"))!);
+    const sidecarKey = createHash("sha256").update(sessionFile).digest("hex").slice(0, 24);
+    const sidecarPath = join(sessionClaimsDir(), `${sidecarKey}.registry.jsonl`);
     const log = await readFile(sidecarPath, "utf-8");
     expect(parseRegistryLog(log).some((e) => e.kind === "allocate")).toBe(true);
 

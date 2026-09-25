@@ -12,6 +12,7 @@ import { spanForEdit } from "./replace";
 import { restoreEndings, stripBOM, toLF } from "./normalize";
 export interface CommitMeta {
   editAnchors?: [string, string];
+  anchorCarry?: number;
   path: string;
   absolutePath: string;
   mutationTargetPath: string;
@@ -107,6 +108,7 @@ export async function commitEdit(pipe: PipelineResult, meta: CommitMeta): Promis
   };
 
   const span = meta.editAnchors ? spanForEdit(pipe.originalHashes, meta.editAnchors[0], meta.editAnchors[1], pipe.result) : undefined;
+  if (span && meta.anchorCarry !== undefined) span.carry = meta.anchorCarry;
   let resultHashes: string[];
   try {
     resultHashes = await lineHashes(pipe.result, mutationTargetPath, {

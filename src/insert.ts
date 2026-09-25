@@ -241,6 +241,10 @@ export function buildInsertToolDef(flags: EditToolFlags = DEFAULT_EDIT_FLAGS): I
             path: pipe.path,
             absolutePath,
             mutationTargetPath,
+            editAnchors: [editParams.remove_from, editParams.remove_to],
+            ...(anchorLine === undefined
+              ? {}
+              : { anchorCarry: req.direction === "after" ? 0 : editParams.replacement_lines.length - 1 }),
             signal,
             verb: "inserted",
             noopNoun: "Insertion",
