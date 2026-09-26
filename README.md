@@ -265,6 +265,7 @@ Codes starting with `E_` are errors: nothing was written — except `File was wr
 - Reset the anchor state. Anchors live in `~/.config/pi-hashline-edit-pro/hash-store.sqlite` (with `-wal`/`-shm` sidecars) and in per-session ownership logs under `~/.config/pi-hashline-edit-pro/sessions/`. Quit pi, delete those files, and everything is rebuilt on the next session. Anchor history is lost, but no project files are touched.
 - Corrupt store. If the store fails its health check it is renamed to `hash-store.sqlite.corrupt-<timestamp>` and rebuilt automatically.
 - Config directory moved. If `XDG_CONFIG_HOME` is set on a non-Windows platform, the config directory (and the anchor state inside it) lives at `$XDG_CONFIG_HOME/pi-hashline-edit-pro` instead of `~/.config/pi-hashline-edit-pro`. An existing store is not migrated automatically. To keep anchor and undo history, move the old `hash-store.sqlite` files (plus `-wal`/`-shm` sidecars) into the new directory before the first run.
+- Windows drives in WSL. Editing a file under a Windows mount (`/mnt/c`, drvfs/9p) can fail with `EPERM` from `fchmod` because those filesystems do not store POSIX modes. Mode preservation is best-effort there, so `replace`, `insert`, and `undo_last_change` still write the edit.
 
 ## Development
 

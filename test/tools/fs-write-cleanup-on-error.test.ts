@@ -84,6 +84,17 @@ describe("writeAtomic - temp file cleanup on write failure", () => {
     expect(renameMock).toHaveBeenCalledTimes(1);
     expect(rmMock).not.toHaveBeenCalled();
   });
+
+  it("ignores a chmod the filesystem does not support (WSL drvfs)", async () => {
+    handleChmodMock.mockRejectedValue(Object.assign(new Error("operation not permitted"), { code: "EPERM" }));
+
+    const { writeAtomic } = await import("../../src/fs-write");
+
+    await writeAtomic("/tmp/target.txt", "content");
+
+    expect(renameMock).toHaveBeenCalledTimes(1);
+    expect(rmMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("writeAtomic - open failure", () => {

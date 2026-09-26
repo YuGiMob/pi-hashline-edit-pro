@@ -7,6 +7,7 @@ import {
   truncateToBytes,
   decodeStringArray,
   assertByteLimit,
+  isModeUnsupported,
 } from "../../src/utils";
 
 describe("isRec", () => {
@@ -398,5 +399,15 @@ describe("assertByteLimit", () => {
   it("reports the exceeded limit in megabytes", () => {
     const oneMb = 1024 * 1024;
     expect(() => assertByteLimit("a".repeat(oneMb + 1), "f.txt", oneMb)).toThrow(/exceeds the 1MB size limit/);
+  });
+});
+
+describe("isModeUnsupported", () => {
+  it("classifies filesystem mode-enforcement failures", () => {
+    expect(isModeUnsupported(Object.assign(new Error("denied"), { code: "EPERM" }))).toBe(true);
+    expect(isModeUnsupported(Object.assign(new Error("denied"), { code: "ENOTSUP" }))).toBe(true);
+    expect(isModeUnsupported(Object.assign(new Error("denied"), { code: "EOPNOTSUPP" }))).toBe(true);
+    expect(isModeUnsupported(Object.assign(new Error("denied"), { code: "EACCES" }))).toBe(false);
+    expect(isModeUnsupported(new Error("denied"))).toBe(false);
   });
 });

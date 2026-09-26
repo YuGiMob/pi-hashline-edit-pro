@@ -99,6 +99,11 @@ export function errCode(error: unknown): string | undefined {
 	return undefined;
 }
 
+export function isModeUnsupported(error: unknown): boolean {
+	const code = errCode(error);
+	return code === "EPERM" || code === "ENOTSUP" || code === "EOPNOTSUPP" || code === "EINVAL" || code === "ENOSYS";
+}
+
 export function truncateToBytes(s: string, maxBytes: number): string {
 	if (Buffer.byteLength(s, "utf-8") <= maxBytes) return s;
 	let out = "";

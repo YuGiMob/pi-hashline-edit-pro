@@ -13,7 +13,7 @@ import {
 } from "node:fs/promises";
 import { dirname, join, parse, resolve, sep } from "node:path";
 import { toCwd } from "./paths";
-import { errCode } from "./utils";
+import { errCode, isModeUnsupported } from "./utils";
 
 export interface FileIdentity {
   dev: number;
@@ -196,7 +196,11 @@ export async function writeAtomic(
     await tempHandle.writeFile(content, "utf-8");
     const mode = existingStats ? existingStats.mode & 0o7777 : restoreMode;
     if (mode !== undefined) {
-      await tempHandle.chmod(mode);
+      try {
+        await tempHandle.chmod(mode);
+      } catch (error) {
+        if (!isModeUnsupported(error)) throw error;
+      }
     }
     await tempHandle.sync();
   } catch (error: unknown) {

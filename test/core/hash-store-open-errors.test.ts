@@ -149,6 +149,19 @@ describe("hash store open error handling", () => {
     }).toThrow(/locked/);
     expect(state.runCalls - callsBefore).toBe(4);
   });
+
+  it.skipIf(process.platform === "win32")("tolerates a filesystem that does not support chmod", async () => {
+    state.chmod.mockRejectedValue(Object.assign(new Error("operation not permitted"), { code: "EPERM" }));
+    try {
+      const { loadHashStore, shutdownHashStore } = await import("../../src/hash-store");
+      shutdownHashStore();
+      const store = await loadHashStore();
+      expect(store.engine).toBeDefined();
+    } finally {
+      state.chmod.mockReset();
+      state.chmod.mockResolvedValue(undefined);
+    }
+  });
 });
 
 describe("isCorruptionError", () => {
