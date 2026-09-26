@@ -230,7 +230,7 @@ Codes starting with `E_` are errors: nothing was written — except `File was wr
 
 | Code | Meaning |
 | --- | --- |
-| `[E_BAD_SHAPE]` | Request envelope or edit item has unknown, missing, or wrongly-typed fields (for example `replacement_lines` must be an array of strings, one element per line), or content contains a NUL byte (`U+0000`), which would make the file binary. |
+| `[E_BAD_SHAPE]` | Request envelope or edit item has unknown, missing, or wrongly-typed fields (for example `replacement_lines` must be an array of strings, one element per line), content contains a NUL byte (`U+0000`), which would make the file binary, or a grep `glob` has invalid bracket or brace syntax. |
 | `[W_BAD_SHAPE]` | Auto-corrected request slip reported as a warning (for example stringified array text that could not be parsed and was kept as one literal line). |
 | `[E_BAD_REF]` | An anchor in `remove_from`/`remove_to` is not a bare 4-character anchor (the anchor table is letters only). |
 | `[W_BAD_REF]` | A pasted `anchor│` or diff-preview marker was stripped from an anchor field with a warning. |
@@ -252,6 +252,8 @@ Codes starting with `E_` are errors: nothing was written — except `File was wr
 | `[E_BATCH_OVERLAP]` | Batched `replace`/`insert` calls target overlapping ranges; the whole batch was refused. One `before` plus one `after` insert on the same anchor line is not an overlap. Retry with disjoint ranges. |
 | `[E_OP_ABORTED]` | An edit aborted (a same-message batch member failed, or the file changed or was deleted after the edit started). Nothing was written. Fix the sibling failure and retry the batch, otherwise call `read` for fresh anchors and retry. The abort names the failing call and its error code when one is known. |
 | `[E_UNSAFE_REGEX]` | A grep regex can trigger excessive backtracking; simplify it or search with `literal: true`. |
+| `[E_GREP_FAILED]` | `anchor_grep` could not start ripgrep or ripgrep exited with an error (for example a pattern valid in JavaScript but unsupported by ripgrep's regex engine); the message carries ripgrep's output. Retry with `literal: true` or simplify the pattern. |
+| `[E_GREP_TIMEOUT]` | `anchor_grep` timed out after 10 seconds; narrow `path` or simplify `pattern` and retry. |
 | `[E_AUTO_READ_ALL]` | File already attached and unchanged since this session's start; the attached content is still exact. |
 
 ## Troubleshooting

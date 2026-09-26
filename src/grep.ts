@@ -13,11 +13,13 @@ import { ANCHOR_POOL_EXHAUSTED_PREFIX, MAX_GREP_LINE_BYTES } from "./constants";
 import { toCwd, toDisplayPath } from "./paths";
 import { loadP, loadGuide } from "./prompts";
 import { normReq } from "./payload-contract";
-import { abortIf, errCode, gutterWidth, isRec, makePrepareArguments, rejectUnknownFields, truncateToBytes, visLines } from "./utils";
+import { abortIf, clipLine, errCode, gutterWidth, isRec, makePrepareArguments, rejectUnknownFields, truncateToBytes, visLines } from "./utils";
 import { withAnchorSession } from "./anchor-registry";
 import { serveRows } from "./served";
 import { Text } from "@earendil-works/pi-tui";
 import { expandHint, getResultText, reuseText, type CallT, type FgT } from "./replace-render";
+export const RG_TIMEOUT_MS = 10_000;
+
 const GREP_KS = new Set(["pattern", "path", "glob", "context", "ignoreCase", "literal", "limit"]);
 
 function cmp(a: string, b: string): number {
@@ -51,6 +53,14 @@ export function assertGrepReq(request: unknown): asserts request is GrepReq {
   }
   if (request.limit !== undefined && (typeof request.limit !== "number" || !Number.isInteger(request.limit) || request.limit < 1)) {
     throw new Error('[E_BAD_SHAPE] Grep request field "limit" must be a positive integer.');
+  }
+}
+
+function compileGrepGlob(glob: string): RegExp {
+  try {
+    return globToRegex(glob);
+  } catch {
+    throw new Error(`[E_BAD_SHAPE] Invalid glob pattern: ${glob}. Fix the bracket or brace syntax, or search without glob.`);
   }
 }
 
@@ -314,8 +324,8 @@ async function collectRgMatches(
     const rgTimeout = setTimeout(() => {
       timedOut = true;
       if (!child.killed) child.kill("SIGKILL");
-      reject(new Error("rg timeout"));
-    }, 10000);
+      reject(new Error(`[E_GREP_TIMEOUT] ripgrep timed out after ${RG_TIMEOUT_MS}ms. Narrow the path or pattern and retry.`));
+    }, RG_TIMEOUT_MS);
     child.stderr?.on("data", (chunk) => {
       stderr += chunk.toString();
     });
@@ -355,7 +365,8 @@ async function collectRgMatches(
     child.on("error", (error) => {
       cleanup();
       if (rgPath === cachedRgPath) cachedRgPath = undefined;
-      reject(error);
+      const detail = error instanceof Error ? error.message : String(error);
+      reject(new Error(`[E_GREP_FAILED] ripgrep could not start: ${clipLine(detail)}`));
     });
     child.on("close", (code) => {
       cleanup();
@@ -365,8 +376,10 @@ async function collectRgMatches(
         return;
       }
       if (code !== 0 && code !== 1) {
-        const msg = stderr.trim() || `ripgrep exited with code ${code}`;
-        reject(new Error(msg));
+        const detail = clipLine(stderr.trim(), 300);
+        reject(new Error(detail
+          ? `[E_GREP_FAILED] ripgrep exited with code ${code}: ${detail}`
+          : `[E_GREP_FAILED] ripgrep exited with code ${code}.`));
         return;
       }
       resolve(result);
@@ -538,7 +551,7 @@ export function regGrep(pi: ExtensionAPI): void {
           throw new Error(`[E_ACCESS] Cannot access path: ${req.path ?? ctx.cwd}`);
         }
         const globRoot = baseStat.isFile() ? dirname(base) : base;
-        const globRegex = req.glob === undefined ? undefined : globToRegex(req.glob);
+        const globRegex = req.glob === undefined ? undefined : compileGrepGlob(req.glob);
         const matchesGlob = (absPath: string): boolean => {
           if (globRegex === undefined) return true;
           const displayPath = toDisplayPath(ctx.cwd, absPath);

@@ -563,6 +563,34 @@ async function withSystemTempDir(prefix: string, run: (dir: string) => Promise<v
     });
   });
 
+  it("rejects a malformed glob with a coded error", async () => {
+    await withTempFile("sample.ts", "alpha\n", async ({ cwd }) => {
+      const { ctx, getTool } = setupIntegrationTest(cwd);
+      const grepTool = getTool("anchor_grep");
+      await expect(
+        grepTool.execute(
+          "g1",
+          { pattern: "alpha", path: "sample.ts", glob: "[z-a].ts" },
+          undefined, undefined, ctx,
+        ),
+      ).rejects.toThrow(/\[E_BAD_SHAPE\] Invalid glob pattern/);
+    });
+  });
+
+  it("codes a regex ripgrep rejects but JavaScript accepts", async () => {
+    await withTempFile("sample.ts", "alpha\n", async ({ cwd }) => {
+      const { ctx, getTool } = setupIntegrationTest(cwd);
+      const grepTool = getTool("anchor_grep");
+      await expect(
+        grepTool.execute(
+          "g1",
+          { pattern: "(?=a)a", path: "sample.ts" },
+          undefined, undefined, ctx,
+        ),
+      ).rejects.toThrow(/\[E_GREP_FAILED\] ripgrep exited with code 2/);
+    });
+  });
+
   it("rejects a missing path", async () => {
     await withTempFile("sample.ts", "alpha\n", async ({ cwd }) => {
       const { ctx, getTool } = setupIntegrationTest(cwd);

@@ -12,6 +12,7 @@ export const mockIsolatedFiles = [
   "test/core/startup.test.ts",
   "test/core/hash-store-engine.test.ts",
   "test/tools/grep-pool-skip.test.ts",
+  "test/tools/grep-rg-errors.test.ts",
   "test/core/auto-read-all-fallback.test.ts",
 ];
 
@@ -20,6 +21,7 @@ export const heavyTestFiles = [
   "test/core/hashline-property.test.ts",
   "test/core/hashline-limit.test.ts",
   "test/core/hashline-stable-mapping.test.ts",
+  "test/integration/batch-solo-equivalence.test.ts",
 ];
 
 export function buildTestConfig(extraExcludes: string[] = []) {
