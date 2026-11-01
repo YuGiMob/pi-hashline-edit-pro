@@ -378,6 +378,7 @@ Settings live in `~/.config/pi-hashline-edit-pro/config.json`, created when a se
 ```json
 {
   "autoRead": true,
+  "autoReadWrite": "full",
   "autoReadAll": "off",
   "autoReadAllRequireGit": true,
   "autoReadAllIgnore": [],
@@ -397,6 +398,7 @@ Settings live in `~/.config/pi-hashline-edit-pro/config.json`, created when a se
 | Key | `/hashline-config` label | Default | Effect |
 | --- | --- | --- | --- |
 | `autoRead` | Auto-read | `true` | Append the auto-read block after `write` and show post-edit diffs. |
+| `autoReadWrite` | Write echo | `"full"` | What that block contains: `"full"` echoes the file as a `read` would and serves every row, `"summary"` appends one line with the line count and serves nothing, so an edit after a write needs a `read` first. The writer already sent every byte, so `"summary"` stops paying for one file twice. |
 | `autoReadAll` | Auto-read all | `"off"` | Attachment mode: `"off"`, `"outline"` (anchor-stamped per-file outlines), or `"full"` (full contents). Legacy `"git"`/`"outline(git)"` read as `"full"`/`"outline"` with Git repos only on; `"on"`/`true` read as `"full"`. |
 | `autoReadAllRequireGit` | Git repos only | `true` | Run the injection only when the working directory is inside a git repository; when off, auto-read all also attaches files discovered by `ripgrep` or the directory walk. |
 | `autoReadAllIgnore` | Ignore folders/files | `[]` | Extra folder names, file names, or globs skipped by auto-read all. |

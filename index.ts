@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { createReadToolDefinition, createGrepToolDefinition, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "@earendil-works/pi-coding-agent";
+import { createReadToolDefinition, createGrepToolDefinition } from "@earendil-works/pi-coding-agent";
 import { initHasher } from "./src/hashline";
 import { regReplaceMatch } from "./src/replace-match";
 import { regReplace } from "./src/replace";
@@ -7,7 +7,7 @@ import { regInsert } from "./src/insert";
 import { regCopy, regMove } from "./src/copy-move";
 import { regGrep, regVanillaGrep } from "./src/grep";
 import { regUndo, clearUndo } from "./src/replace-undo";
-import { regRead, fmtReadPreview } from "./src/read";
+import { regRead } from "./src/read";
 import { regOutline } from "./src/outline-tool";
 import { ANCHOR_TOOL_NAMES, modelDisabled, type ModelLike } from "./src/model-gate";
 import { buildAutoReadAllInjection, autoReadAllBudget, isOutlineAutoReadAll } from "./src/auto-read-all";
@@ -16,12 +16,13 @@ import type { ReplaceDetails } from "./src/replace";
 import { extractHints, extractWarnings } from "./src/replace-render";
 import { MAX_HASH_LINES } from "./src/hashline";
 import { withStructuredText } from "./src/structured";
-import type { AutoReadAllMode, Config, ReadOnDisabledModels } from "./src/config";
+import type { AutoReadAllMode, Config, ReadOnDisabledModels, WriteEchoMode } from "./src/config";
 import {
   readConfig,
   readConfigWithStatus,
   toggleAutoRead,
   cycleAutoReadAllMode,
+  cycleWriteEcho,
   toggleAutoReadAllRequireGit,
   toggleAnchorGrep,
   toggleCopyMove,
@@ -44,6 +45,7 @@ import { currentEditFlags, editToolEnabled } from "./src/edit-common";
 import { HashlineConfigOverlay } from "./src/config-ui";
 import { registerWriteHook } from "./src/write-hook";
 import { readNormFile } from "./src/file-reader";
+import { renderWriteEcho } from "./src/write-echo";
 import { loadFileKindAndText } from "./src/file-kind";
 import { resolveInCwd } from "./src/fs-write";
 import { valAccess } from "./src/validation";
@@ -78,6 +80,7 @@ export default function (pi: ExtensionAPI): void {
   registerWriteHook(pi, (model) => modelDisabled(model, disableOnModels));
 
   let autoRead = true;
+  let autoReadWrite: WriteEchoMode = "full";
   let autoReadAll: AutoReadAllMode = "off";
   let autoReadAllIgnore: string[] = [];
   let autoReadAllRequireGit = true;
@@ -223,6 +226,7 @@ export default function (pi: ExtensionAPI): void {
     const { config, corrupted } = await readConfigWithStatus();
     if (corrupted && (ctx as { hasUI?: boolean }).hasUI) ctx.ui.notify("Hashline config was corrupt and was reset to defaults", "warning");
     autoRead = config.autoRead;
+    autoReadWrite = config.autoReadWrite ?? "full";
     autoReadAll = config.autoReadAll ?? "off";
     autoReadAllRequireGit = config.autoReadAllRequireGit ?? true;
     autoReadAllIgnore = config.autoReadAllIgnore ?? [];
@@ -294,7 +298,7 @@ export default function (pi: ExtensionAPI): void {
   }));
 
   pi.registerCommand("hashline-config", {
-    description: "Open the hashline settings window (auto-read, diff context, auto-read all, git repos only, ignore folders/files, grep, copy/move, replace_match, outline, path, strict input, disable on models, read on disabled models)",
+    description: "Open the hashline settings window (auto-read, write echo, diff context, auto-read all, git repos only, ignore folders/files, grep, copy/move, replace_match, outline, path, strict input, disable on models, read on disabled models)",
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) {
         ctx.ui.notify("/hashline-config requires interactive mode", "error");
@@ -308,6 +312,7 @@ export default function (pi: ExtensionAPI): void {
           done,
           onToggle: async (key, delta, value) => {
             if (key === "autoRead") autoRead = await toggleAutoRead();
+            else if (key === "autoReadWrite") autoReadWrite = await cycleWriteEcho(delta);
             else if (key === "autoReadAll") { autoReadAll = await cycleAutoReadAllMode(delta); autoReadAllInjected = false; }
             else if (key === "autoReadAllRequireGit") autoReadAllRequireGit = await toggleAutoReadAllRequireGit();
             else if (key === "autoReadAllIgnore") autoReadAllIgnore = await setAutoReadAllIgnoreFromText(value ?? "");
@@ -389,14 +394,12 @@ export default function (pi: ExtensionAPI): void {
         const { normalized, fileHashes, absolutePath } = await readNormFile(
           writtenPath, ctx.cwd, { maxLines: MAX_HASH_LINES, preloadedFile: file },
         );
-        const preview = await fmtReadPreview(
+        const preview = await renderWriteEcho({
           normalized,
-          {},
           fileHashes,
           absolutePath,
-          DEFAULT_MAX_BYTES,
-          DEFAULT_MAX_LINES,
-        );
+          mode: autoReadWrite,
+        });
         const fileLines = splitLines(normalized);
         serveRows(absolutePath, fileHashes, fileLines, preview.servedHashes);
         const reclaimNotice = formatAnchorReclaimNotice(takeReclaimedPaths());

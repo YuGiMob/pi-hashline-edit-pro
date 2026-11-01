@@ -6,6 +6,9 @@ import { writeAtomic } from "./fs-write";
 export type AutoReadAllMode = "off" | "outline" | "full";
 const AUTO_READ_ALL_MODES: AutoReadAllMode[] = ["off", "outline", "full"];
 
+export type WriteEchoMode = "full" | "summary";
+const WRITE_ECHO_MODES: WriteEchoMode[] = ["full", "summary"];
+
 export type ReadOnDisabledModels = "remove" | "vanilla";
 const READ_ON_DISABLED_MODELS: ReadOnDisabledModels[] = ["remove", "vanilla"];
 
@@ -31,6 +34,7 @@ export interface Config {
   disableOnModels?: string[];
   readOnDisabledModels?: ReadOnDisabledModels;
   undoRetentionDays?: number;
+  autoReadWrite?: WriteEchoMode;
 }
 
 const DEFAULT_CONFIG: Config = {
@@ -48,6 +52,7 @@ const DEFAULT_CONFIG: Config = {
   disableOnModels: [],
   readOnDisabledModels: "vanilla",
   undoRetentionDays: DEFAULT_UNDO_RETENTION_DAYS,
+  autoReadWrite: "full",
 };
 
 function parseAutoReadAllMode(value: unknown): AutoReadAllMode {
@@ -59,6 +64,10 @@ function parseAutoReadAllMode(value: unknown): AutoReadAllMode {
   return DEFAULT_CONFIG.autoReadAll ?? "off";
 }
 
+function parseWriteEchoMode(value: unknown): WriteEchoMode {
+  if (value === "summary" || value === "full") return value;
+  return DEFAULT_CONFIG.autoReadWrite ?? "full";
+}
 function parseAutoReadAllRequireGit(value: unknown, legacyMode: unknown): boolean {
   if (typeof value === "boolean") return value;
   if (legacyMode === "git" || legacyMode === "outline(git)") return true;
@@ -135,6 +144,7 @@ function parseConfig(content: string): Config {
   const disableOnModels = parsed.disableOnModels;
   const readOnDisabledModels = parsed.readOnDisabledModels;
   const undoRetentionDays = parsed.undoRetentionDays;
+  const autoReadWrite = parsed.autoReadWrite;
   const legacyDisableReadOnModels = parsed.disableReadOnModels;
   return {
     autoRead: typeof autoRead === "boolean" ? autoRead : DEFAULT_CONFIG.autoRead,
@@ -151,6 +161,7 @@ function parseConfig(content: string): Config {
     disableOnModels: parseDisableOnModels(disableOnModels),
     readOnDisabledModels: parseReadOnDisabledModels(readOnDisabledModels, legacyDisableReadOnModels),
     undoRetentionDays: normalizeUndoRetentionDays(undoRetentionDays),
+    autoReadWrite: parseWriteEchoMode(autoReadWrite),
   };
 }
 
@@ -289,6 +300,15 @@ export async function cycleAutoReadAllMode(delta = 1): Promise<AutoReadAllMode> 
     const current = c.autoReadAll ?? "off";
     next = AUTO_READ_ALL_MODES[steppedIndex(AUTO_READ_ALL_MODES.length, AUTO_READ_ALL_MODES.indexOf(current), delta)] ?? "off";
     c.autoReadAll = next;
+  });
+  return next;
+}
+export async function cycleWriteEcho(delta = 1): Promise<WriteEchoMode> {
+  let next: WriteEchoMode = "full";
+  await updateConfig((c) => {
+    const current = c.autoReadWrite ?? "full";
+    next = WRITE_ECHO_MODES[steppedIndex(WRITE_ECHO_MODES.length, WRITE_ECHO_MODES.indexOf(current), delta)] ?? "full";
+    c.autoReadWrite = next;
   });
   return next;
 }

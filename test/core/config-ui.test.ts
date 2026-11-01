@@ -32,6 +32,7 @@ describe("configRows ordering and gating", () => {
     expect(rows.map((row) => row.key)).toEqual([
       "autoRead",
       "diffContextLines",
+      "autoReadWrite",
       "autoReadAll",
       "autoReadAllRequireGit",
       "autoReadAllIgnore",
