@@ -600,7 +600,7 @@ function batchAbortedError(runtime: BatchState): Error {
   return new Error(abortedBatchMessage(runtime));
 }
 
-const ATTRIBUTABLE_BATCH_CODES = new Set(["E_BAD_SHAPE", "E_BAD_REF", "E_STALE_ANCHOR", "E_RANGE_STALE", "E_SUBSTRING_NOT_FOUND"]);
+const ATTRIBUTABLE_BATCH_CODES = new Set(["E_BAD_SHAPE", "E_BAD_REF", "E_STALE_ANCHOR", "E_RANGE_STALE", "E_SUBSTRING_NOT_FOUND", "E_MATCH_NOT_ISOLATED"]);
 
 function isAttributableBatchError(error: unknown): boolean {
   const code = errorCodeOf(error);

@@ -1,3 +1,4 @@
 - `replace_match`: `match` is only the fragment that changes — never text that `replacement` leaves unchanged; every occurrence inside the range is replaced, so narrow the anchors when only some lines should change.
 - `replace_match`: the anchors bound the range searched; `match` must stay within one line, while `replacement` may span lines — a trailing line break is the line's terminator, interior breaks split the replacement into lines, and a lone break counts as empty.
 - `replace_match`: when the change covers the whole line, use `replace` with the same anchor and the exact text.
+- `replace_match`: `match` must be isolated: an occurrence whose edge touches an identifier character (letters, digits, `$`, `_`, Unicode) is refused with `[E_MATCH_NOT_ISOLATED]` and nothing is written, so include the whole identifier in `match`, narrow the anchors, or pass `allowEmbeddedMatch: true` to replace inside an identifier on purpose.

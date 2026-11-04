@@ -35,6 +35,7 @@ import {
 } from "./edit-common";
 import { makeRenderCall, type RPreview, type RRState } from "./replace-render";
 import { editResultSchema, withStructuredErrors } from "./structured";
+import { notIsolatedMessage, scanMatchRange } from "./match-isolation";
 
 interface MatchRefs {
   from: Anchor;
@@ -136,21 +137,21 @@ function replaceInLine(
   line: string,
   matchText: string,
   replacementLines: readonly string[],
-): { lines: string[]; count: number } {
+): string[] {
   const lines: string[] = [""];
   let cursor = 0;
-  let count = 0;
+  let replaced = false;
   for (;;) {
     const found = line.indexOf(matchText, cursor);
     if (found < 0) break;
     lines[lines.length - 1] += line.slice(cursor, found) + replacementLines[0]!;
     for (let index = 1; index < replacementLines.length; index++) lines.push(replacementLines[index]!);
     cursor = found + matchText.length;
-    count += 1;
+    replaced = true;
   }
-  if (count === 0) return { lines: [line], count: 0 };
+  if (!replaced) return [line];
   lines[lines.length - 1] += line.slice(cursor);
-  return { lines, count };
+  return lines;
 }
 
 export function buildReplaceMatchEdit(
@@ -169,16 +170,20 @@ export function buildReplaceMatchEdit(
   const end = Math.max(fromLine, toLine);
   assertBoundaryLinesServed(fileLines, preload.fileHashes, served, start, end, displayPath);
   const rangeLines = fileLines.slice(start - 1, end);
-  let count = 0;
-  const replacementLines: string[] = [];
-  for (const line of rangeLines) {
-    const result = replaceInLine(line, matchText, fragmentLines);
-    count += result.count;
-    replacementLines.push(...result.lines);
-  }
-  if (count === 0) {
+  const scan = scanMatchRange({
+    lines: rangeLines,
+    anchors: preload.fileHashes.slice(start - 1, end),
+    matchText,
+    firstLine: start,
+  });
+  if (scan.occurrences === 0) {
     throw new Error(notFoundMessage(displayPath, start, end, preload.fileHashes, fileLines, linesToPayloadText(rangeLines), matchText));
   }
+  if (req.allowEmbeddedMatch !== true && scan.violations.length > 0) {
+    throw new Error(notIsolatedMessage({ matchText, displayPath, startLine: start, endLine: end, scan }));
+  }
+  const replacementLines: string[] = [];
+  for (const line of rangeLines) replacementLines.push(...replaceInLine(line, matchText, fragmentLines));
   const replacement = linesToPayloadText(replacementLines);
   const startRef = fromLine <= toLine ? refs.from : refs.to;
   const endRef = fromLine <= toLine ? refs.to : refs.from;

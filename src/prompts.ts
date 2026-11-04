@@ -10,7 +10,7 @@ const GUIDELINE_IDS_BY_NAME: Record<string, readonly string[]> = {
   "read-guidelines.md": ["read-reread", "read-outline", "read-match-served"],
   "outline-guidelines.md": ["outline-first", "outline-span-start"],
   "replace-guidelines.md": ["replace-disjoint", "replace-deletion", "replace-single-line"],
-  "replace-match-guidelines.md": ["replace-match-fragment", "replace-match-wide-range", "replace-match-whole-range"],
+  "replace-match-guidelines.md": ["replace-match-fragment", "replace-match-wide-range", "replace-match-whole-range", "replace-match-isolated"],
   "insert-guidelines.md": ["insert-blank-edges"],
   "copy-guidelines.md": ["copy-single-anchor"],
   "move-guidelines.md": ["move-same-place"],

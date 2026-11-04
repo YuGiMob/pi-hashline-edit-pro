@@ -458,7 +458,7 @@ describe("insert literal escape hints", () => {
       expect(writtenAnchor).toMatch(/^[a-z]{5}$/);
       const within = await getTool("replace_match").execute(
         "i2",
-        { replace_from: writtenAnchor!, replace_to: writtenAnchor!, match: String.raw`\u200b`, replacement: "\u200b" },
+        { replace_from: writtenAnchor!, replace_to: writtenAnchor!, match: String.raw`\u200b`, replacement: "\u200b", allowEmbeddedMatch: true },
         undefined,
         undefined,
         ctx,
