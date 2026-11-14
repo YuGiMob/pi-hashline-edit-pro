@@ -17,6 +17,7 @@ import {
   adoptAnchors,
   alignOwnership,
   alignOwnershipWithSpans,
+  anchorWasMinted,
   readSidecarHeader,
   readSidecarSessionFile,
   SIDECAR_HEADER_BYTES,
@@ -31,6 +32,8 @@ import {
 } from "../../src/anchor-registry";
 import { sessionClaimsDir } from "../../src/paths";
 import { lineHashes } from "../../src/hashline";
+import { ANCHOR_COUNT, anchorAt } from "../../src/hashline/alphabet";
+import { HASH_PROBE_STRIDE } from "../../src/hashline/hash";
 import { loadHashStore, upsertSnapshot } from "../../src/hash-store";
 import { contentChecksum } from "../../src/hashline/hasher";
 import { useTestHome } from "../support/fixtures";
@@ -54,6 +57,16 @@ function oversizedAllocateLine(): string {
     path: "/example.txt",
     rows: Array.from({ length: rowCount }, () => ["abcde", "0123456789abcdef"]),
   });
+}
+
+function currentMintedSet(): Set<string> {
+  const has = vi.spyOn(Set.prototype, "has");
+  try {
+    anchorWasMinted(anchorAt(0));
+    return has.mock.contexts.at(-1) as Set<string>;
+  } finally {
+    has.mockRestore();
+  }
 }
 
 describe("anchor registry", () => {
@@ -267,6 +280,106 @@ describe("anchor registry", () => {
     expect(aligned.anchors[0]).toBe(a1);
     expect(aligned.anchors[4]).toBe(a4);
     expect(aligned.minted.every((m) => [a1, a2, a3, a4].indexOf(m) < 0)).toBe(true);
+  });
+
+  it.each([false, true])("reserves carried anchors during recycling (shadow: %s)", async (shadow) => {
+    const key = await initRegistry(undefined);
+    const probe = foldRegistryEvents([], key).probe;
+    const carried = anchorAt((probe + 1) % ANCHOR_COUNT);
+    adoptAnchors("carry.ts", new Map([[carried, "keep"]]));
+    Object.defineProperty(currentMintedSet(), "size", { value: ANCHOR_COUNT - 1 });
+
+    const aligned = alignOwnershipWithSpans(
+      "carry.ts", [carried], ["keep"], ["new", "keep"],
+      [{ start: 0, end: 0, replacementCount: 2, carry: 1 }], { shadow },
+    );
+    expect(aligned.anchors).toEqual([anchorAt((probe + 2) % ANCHOR_COUNT), carried]);
+    expect(new Set(aligned.anchors).size).toBe(2);
+  });
+
+  it.each([false, true])("reserves unchanged positional anchors during recycling (shadow: %s)", async (shadow) => {
+    const key = await initRegistry(undefined);
+    const probe = foldRegistryEvents([], key).probe;
+    const kept = anchorAt((probe + 1) % ANCHOR_COUNT);
+    const replaced = anchorAt((probe + 3) % ANCHOR_COUNT);
+    adoptAnchors("position.ts", new Map([[kept, "keep"], [replaced, "old"]]));
+    Object.defineProperty(currentMintedSet(), "size", { value: ANCHOR_COUNT - 1 });
+
+    const aligned = alignOwnershipWithSpans(
+      "position.ts", [replaced, kept], ["old", "keep"], ["new", "keep"],
+      [{ start: 0, end: 1, replacementCount: 2 }], { shadow },
+    );
+    expect(aligned.anchors).toEqual([anchorAt((probe + 2) % ANCHOR_COUNT), kept]);
+    expect(new Set(aligned.anchors).size).toBe(2);
+  });
+
+  it.each([false, true])("tracks mints while a span crosses the recycling threshold (shadow: %s)", async (shadow) => {
+    const key = await initRegistry(undefined);
+    const probe = foldRegistryEvents([], key).probe;
+    const minted = currentMintedSet();
+    const size = Object.getOwnPropertyDescriptor(Set.prototype, "size")!.get!;
+    const base = ANCHOR_COUNT - Math.floor(ANCHOR_COUNT / 64) - 1;
+    Object.defineProperty(minted, "size", { get() { return base + size.call(this); } });
+
+    const aligned = alignOwnershipWithSpans(
+      "cross.ts", [], [], ["first", "second"],
+      [{ start: 0, end: -1, replacementCount: 2 }], { shadow },
+    );
+    const first = (probe + HASH_PROBE_STRIDE) % ANCHOR_COUNT;
+    expect(aligned.anchors).toEqual([anchorAt(first), anchorAt((first + 1) % ANCHOR_COUNT)]);
+  });
+
+  it.each([false, true])("tracks mints for foreign anchor conflicts (shadow: %s)", async (shadow) => {
+    const key = await initRegistry(undefined);
+    const probe = foldRegistryEvents([], key).probe;
+    const foreign = [anchorAt((probe + 2) % ANCHOR_COUNT), anchorAt((probe + 3) % ANCHOR_COUNT)];
+    adoptAnchors("foreign.ts", new Map(foreign.map((anchor) => [anchor, "old"])));
+    const minted = currentMintedSet();
+    for (const anchor of foreign) minted.add(anchor);
+    const size = Object.getOwnPropertyDescriptor(Set.prototype, "size")!.get!;
+    const base = ANCHOR_COUNT - Math.floor(ANCHOR_COUNT / 64) - 3;
+    Object.defineProperty(minted, "size", { get() { return base + size.call(this); } });
+
+    const aligned = alignOwnership("conflict.ts", foreign, ["old", "old"], ["old", "old"], { shadow });
+    const first = (probe + HASH_PROBE_STRIDE) % ANCHOR_COUNT;
+    expect(aligned.anchors).toEqual([anchorAt(first), anchorAt((first + 1) % ANCHOR_COUNT)]);
+    expect(aligned.minted).toEqual(aligned.anchors);
+  });
+
+  it.each(["spans", "diff"] as const)("restores a recycled %s anchor after a session reload", async (method) => {
+    const sessionFile = join(sessionClaimsDir(), `recycle-${method}.jsonl`);
+    const key = await initRegistry(sessionFile);
+    const probe = foldRegistryEvents([], `${key}:${process.pid}`).probe;
+    const anchor = anchorAt((probe + 1) % ANCHOR_COUNT);
+    adoptAnchors("recycle.ts", new Map([[anchor, "old"]]));
+    Object.defineProperty(currentMintedSet(), "size", { value: ANCHOR_COUNT - 1 });
+
+    const aligned = method === "spans"
+      ? alignOwnershipWithSpans("recycle.ts", [anchor], ["old"], ["new"], [{ start: 0, end: 0, replacementCount: 1 }])
+      : alignOwnership("recycle.ts", [anchor], ["old"], ["new"]);
+    expect(aligned.anchors).toEqual([anchor]);
+    expect(servedForPath("recycle.ts")?.has(anchor)).toBe(false);
+    resetRegistryForTests();
+    await initRegistry(sessionFile);
+    expect(ownerOf(anchor)).toEqual({ path: "recycle.ts", checksum: "new" });
+    expect(servedForPath("recycle.ts")?.get(anchor)).toBe("new");
+  });
+
+  it("restores an anchor minted for a foreign conflict after a session reload", async () => {
+    const sessionFile = join(sessionClaimsDir(), "recycle-conflict.jsonl");
+    const key = await initRegistry(sessionFile);
+    const probe = foldRegistryEvents([], `${key}:${process.pid}`).probe;
+    const foreign = anchorAt((probe + 1) % ANCHOR_COUNT);
+    adoptAnchors("foreign.ts", new Map([[foreign, "old"]]));
+    Object.defineProperty(currentMintedSet(), "size", { value: ANCHOR_COUNT - 1 });
+
+    const aligned = alignOwnership("conflict.ts", [foreign], ["old"], ["old"]);
+    const fresh = anchorAt((probe + 2) % ANCHOR_COUNT);
+    expect(aligned.anchors).toEqual([fresh]);
+    resetRegistryForTests();
+    await initRegistry(sessionFile);
+    expect(ownerOf(foreign)).toEqual({ path: "foreign.ts", checksum: "old" });
+    expect(ownerOf(fresh)).toEqual({ path: "conflict.ts", checksum: "old" });
   });
 
   it("maps shadow allocations identically to real allocations", () => {

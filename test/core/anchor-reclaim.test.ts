@@ -195,22 +195,46 @@ describe("mintAnchor saturation", () => {
     expect(anchor).toBe(anchorAt(1));
   });
 
-  it("still probes for a fresh anchor while an unminted anchor remains", () => {
+  it("still probes for a fresh anchor above the near-full threshold", () => {
     const state = saturatedMintState([], 0);
-    state.everMinted = new FakeMintedSet(ANCHOR_COUNT - 1);
+    state.everMinted = new FakeMintedSet(ANCHOR_COUNT - Math.floor(ANCHOR_COUNT / 64) - 1);
     const mintedHas = vi.spyOn(state.everMinted, "has");
     const anchor = mintAnchor(state as never);
     expect(mintedHas).toHaveBeenCalled();
     expect(anchor).toBe(anchorAt(HASH_PROBE_STRIDE));
   });
 
-  it("skips the fresh probe for a saturated shadow set", () => {
+  it.each([1, Math.floor(ANCHOR_COUNT / 64)])("recycles without probing when %i anchors remain unminted", (remaining) => {
+    const state = saturatedMintState([anchorAt(1)], 0);
+    state.everMinted = new FakeMintedSet(ANCHOR_COUNT - remaining);
+    const mintedHas = vi.spyOn(state.everMinted, "has").mockReturnValue(true);
+    const recycled = anchorAt(2);
+    state.served.set("/old.ts", new Map([[recycled, "stale"]]));
+
+    const first = mintAnchor(state as never);
+    expect(mintedHas.mock.calls.length).toBe(0);
+    expect(first).toBe(recycled);
+    expect(state.served.get("/old.ts")!.has(recycled)).toBe(false);
+
+    const anchors = new Set([first]);
+    state.owned.set(first, { path: "/p.ts", checksum: "ck" });
+    for (let i = 1; i < 2_000; i++) {
+      const anchor = mintAnchor(state as never);
+      anchors.add(anchor);
+      state.owned.set(anchor, { path: "/p.ts", checksum: "ck" });
+    }
+    expect(mintedHas.mock.calls.length).toBe(0);
+    expect(anchors.size).toBe(2_000);
+    expect(state.probe).toBe(2_001);
+  });
+
+  it.each([0, 1])("skips the fresh probe in a shadow with %i unminted anchors", (remaining) => {
     const real = foldRegistryEvents([]);
-    real.everMinted = new FakeMintedSet(ANCHOR_COUNT);
+    real.everMinted = new FakeMintedSet(ANCHOR_COUNT - remaining);
     const shadow = shadowStateFrom(real);
     const mintedHas = vi.spyOn(shadow.everMinted, "has");
     const anchor = mintAnchor(shadow);
-    expect(mintedHas).not.toHaveBeenCalled();
+    expect(mintedHas.mock.calls.length).toBe(0);
     expect(anchor).toBe(anchorAt(1));
   });
 

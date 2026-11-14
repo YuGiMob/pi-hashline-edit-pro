@@ -527,6 +527,7 @@ function fingerprintIndex(state: SessionState, path: string): Map<string, string
 }
 
 export const MINT_PROBE_LIMIT = 8192;
+const FRESH_PROBE_CUTOFF = Math.floor(ANCHOR_COUNT / 64);
 
 function touchPath(state: SessionState, path: string): void {
 	state.usageClock += 1;
@@ -576,7 +577,7 @@ export function reclaimAnchorSpace(state: SessionState, protectPath?: string): s
 
 export function mintAnchor(state: SessionState, protectPath?: string): string {
   for (;;) {
-    if (state.everMinted.size < ANCHOR_COUNT) {
+    if (ANCHOR_COUNT - state.everMinted.size > FRESH_PROBE_CUTOFF) {
       for (let probe = 0; probe < MINT_PROBE_LIMIT; probe++) {
         state.probe = (state.probe + HASH_PROBE_STRIDE) % ANCHOR_COUNT;
         const candidate = anchorAt(state.probe);
@@ -860,25 +861,28 @@ export function alignOwnershipWithSpans(
       }
     }
     for (let k = 0; k < span.replacementCount; k++) {
+      const anchor = replacement[k];
+      if (anchor === undefined) continue;
+      state.everMinted.add(anchor);
+      state.owned.set(anchor, { path, checksum: newChecksums[start + k]! });
+    }
+    for (let k = 0; k < span.replacementCount; k++) {
       if (replacement[k] !== undefined) continue;
       const anchor = mintAnchor(state, path);
       const checksum = newChecksums[start + k]!;
       minted.push({ index: start + k, anchor, checksum });
+      state.everMinted.add(anchor);
       state.owned.set(anchor, { path, checksum });
       replacement[k] = anchor;
     }
     const settled = replacement as string[];
-    for (let k = 0; k < span.replacementCount; k++) {
-      state.everMinted.add(settled[k]!);
-      state.owned.set(settled[k]!, { path, checksum: newChecksums[start + k]! });
-    }
     spliceAll(anchors, start, spanLength, settled);
     offset += span.replacementCount - spanLength;
   }
   const rows: [string, string][] = minted.map((m) => [m.anchor, m.checksum]);
-  if (rows.length > 0) log({ kind: "allocate", path, rows });
   const retained = freed.filter((candidate) => !reused.has(candidate.anchor));
   if (retained.length > 0) log({ kind: "free", path, anchors: retained.map((f) => f.anchor) });
+  if (rows.length > 0) log({ kind: "allocate", path, rows });
   return { anchors, freed: retained.map((f) => f.anchor), minted: minted.map((m) => m.anchor) };
 }
 
@@ -933,6 +937,8 @@ export function alignOwnership(
         const checksum = newChecksums[newIdx + k]!;
         if (entry && entry.path !== path) {
           const fresh = mintAnchor(state, path);
+          state.everMinted.add(fresh);
+          minted.push({ index: newIdx + k, anchor: fresh, checksum });
           state.owned.set(fresh, { path, checksum });
           anchors[newIdx + k] = fresh;
         } else {
@@ -951,8 +957,8 @@ export function alignOwnership(
     rows.push([anchors[i]!, newChecksums[i]!]);
   }
   const logged = new Set<string>([...minted.map((m) => m.anchor), ...adopted]);
-  if (logged.size > 0) log({ kind: "allocate", path, rows: rows.filter(([anchor]) => logged.has(anchor)) });
   if (freed.length > 0) log({ kind: "free", path, anchors: freed.map((f) => f.anchor) });
+  if (logged.size > 0) log({ kind: "allocate", path, rows: rows.filter(([anchor]) => logged.has(anchor)) });
   return { anchors, freed: freed.map((f) => f.anchor), minted: minted.map((m) => m.anchor) };
 }
 
