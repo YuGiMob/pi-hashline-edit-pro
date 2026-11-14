@@ -175,7 +175,7 @@ export function assertTransferReq(request: unknown): asserts request is Transfer
   }
 }
 
-const MATCH_KS = new Set(["path", "replace_from", "replace_to", "match", "replacement"]);
+const MATCH_KS = new Set(["path", "replace_from", "replace_to", "match", "replacement", "allowEmbeddedMatch"]);
 
 export interface ReplaceMatchReq {
   path?: string;
@@ -183,6 +183,7 @@ export interface ReplaceMatchReq {
   replace_to: string;
   match: string;
   replacement: string;
+  allowEmbeddedMatch?: boolean;
 }
 
 export function singleLineMatch(raw: string): string {
@@ -226,11 +227,14 @@ export function assertReplaceMatchReq(request: unknown): asserts request is Repl
   if (within.replace_from.length === 0 || within.replace_to.length === 0) {
     throw new Error('[E_BAD_SHAPE] Replace-match request requires non-empty "replace_from" and "replace_to" anchors.');
   }
+  if (within.allowEmbeddedMatch !== undefined && typeof within.allowEmbeddedMatch !== "boolean") {
+    throw new Error('[E_BAD_SHAPE] Replace-match request field "allowEmbeddedMatch" must be a boolean when provided.');
+  }
   singleLineMatch(within.match);
   assertNoNul([within.replacement]);
 }
 
-export function getReplaceMatchInput(args: unknown): { path?: string; replace_from: string; replace_to: string; match: string; replacement: string } | null {
+export function getReplaceMatchInput(args: unknown): { path?: string; replace_from: string; replace_to: string; match: string; replacement: string; allowEmbeddedMatch?: boolean } | null {
   let normalized: unknown;
   try {
     normalized = normalizeRequest(args, "replace");
@@ -252,6 +256,7 @@ export function getReplaceMatchInput(args: unknown): { path?: string; replace_fr
     replace_to: normalized.replace_to,
     match: normalized.match,
     replacement: normalized.replacement,
+    ...(normalized.allowEmbeddedMatch === true ? { allowEmbeddedMatch: true } : {}),
   };
 }
 
@@ -265,8 +270,14 @@ const replaceMatchToSchema = Type.String({
 });
 const replaceMatchMatchSchema = Type.String({
   description:
-    "The exact text to find inside the selected lines, copied from the served row: only the fragment that changes, never text that `replacement` leaves unchanged. It must stay within one line and hold text: a single trailing line break is accepted as the line's own terminator, a line break anywhere else is refused, and a value that is only a line break leaves nothing to find and is refused. Every occurrence inside the range is replaced; the text around each match is left untouched.",
+    "The exact text to find inside the selected lines, copied from the served row: only the fragment that changes, never text that `replacement` leaves unchanged. It must stay within one line and hold text: a single trailing line break is accepted as the line's own terminator, a line break anywhere else is refused, and a value that is only a line break leaves nothing to find and is refused. Every occurrence inside the range is replaced; the text around each match is left untouched. An occurrence whose edge touches an identifier character (letters, digits, \"$\", \"_\", and Unicode identifier characters) is refused with [E_MATCH_NOT_ISOLATED] unless `allowEmbeddedMatch` is true.",
 });
+const replaceMatchAllowEmbeddedSchema = Type.Optional(
+  Type.Boolean({
+    description:
+      "Replace inside a larger identifier too. By default an occurrence glued to an identifier character is refused with [E_MATCH_NOT_ISOLATED] before anything is written; set this to true when replacing a fragment inside an identifier is intended.",
+  }),
+);
 const replaceMatchReplacementSchema = Type.String({
   description:
     `The exact replacement for every matched occurrence within the range. "" deletes the matches. A single trailing line break is accepted and dropped (a value that is only a line break counts as ""); an interior or leading line break splits the replacement into lines, and new lines inherit the file's line endings. The text around each match is kept byte-for-byte.`,
@@ -278,6 +289,7 @@ export const replaceMatchToolSchema = Type.Object(
     replace_to: replaceMatchToSchema,
     match: replaceMatchMatchSchema,
     replacement: replaceMatchReplacementSchema,
+    allowEmbeddedMatch: replaceMatchAllowEmbeddedSchema,
   },
   { additionalProperties: true },
 );
@@ -291,6 +303,7 @@ export function buildReplaceMatchToolSchema(requirePath: boolean): typeof replac
       replace_to: replaceMatchToSchema,
       match: replaceMatchMatchSchema,
       replacement: replaceMatchReplacementSchema,
+      allowEmbeddedMatch: replaceMatchAllowEmbeddedSchema,
     },
     { additionalProperties: true },
   ) as typeof replaceMatchToolSchema;
