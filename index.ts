@@ -42,7 +42,6 @@ import { type AnchorSessionContext, initRegistry, gcRegistrySidecars, clearRegis
 import { serveRows } from "./src/served.ts";
 import { finalizeTurn, planAssistantMessage } from "./src/batch.ts";
 import { currentEditFlags, editToolEnabled } from "./src/edit-common.ts";
-import type { HashlineConfigOverlay } from "./src/config-ui.ts";
 import { registerWriteHook } from "./src/write-hook.ts";
 import { readNormFile } from "./src/file-reader.ts";
 import { stripBOM, toLF } from "./src/normalize.ts";
