@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   toggleAutoRead,
+  cycleAutoReadWriteMode,
   cycleAutoReadAllMode,
   toggleAutoReadAllRequireGit,
   toggleAnchorGrep,
@@ -84,6 +85,41 @@ describe("config - toggleAnchorGrep", () => {
       const config = await readConfig();
       expect(config.autoRead).toBe(false);
       expect(config.anchorGrepEnabled).toBe(false);
+    });
+  });
+});
+
+describe("config - autoReadWrite", () => {
+  it("defaults to full", async () => {
+    await withTempDir("pi-hashline-config-test-", async () => {
+      expect((await readConfig()).autoReadWrite).toBe("full");
+    });
+  });
+
+  it("cycles through full, summary, and off", async () => {
+    await withTempDir("pi-hashline-config-test-", async () => {
+      expect(await cycleAutoReadWriteMode()).toBe("summary");
+      expect((await readConfig()).autoReadWrite).toBe("summary");
+      expect(await cycleAutoReadWriteMode()).toBe("off");
+      expect((await readConfig()).autoReadWrite).toBe("off");
+      expect(await cycleAutoReadWriteMode()).toBe("full");
+      expect((await readConfig()).autoReadWrite).toBe("full");
+    });
+  });
+
+  it("reads a legacy autoRead false as write echo off", async () => {
+    await withTempDir("pi-hashline-config-test-", async () => {
+      await writeConfig({ autoRead: false, anchorGrepEnabled: true });
+      expect((await readConfig()).autoReadWrite).toBe("off");
+    });
+  });
+
+  it("keeps an explicit summary with autoRead off", async () => {
+    await withTempDir("pi-hashline-config-test-", async () => {
+      await writeConfig({ autoRead: false, autoReadWrite: "summary", anchorGrepEnabled: true });
+      const config = await readConfig();
+      expect(config.autoRead).toBe(false);
+      expect(config.autoReadWrite).toBe("summary");
     });
   });
 });

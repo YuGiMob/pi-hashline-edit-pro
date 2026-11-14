@@ -32,6 +32,7 @@ describe("configRows ordering and gating", () => {
     expect(rows.map((row) => row.key)).toEqual([
       "autoRead",
       "diffContextLines",
+      "autoReadWrite",
       "autoReadAll",
       "autoReadAllRequireGit",
       "autoReadAllIgnore",
@@ -48,6 +49,10 @@ describe("configRows ordering and gating", () => {
     const byKey = new Map(rows.map((row) => [row.key, row]));
     expect(byKey.get("diffContextLines")?.depth).toBe(1);
     expect(byKey.get("diffContextLines")?.dependsOn).toBe("autoRead");
+    expect(byKey.get("autoReadWrite")?.depth).toBe(0);
+    expect(byKey.get("autoReadWrite")?.dependsOn).toBeUndefined();
+    expect(byKey.get("autoReadWrite")?.mode).toBe("full");
+    expect(byKey.get("autoReadWrite")?.cycle).toEqual(["full", "summary", "off"]);
     expect(byKey.get("autoReadAllRequireGit")?.dependsOn).toBe("autoReadAll");
     expect(byKey.get("autoReadAllIgnore")?.dependsOn).toBe("autoReadAll");
     expect(byKey.get("readOnDisabledModels")?.dependsOn).toBe("disableOnModels");
@@ -58,6 +63,7 @@ describe("configRows ordering and gating", () => {
     const off = configRows({ autoRead: true, anchorGrepEnabled: true });
     const offByKey = new Map(off.map((row) => [row.key, row]));
     expect(offByKey.get("diffContextLines")?.disabled).toBe(false);
+    expect(offByKey.get("autoReadWrite")?.disabled).toBeUndefined();
     expect(offByKey.get("autoReadAllRequireGit")?.disabled).toBe(true);
     expect(offByKey.get("autoReadAllIgnore")?.disabled).toBeUndefined();
     expect(offByKey.get("readOnDisabledModels")?.disabled).toBe(true);
@@ -65,6 +71,7 @@ describe("configRows ordering and gating", () => {
     const on = configRows({ autoRead: false, anchorGrepEnabled: true, autoReadAll: "outline", disableOnModels: ["openai/*"] });
     const onByKey = new Map(on.map((row) => [row.key, row]));
     expect(onByKey.get("diffContextLines")?.disabled).toBe(true);
+    expect(onByKey.get("autoReadWrite")?.disabled).toBeUndefined();
     expect(onByKey.get("autoReadAllRequireGit")?.disabled).toBe(false);
     expect(onByKey.get("readOnDisabledModels")?.disabled).toBe(false);
   });
@@ -78,6 +85,9 @@ describe("HashlineConfigOverlay arrow keys", () => {
       await overlay.load();
       const select = configRowNavigator(overlay);
       select("diffContextLines");
+      overlay.handleInput(right);
+      overlay.handleInput(left);
+      select("autoReadWrite");
       overlay.handleInput(right);
       overlay.handleInput(left);
       select("autoReadAll");
@@ -96,6 +106,8 @@ describe("HashlineConfigOverlay arrow keys", () => {
       expect(calls).toEqual([
         { key: "diffContextLines", delta: 1, value: undefined },
         { key: "diffContextLines", delta: -1, value: undefined },
+        { key: "autoReadWrite", delta: 1, value: undefined },
+        { key: "autoReadWrite", delta: -1, value: undefined },
         { key: "autoReadAll", delta: 1, value: undefined },
         { key: "autoReadAll", delta: -1, value: undefined },
         { key: "anchorGrepEnabled", delta: undefined, value: undefined },
@@ -127,9 +139,9 @@ describe("HashlineConfigOverlay viewport", () => {
       const overlay = makeConfigOverlay({ onToggle });
       await overlay.load();
       const lines = overlay.render(60);
-      const labelIndex = lines.findIndex((line) => line.includes("[x] Auto-read"));
+      const labelIndex = lines.findIndex((line) => line.includes("[x] Post-edit diffs"));
       expect(labelIndex).toBeGreaterThanOrEqual(0);
-      expect(lines[labelIndex + 1]).toContain("Show fresh anchors after write and post-edit diffs");
+      expect(lines[labelIndex + 1]).toContain("Show the post-edit diff and auto-read guidance");
       expect(lines.every((line) => visibleWidth(line) <= 60)).toBe(true);
     });
   });

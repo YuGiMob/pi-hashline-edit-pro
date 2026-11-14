@@ -2,7 +2,7 @@ import { Key, matchesKey, truncateToWidth, visibleWidth, wrapTextWithAnsi } from
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_UNDO_RETENTION_DAYS, readConfig, type Config } from "./config";
 
-export type ConfigToggleKey = "autoRead" | "autoReadAll" | "autoReadAllRequireGit" | "autoReadAllIgnore" | "anchorGrepEnabled" | "copyMoveEnabled" | "replaceMatchEnabled" | "outlineEnabled" | "requirePath" | "strictInput" | "diffContextLines" | "disableOnModels" | "readOnDisabledModels" | "undoRetentionDays";
+export type ConfigToggleKey = "autoRead" | "autoReadWrite" | "autoReadAll" | "autoReadAllRequireGit" | "autoReadAllIgnore" | "anchorGrepEnabled" | "copyMoveEnabled" | "replaceMatchEnabled" | "outlineEnabled" | "requirePath" | "strictInput" | "diffContextLines" | "disableOnModels" | "readOnDisabledModels" | "undoRetentionDays";
 
 export interface ConfigRow {
   key: ConfigToggleKey;
@@ -28,8 +28,9 @@ function rowActive(row: ConfigRow): boolean {
 
 export function configRows(config: Config): ConfigRow[] {
   const rows: ConfigRow[] = [
-    { key: "autoRead", group: "Auto-read", depth: 0, label: "Auto-read", hint: "Show fresh anchors after write and post-edit diffs", enabled: config.autoRead !== false },
+    { key: "autoRead", group: "Auto-read", depth: 0, label: "Post-edit diffs", hint: "Show the post-edit diff and auto-read guidance", enabled: config.autoRead !== false },
     { key: "diffContextLines", group: "Auto-read", depth: 1, dependsOn: "autoRead", gated: true, label: "Diff context", hint: "Context lines around each change in post-edit diffs", enabled: config.autoRead !== false, value: config.diffContextLines ?? 1 },
+    { key: "autoReadWrite", group: "Auto-read", depth: 0, label: "Write echo", hint: "Full anchor rows, a one-line summary, or nothing after write", enabled: (config.autoReadWrite ?? "full") !== "off", mode: config.autoReadWrite ?? "full", cycle: ["full", "summary", "off"] },
     { key: "autoReadAll", group: "Auto-read all", depth: 0, label: "Auto-read all", hint: "Attach project files when a session starts", enabled: (config.autoReadAll ?? "off") !== "off", mode: config.autoReadAll ?? "off", cycle: ["off", "outline", "full"] },
     { key: "autoReadAllRequireGit", group: "Auto-read all", depth: 1, dependsOn: "autoReadAll", gated: true, label: "Git repos only", hint: "Attach only inside a git repository", enabled: config.autoReadAllRequireGit !== false },
     { key: "autoReadAllIgnore", group: "Auto-read all", depth: 1, dependsOn: "autoReadAll", label: "Ignore folders/files", hint: "Folders, files, or globs that auto-read all skips (comma-separated)", enabled: (config.autoReadAllIgnore ?? []).length > 0, entries: config.autoReadAllIgnore ?? [] },

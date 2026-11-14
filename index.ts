@@ -16,11 +16,12 @@ import type { ReplaceDetails } from "./src/replace";
 import { extractHints, extractWarnings } from "./src/replace-render";
 import { MAX_HASH_LINES } from "./src/hashline";
 import { withStructuredText } from "./src/structured";
-import type { AutoReadAllMode, Config, ReadOnDisabledModels } from "./src/config";
+import type { AutoReadAllMode, AutoReadWriteMode, Config, ReadOnDisabledModels } from "./src/config";
 import {
   readConfig,
   readConfigWithStatus,
   toggleAutoRead,
+  cycleAutoReadWriteMode,
   cycleAutoReadAllMode,
   toggleAutoReadAllRequireGit,
   toggleAnchorGrep,
@@ -44,10 +45,11 @@ import { currentEditFlags, editToolEnabled } from "./src/edit-common";
 import { HashlineConfigOverlay } from "./src/config-ui";
 import { registerWriteHook } from "./src/write-hook";
 import { readNormFile } from "./src/file-reader";
+import { stripBOM, toLF } from "./src/normalize";
 import { loadFileKindAndText } from "./src/file-kind";
 import { resolveInCwd } from "./src/fs-write";
 import { valAccess } from "./src/validation";
-import { splitLines } from "./src/utils";
+import { splitLines, visLines } from "./src/utils";
 import { AUTO_READ_ALL_CUSTOM_TYPE } from "./src/constants";
 
 interface PendingRegistrySession {
@@ -78,6 +80,7 @@ export default function (pi: ExtensionAPI): void {
   registerWriteHook(pi, (model) => modelDisabled(model, disableOnModels));
 
   let autoRead = true;
+  let autoReadWrite: AutoReadWriteMode = "full";
   let autoReadAll: AutoReadAllMode = "off";
   let autoReadAllIgnore: string[] = [];
   let autoReadAllRequireGit = true;
@@ -223,6 +226,7 @@ export default function (pi: ExtensionAPI): void {
     const { config, corrupted } = await readConfigWithStatus();
     if (corrupted && (ctx as { hasUI?: boolean }).hasUI) ctx.ui.notify("Hashline config was corrupt and was reset to defaults", "warning");
     autoRead = config.autoRead;
+    autoReadWrite = config.autoReadWrite ?? "full";
     autoReadAll = config.autoReadAll ?? "off";
     autoReadAllRequireGit = config.autoReadAllRequireGit ?? true;
     autoReadAllIgnore = config.autoReadAllIgnore ?? [];
@@ -308,6 +312,7 @@ export default function (pi: ExtensionAPI): void {
           done,
           onToggle: async (key, delta, value) => {
             if (key === "autoRead") autoRead = await toggleAutoRead();
+            else if (key === "autoReadWrite") autoReadWrite = await cycleAutoReadWriteMode(delta);
             else if (key === "autoReadAll") { autoReadAll = await cycleAutoReadAllMode(delta); autoReadAllInjected = false; }
             else if (key === "autoReadAllRequireGit") autoReadAllRequireGit = await toggleAutoReadAllRequireGit();
             else if (key === "autoReadAllIgnore") autoReadAllIgnore = await setAutoReadAllIgnoreFromText(value ?? "");
@@ -370,6 +375,7 @@ export default function (pi: ExtensionAPI): void {
     if (event.toolName === "write") {
       const writtenPath = (event.input as Record<string, unknown>)?.path;
       let resolvedPath: string | undefined;
+      const writtenContent = (event.input as Record<string, unknown>)?.content;
       if (typeof writtenPath === "string") {
         try {
           resolvedPath = (await resolveInCwd(writtenPath, ctx.cwd)).resolved;
@@ -379,10 +385,26 @@ export default function (pi: ExtensionAPI): void {
           console.error("Failed to clear undo after write:", error);
         }
       }
-      if (!autoRead || gated) return;
+      if (autoReadWrite === "off" || gated) return;
       if (typeof writtenPath !== "string") return;
       try {
         resolvedPath ??= (await resolveInCwd(writtenPath, ctx.cwd)).resolved;
+        if (autoReadWrite === "summary") {
+          let lineCount: number;
+          if (typeof writtenContent === "string") {
+            lineCount = visLines(toLF(stripBOM(writtenContent).text)).length;
+          } else {
+            const source = await loadFileKindAndText(resolvedPath, { maxLines: MAX_HASH_LINES, displayPath: writtenPath });
+            if (source.kind !== "text") return;
+            lineCount = visLines(toLF(stripBOM(source.text).text)).length;
+          }
+          return {
+            content: [
+              ...(event.content ?? []),
+              { type: "text", text: `\n\n--- Auto-read (hashline anchors) ---\n${lineCount} ${lineCount === 1 ? "line" : "lines"} written. No anchors are served after a write: read the range you want to edit.` },
+            ],
+          };
+        }
         await valAccess(resolvedPath, writtenPath);
         const file = await loadFileKindAndText(resolvedPath, { maxLines: MAX_HASH_LINES, displayPath: writtenPath });
         if (file.kind !== "text") return;

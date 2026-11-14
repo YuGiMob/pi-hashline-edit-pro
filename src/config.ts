@@ -6,6 +6,9 @@ import { writeAtomic } from "./fs-write";
 export type AutoReadAllMode = "off" | "outline" | "full";
 const AUTO_READ_ALL_MODES: AutoReadAllMode[] = ["off", "outline", "full"];
 
+export type AutoReadWriteMode = "full" | "summary" | "off";
+const AUTO_READ_WRITE_MODES: AutoReadWriteMode[] = ["full", "summary", "off"];
+
 export type ReadOnDisabledModels = "remove" | "vanilla";
 const READ_ON_DISABLED_MODELS: ReadOnDisabledModels[] = ["remove", "vanilla"];
 
@@ -18,6 +21,7 @@ export const MAX_UNDO_RETENTION_DAYS = 3650;
 
 export interface Config {
   autoRead: boolean;
+  autoReadWrite?: AutoReadWriteMode;
   anchorGrepEnabled: boolean;
   copyMoveEnabled?: boolean;
   replaceMatchEnabled?: boolean;
@@ -35,6 +39,7 @@ export interface Config {
 
 const DEFAULT_CONFIG: Config = {
   autoRead: true,
+  autoReadWrite: "full",
   anchorGrepEnabled: true,
   copyMoveEnabled: true,
   replaceMatchEnabled: true,
@@ -57,6 +62,14 @@ function parseAutoReadAllMode(value: unknown): AutoReadAllMode {
   if (value === "on" || value === true) return "full";
   if (value === false) return "off";
   return DEFAULT_CONFIG.autoReadAll ?? "off";
+}
+
+function parseAutoReadWriteMode(value: unknown, legacyAutoRead: unknown): AutoReadWriteMode {
+  if (value === "full" || value === "summary" || value === "off") return value;
+  if (value === "on" || value === true) return "full";
+  if (value === false) return "off";
+  if (legacyAutoRead === false) return "off";
+  return DEFAULT_CONFIG.autoReadWrite ?? "full";
 }
 
 function parseAutoReadAllRequireGit(value: unknown, legacyMode: unknown): boolean {
@@ -122,6 +135,7 @@ function parseConfig(content: string): Config {
     throw new Error("config.json must be an object with a boolean autoRead field");
   }
   const autoRead = parsed.autoRead;
+  const autoReadWrite = parsed.autoReadWrite;
   const anchorGrepEnabled = parsed.anchorGrepEnabled;
   const copyMoveEnabled = parsed.copyMoveEnabled;
   const replaceMatchEnabled = parsed.replaceMatchEnabled;
@@ -138,6 +152,7 @@ function parseConfig(content: string): Config {
   const legacyDisableReadOnModels = parsed.disableReadOnModels;
   return {
     autoRead: typeof autoRead === "boolean" ? autoRead : DEFAULT_CONFIG.autoRead,
+    autoReadWrite: parseAutoReadWriteMode(autoReadWrite, autoRead),
     anchorGrepEnabled: typeof anchorGrepEnabled === "boolean" ? anchorGrepEnabled : DEFAULT_CONFIG.anchorGrepEnabled,
     copyMoveEnabled: typeof copyMoveEnabled === "boolean" ? copyMoveEnabled : DEFAULT_CONFIG.copyMoveEnabled,
     replaceMatchEnabled: typeof replaceMatchEnabled === "boolean" ? replaceMatchEnabled : DEFAULT_CONFIG.replaceMatchEnabled,
@@ -292,6 +307,17 @@ export async function cycleAutoReadAllMode(delta = 1): Promise<AutoReadAllMode> 
   });
   return next;
 }
+
+export async function cycleAutoReadWriteMode(delta = 1): Promise<AutoReadWriteMode> {
+  let next: AutoReadWriteMode = "full";
+  await updateConfig((c) => {
+    const current = c.autoReadWrite ?? "full";
+    next = AUTO_READ_WRITE_MODES[steppedIndex(AUTO_READ_WRITE_MODES.length, AUTO_READ_WRITE_MODES.indexOf(current), delta)] ?? "full";
+    c.autoReadWrite = next;
+  });
+  return next;
+}
+
 export const toggleRequirePath = (): Promise<boolean> => toggleFlag("requirePath");
 export const toggleStrictInput = (): Promise<boolean> => toggleFlag("strictInput");
 export async function getDiffContextLines(): Promise<number> {

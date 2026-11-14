@@ -346,13 +346,13 @@ The hashline tools are sequential in pi, so a message that contains one runs all
 
 ## Auto-read
 
-Auto-read is enabled by default. After a successful `write`, the extension reads the file and appends an `--- Auto-read (hashline anchors) ---` block, so you get fresh `anchor│content` anchors without a separate `read` call. A model matched by `disableOnModels` skips the block, and the post-edit diff substitution below is skipped with it.
+Auto-read is split into two independent settings. `autoReadWrite` controls the block appended after a successful `write`: `full` (default) appends the whole file as `anchor│content` rows; `summary` appends one line with the written line count, serves no anchors, and allocates none; `off` appends nothing. In `summary` and `off` mode the next edit needs a `read`. `autoRead` controls the post-edit diffs and auto-read guidance, independently of the write block. A legacy config with `autoRead: false` and no `autoReadWrite` reads as `autoReadWrite: "off"`, so upgrading does not add a write block. A model matched by `disableOnModels` skips both.
 
 After `replace`, `replace_match`, `insert`, `copy`, `move`, and `undo_last_change`, the result shows the post-edit diff. Inside a same-message batch, only the batch's last applied call shows the combined diff, headed by a `batch N:` line; earlier applied calls reply `In batch N (queued)`. The `+anchor│` and ` anchor│` rows carry the current anchors, so follow-up edits can anchor on the diff directly. The `-anchor│` rows show removed lines with their old anchors, which are stale after the edit. When the context line next to a change is blank or whitespace-only, one more context line is shown in that direction, so the change stays anchored to visible content. Call `read` when you want the full file's anchors.
 
 An edit that changes only line endings has no content diff; the result still reports `applied`, and one `undo_last_change` reverts it.
 
-Auto-read keeps the same 50KB and 2000-line budget as `read`. Auto-read and Diff context live in `/hashline-config` and persist across sessions. The post-edit diff shows 1 surrounding line by default; change Diff context in `/hashline-config` (0-10, needs Auto-read) to show more or fewer.
+Auto-read keeps the same 50KB and 2000-line budget as `read` for the full write block. Post-edit diffs, Write echo, and Diff context live in `/hashline-config` and persist across sessions. The post-edit diff shows 1 surrounding line by default; change Diff context in `/hashline-config` (0-10, needs Post-edit diffs) to show more or fewer.
 
 ## Auto-read all
 
@@ -370,7 +370,7 @@ The setting lives in `/hashline-config` as Auto-read all and in `config.json` as
 
 | Command | Description |
 | --- | --- |
-| `/hashline-config` | Open the settings window: auto-read anchors, auto-read all mode, git repos only, ignore folders/files, disable on models, read on disabled models, diff context lines, `grep` tool, copy/move tools, replace_match tool, outline tool, required `path`, strict input, and undo retention. Persists across sessions. |
+| `/hashline-config` | Open the settings window: post-edit diffs, write echo, auto-read all mode, git repos only, ignore folders/files, disable on models, read on disabled models, diff context lines, `grep` tool, copy/move tools, replace_match tool, outline tool, required `path`, strict input, and undo retention. Persists across sessions. |
 | `/clear-anchors` | Clear the session's anchor claims. Anchors are re-claimed on the next `read`. |
 
 Settings live in `~/.config/pi-hashline-edit-pro/config.json`, created when a setting is first changed in `/hashline-config`:
@@ -378,6 +378,7 @@ Settings live in `~/.config/pi-hashline-edit-pro/config.json`, created when a se
 ```json
 {
   "autoRead": true,
+  "autoReadWrite": "full",
   "autoReadAll": "off",
   "autoReadAllRequireGit": true,
   "autoReadAllIgnore": [],
@@ -396,7 +397,9 @@ Settings live in `~/.config/pi-hashline-edit-pro/config.json`, created when a se
 
 | Key | `/hashline-config` label | Default | Effect |
 | --- | --- | --- | --- |
-| `autoRead` | Auto-read | `true` | Append the auto-read block after `write` and show post-edit diffs. |
+| `autoRead` | Post-edit diffs | `true` | Show post-edit diffs and auto-read guidance; the write block is controlled by `autoReadWrite`. |
+| `diffContextLines` | Diff context | `1` | Surrounding lines in post-edit diffs, 0-10 (needs Post-edit diffs). |
+| `autoReadWrite` | Write echo | `"full"` | After `write`: `"full"` appends the whole file as `anchor│content` rows, `"summary"` appends a line count and serves and allocates no anchors, and `"off"` appends nothing. |
 | `autoReadAll` | Auto-read all | `"off"` | Attachment mode: `"off"`, `"outline"` (anchor-stamped per-file outlines), or `"full"` (full contents). Legacy `"git"`/`"outline(git)"` read as `"full"`/`"outline"` with Git repos only on; `"on"`/`true` read as `"full"`. |
 | `autoReadAllRequireGit` | Git repos only | `true` | Run the injection only when the working directory is inside a git repository; when off, auto-read all also attaches files discovered by `ripgrep` or the directory walk. |
 | `autoReadAllIgnore` | Ignore folders/files | `[]` | Extra folder names, file names, or globs skipped by auto-read all. |
@@ -406,7 +409,6 @@ Settings live in `~/.config/pi-hashline-edit-pro/config.json`, created when a se
 | `outlineEnabled` | Outline tool | `false` | Register the `outline` tool for the structure of a file, directory, or glob on demand; when off, it is removed from the active tools. |
 | `requirePath` | Require path | `false` | `replace`, `replace_match`, `insert`, `copy`, and `move` require a `path` argument that must match anchor ownership. |
 | `strictInput` | Strict input | `false` | Reject auto-fixable slips (`[W_BAD_SHAPE]`, `[W_BAD_REF]`, `[W_INVALID_PATCH]`, `[W_BARE_HASH_PREFIX]`, `[W_ANCHOR_CASE]`) with `[E_BAD_SHAPE]` instead of applying them with a warning. |
-| `diffContextLines` | Diff context | `1` | Surrounding lines in post-edit diffs, 0-10 (needs Auto-read). |
 | `disableOnModels` | Disable on models | `[]` | Model globs matched case-insensitively against `provider/id`, the bare `id`, and `api`, with `*` and `?` wildcards. A matching model gets no anchored edit tools, no auto-read, and no write-echo refusal; `read` stays available as pi's ordinary read unless Read on disabled models is `remove`. |
 | `readOnDisabledModels` | Read on disabled models | `"vanilla"` | `read` for a model matched by `disableOnModels`: `"vanilla"` keeps pi's ordinary `read` active while the anchored edit tools stay off; `"remove"` disables `read` with the rest of the anchored tools. |
 | `undoRetentionDays` | Undo retention | `30` | Days to keep undo history; records older than this are deleted when the store opens. `0` keeps them forever (0-3650). |

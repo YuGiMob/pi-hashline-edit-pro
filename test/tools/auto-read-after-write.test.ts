@@ -3,6 +3,8 @@ import { mkdir, writeFile } from "fs/promises";
 import { join } from "path";
 import register from "../../index";
 import { closeHashStore, makeTempDir, rmRetry, withHome, makePiStub } from "../support/fixtures";
+import { ownersForPath, servedForPath } from "../../src/anchor-registry";
+import { resolveTarget } from "../../src/fs-write";
 
 async function cleanupCwd(cwd: string): Promise<void> {
   await closeHashStore();
@@ -46,6 +48,101 @@ describe("auto-read after write", () => {
       expect(writeResult).toBeDefined();
       expect(writeResult!.content).toHaveLength(2);
       expect(writeResult!.content![1]!.text!).toContain("--- Auto-read (hashline anchors) ---");
+    } finally {
+      await cleanupCwd(cwd);
+    }
+  });
+
+  it("summarizes the write without allocating anchors", async () => {
+    const cwd = await makeTempDir("auto-read-test-summary-");
+    await writeFile(join(cwd, "test.txt"), "hello\nworld\n", "utf-8");
+    const configDir = join(cwd, ".config", "pi-hashline-edit-pro");
+    try {
+      await mkdir(configDir, { recursive: true });
+      await writeFile(join(configDir, "config.json"), JSON.stringify({ autoRead: true, autoReadWrite: "summary" }), "utf-8");
+
+      const { getToolResultHandler, getSessionStartHandler } = createTestPi();
+      await getSessionStartHandler()!({}, { cwd });
+
+      const writeResult = await getToolResultHandler()!(
+        {
+          toolName: "write",
+          toolCallId: "write-1",
+          input: { path: "test.txt", content: "hello\nworld\n" },
+          content: [{ type: "text", text: "Successfully wrote 12 bytes" }],
+          details: undefined,
+          isError: false,
+        },
+        { cwd },
+      );
+
+      expect(writeResult!.content).toHaveLength(2);
+      const autoReadText = writeResult!.content![1]!.text!;
+      expect(autoReadText).toContain("2 lines written. No anchors are served after a write: read the range you want to edit.");
+      expect(autoReadText).not.toMatch(/[a-z]{5}│hello/);
+      const resolved = await resolveTarget(join(cwd, "test.txt"));
+      expect(ownersForPath(resolved).size).toBe(0);
+      expect(servedForPath(resolved)).toBeUndefined();
+    } finally {
+      await cleanupCwd(cwd);
+    }
+  });
+
+  it("keeps the full write echo when post-edit diffs are disabled", async () => {
+    const cwd = await makeTempDir("auto-read-test-write-only-");
+    await writeFile(join(cwd, "test.txt"), "hello\nworld\n", "utf-8");
+    const configDir = join(cwd, ".config", "pi-hashline-edit-pro");
+    try {
+      await mkdir(configDir, { recursive: true });
+      await writeFile(join(configDir, "config.json"), JSON.stringify({ autoRead: false, autoReadWrite: "full" }), "utf-8");
+
+      const { getToolResultHandler, getSessionStartHandler } = createTestPi();
+      await getSessionStartHandler()!({}, { cwd });
+
+      const writeResult = await getToolResultHandler()!(
+        {
+          toolName: "write",
+          toolCallId: "write-1",
+          input: { path: "test.txt", content: "hello\nworld\n" },
+          content: [{ type: "text", text: "Successfully wrote 12 bytes" }],
+          details: undefined,
+          isError: false,
+        },
+        { cwd },
+      );
+
+      expect(writeResult!.content).toHaveLength(2);
+      expect(writeResult!.content![1]!.text!).toContain("--- Auto-read (hashline anchors) ---");
+      expect(writeResult!.content![1]!.text!).toMatch(/[a-z]{5}│hello/);
+    } finally {
+      await cleanupCwd(cwd);
+    }
+  });
+
+  it("returns nothing when the write echo is off", async () => {
+    const cwd = await makeTempDir("auto-read-test-write-off-");
+    await writeFile(join(cwd, "test.txt"), "hello\nworld\n", "utf-8");
+    const configDir = join(cwd, ".config", "pi-hashline-edit-pro");
+    try {
+      await mkdir(configDir, { recursive: true });
+      await writeFile(join(configDir, "config.json"), JSON.stringify({ autoRead: true, autoReadWrite: "off" }), "utf-8");
+
+      const { getToolResultHandler, getSessionStartHandler } = createTestPi();
+      await getSessionStartHandler()!({}, { cwd });
+
+      const writeResult = await getToolResultHandler()!(
+        {
+          toolName: "write",
+          toolCallId: "write-1",
+          input: { path: "test.txt", content: "hello\nworld\n" },
+          content: [{ type: "text", text: "Successfully wrote 12 bytes" }],
+          details: undefined,
+          isError: false,
+        },
+        { cwd },
+      );
+
+      expect(writeResult).toBeUndefined();
     } finally {
       await cleanupCwd(cwd);
     }

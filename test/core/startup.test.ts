@@ -456,7 +456,7 @@ describe("hashline-config overlay rendering", () => {
         overlay.handleInput("k");
         expect(overlay.render(60).find((line) => line.includes("Undo retention"))!).toContain("> ");
         overlay.handleInput("j");
-        expect(overlay.render(60).find((line) => line.includes("[x] Auto-read"))!).toContain("> ");
+        expect(overlay.render(60).find((line) => line.includes("[x] Post-edit diffs"))!).toContain("> ");
         overlay.invalidate();
         overlay.handleInput("q");
         expect(closed).toBe(true);
@@ -486,6 +486,10 @@ describe("hashline-config overlay rendering", () => {
         overlay.handleInput(" ");
         await waitForConfig(async () => (await readConfig()).autoRead === false);
 
+        select("autoReadWrite");
+        overlay.handleInput(" ");
+        await waitForConfig(async () => (await readConfig()).autoReadWrite === "summary");
+
         select("autoReadAll");
         overlay.handleInput(" ");
         await waitForConfig(async () => (await readConfig()).autoReadAll === "outline");
@@ -508,6 +512,7 @@ describe("hashline-config overlay rendering", () => {
 
         const config = await readConfig();
         expect(config.autoRead).toBe(false);
+        expect(config.autoReadWrite).toBe("summary");
         expect(config.anchorGrepEnabled).toBe(false);
         expect(config.copyMoveEnabled).toBe(false);
         expect(config.autoReadAll).toBe("outline");
