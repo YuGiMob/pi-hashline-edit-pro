@@ -7,6 +7,7 @@ import { getPreviewInput } from "./payload-contract";
 export { getPreviewInput };
 
 export type FgT = Pick<Theme, "fg">;
+type ExpandKeyHint = (keybinding: "app.tools.expand", description: string) => string;
 export type CallT = Pick<Theme, "fg" | "bold">;
 export type MdTheme = Pick<
 	Theme,
@@ -148,7 +149,8 @@ export function isApplied(
 
 const RESULT_PREVIEW_LINES = 16;
 
-export function expandHint(): string {
+export function expandHint(keyHintFn?: ExpandKeyHint): string {
+	if (keyHintFn !== undefined) return keyHintFn("app.tools.expand", "to expand");
 	try {
 		return keyHint("app.tools.expand", "to expand");
 	} catch {
@@ -177,6 +179,7 @@ export function buildAppliedText(
 	details: ReplaceDetails | undefined,
 	theme: FgT,
 	expanded: boolean,
+	keyHintFn?: ExpandKeyHint,
 ): string | undefined {
 	const sections: string[] = [];
 	const summary = extractSummary(text);
@@ -190,7 +193,7 @@ export function buildAppliedText(
 			: fmtPreview(rawDiff, false, theme);
 		const hint =
 			!expanded && diffLines.length > RESULT_PREVIEW_LINES
-				? ` (${expandHint()})`
+				? ` (${expandHint(keyHintFn)})`
 				: "";
 		sections.push(header !== undefined ? `${theme.fg("warning", header)}\n${diffSection}${hint}` : `${diffSection}${hint}`);
 	}
@@ -389,7 +392,7 @@ export function renderEditResult(
 	}
 	if (isApplied(result.details)) {
 		const isExpanded = optionsExpanded === true || context.expanded === true;
-		const appliedText = buildAppliedText(renderedText, result.details, theme, isExpanded);
+		const appliedText = buildAppliedText(renderedText, result.details, theme, isExpanded, context.keyHint);
 		return appliedText ? reuseText(context, appliedText) : new Text("", 0, 0);
 	}
 	if (!renderedText) return new Text("", 0, 0);

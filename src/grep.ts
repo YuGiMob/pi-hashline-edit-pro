@@ -317,7 +317,7 @@ async function collectRgMatches(
   signal: AbortSignal | undefined,
   repoRooted: boolean,
 ): Promise<RgSearch> {
-  const args = ["--json", "--line-number", "--color=never", "--hidden", "--crlf", "--glob", "!.git"];
+  const args = ["--json", "--line-number", "--color=never", "--hidden", "--crlf", "--no-config", "--glob", "!.git"];
   if (!repoRooted) args.push("--no-require-git");
   const wanted = req.limit ?? 100;
   args.push("--max-count", String(wanted + 1));
@@ -555,7 +555,7 @@ export function renderGrepResult(result: { content?: Array<{ type: string; text?
   const lines = raw.split("\n");
   const highlight = highlightRegex((context as { args?: unknown }).args);
   const shown = lines.slice(0, maxLines).map((line) => styleGrepLine(line, highlight, theme));
-  if (lines.length > maxLines) shown.push(theme.fg("muted", `... ${lines.length - maxLines} more grep lines (${expandHint()})`));
+  if (lines.length > maxLines) shown.push(theme.fg("muted", `... ${lines.length - maxLines} more grep lines (${expandHint(context.keyHint)})`));
   return reuseText(context, shown.join("\n"));
 }
 export function regGrep(pi: ExtensionAPI, flags: EditToolFlags = DEFAULT_EDIT_FLAGS): void {

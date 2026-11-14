@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   partialPath: undefined as string | undefined,
   child: null as { killed: boolean; kill(signal?: string): boolean } | null,
   onSpawn: null as (() => void) | null,
+  spawnArgs: [] as string[],
 }));
 
 vi.mock("node:child_process", async (importOriginal) => {
@@ -29,7 +30,8 @@ vi.mock("node:child_process", async (importOriginal) => {
   return {
     ...actual,
     spawnSync: () => ({ status: 0, error: undefined }),
-    spawn: () => {
+    spawn: (_command: string, args: string[]) => {
+      state.spawnArgs = args;
       const child = new FakeChild();
       state.child = child;
       state.onSpawn?.();
@@ -73,6 +75,7 @@ beforeEach(() => {
   state.child = null;
   state.onSpawn = null;
   state.partialPath = undefined;
+  state.spawnArgs = [];
 });
 
 describe("grep ripgrep failure contract", () => {
@@ -83,6 +86,15 @@ describe("grep ripgrep failure contract", () => {
       expect(await toolError(() => runGrep(dir, "alpha"))).toMatch(
         /\[E_GREP_FAILED\] ripgrep could not start: spawn rg ENOENT/,
       );
+    });
+  });
+
+  it("disables ripgrep configuration files", async () => {
+    await withTempDir("grep-rg-config-", async (dir) => {
+      await writeFile(join(dir, "sample.txt"), "alpha\n", "utf-8");
+      state.mode = "exit";
+      await toolError(() => runGrep(dir, "alpha"));
+      expect(state.spawnArgs).toContain("--no-config");
     });
   });
 

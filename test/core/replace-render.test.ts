@@ -11,6 +11,7 @@ import {
 	extractWarnings,
 	isApplied,
 	buildAppliedText,
+	expandHint,
 	fmtResultMd,
 	mkMdTheme,
 } from "../../src/replace-render";
@@ -351,5 +352,18 @@ describe("mkMdTheme", () => {
 		const theme = mkMdTheme(mockTheme);
 		const result = theme.highlightCode("const x = 1;", "javascript");
 		expect(result.length).toBe(1);
+	});
+});
+
+describe("expandHint", () => {
+	it("uses the injected key hint function", () => {
+		expect(expandHint((keybinding, description) => `${keybinding}:${description}`)).toBe("app.tools.expand:to expand");
+	});
+
+	it("passes the injected key hint into applied text", () => {
+		const text = "Successfully replaced in x.";
+		const diff = Array.from({ length: 30 }, (_, index) => ` line ${index}`).join("\n");
+		const result = buildAppliedText(text, { diff }, mockTheme, false, (_keybinding, description) => `custom ${description}`);
+		expect(result).toContain("custom to expand");
 	});
 });
