@@ -5,7 +5,6 @@ import { stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, win32 } from "node:path";
 import { pathToFileURL } from "node:url";
 import { spawn, spawnSync } from "node:child_process";
-import { createInterface } from "node:readline";
 import { tryReadNormFile } from "./file-reader";
 import { globToRegex } from "./glob";
 import { MAX_HASH_LINES, fmtRow, HASH_LEN, HASH_SEP, HASH_CLASS } from "./hashline";
@@ -22,6 +21,7 @@ import { Text } from "@earendil-works/pi-tui";
 import { expandHint, getResultText, reuseText, type CallT, type FgT } from "./replace-render";
 import { anchoredLine, grepResultSchema, withStructuredErrors, type GrepStructured } from "./structured";
 export const RG_TIMEOUT_MS = 10_000;
+export const MAX_RG_EVENT_BYTES = 16 * 1024 * 1024;
 
 const GREP_KS = new Set(["pattern", "path", "glob", "context", "ignoreCase", "literal", "limit"]);
 
@@ -331,7 +331,9 @@ async function collectRgMatches(
   const result = new Map<string, RgMatchLine[]>();
   return await new Promise<RgSearch>((resolve, reject) => {
     const child = spawn(rgPath, args, { stdio: ["ignore", "pipe", "pipe"] });
-    const rl = createInterface({ input: child.stdout });
+    let pending: Buffer[] = [];
+    let pendingBytes = 0;
+    let oversized = false;
     let stderr = "";
     let timedOut = false;
     const rgTimeout = setTimeout(() => {
@@ -348,10 +350,9 @@ async function collectRgMatches(
     signal?.addEventListener("abort", onAbort, { once: true });
     const cleanup = () => {
       clearTimeout(rgTimeout);
-      rl.close();
       signal?.removeEventListener("abort", onAbort);
     };
-    rl.on("line", (line) => {
+    const onLine = (line: string) => {
       if (!line.trim()) return;
       let event: { type?: string; data?: { path?: { text?: string }; line_number?: number; submatches?: Array<{ start?: number; end?: number }> } };
       try {
@@ -377,6 +378,28 @@ async function collectRgMatches(
           result.set(abs, list);
         }
       }
+    };
+    const overflow = (bytes: number): boolean => {
+      if (bytes <= MAX_RG_EVENT_BYTES) return false;
+      oversized = true;
+      pending = [];
+      if (!child.killed) child.kill("SIGKILL");
+      return true;
+    };
+    child.stdout?.on("data", (chunk: Buffer) => {
+      if (oversized) return;
+      let start = 0;
+      for (let nl = chunk.indexOf(10); nl !== -1; nl = chunk.indexOf(10, start)) {
+        if (overflow(pendingBytes + nl - start)) return;
+        pending.push(chunk.subarray(start, nl));
+        onLine(Buffer.concat(pending).toString("utf8"));
+        pending = [];
+        pendingBytes = 0;
+        start = nl + 1;
+      }
+      pendingBytes += chunk.length - start;
+      if (overflow(pendingBytes)) return;
+      if (start < chunk.length) pending.push(chunk.subarray(start));
     });
     child.on("error", (error) => {
       cleanup();
@@ -389,6 +412,10 @@ async function collectRgMatches(
       if (timedOut) return;
       if (signal?.aborted) {
         reject(new Error("Operation aborted"));
+        return;
+      }
+      if (oversized) {
+        resolve({ matches: result, skipped: `ripgrep reported one match line over ${formatSize(MAX_RG_EVENT_BYTES)} (a broad pattern such as "." on a long one-line file), so the search stopped there; narrow the pattern or the path` });
         return;
       }
       if (code !== 0 && code !== 1) {

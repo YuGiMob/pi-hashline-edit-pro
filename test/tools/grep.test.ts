@@ -697,7 +697,7 @@ async function withSystemTempDir(prefix: string, run: (dir: string) => Promise<v
       const { ctx, getTool } = setupIntegrationTest(cwd);
       const grepTool = getTool("grep");
       const started = Date.now();
-      const result = await grepTool.execute("g1", { pattern: "z", path: "huge2.txt" }, undefined, undefined, ctx);
+      const result = await grepTool.execute("g1", { pattern: "z+", path: "huge2.txt" }, undefined, undefined, ctx);
       expect(Date.now() - started).toBeLessThan(10000);
       const text = getText(result);
       expect(text).toContain("truncated fragments");

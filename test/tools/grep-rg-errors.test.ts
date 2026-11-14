@@ -1,11 +1,12 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { RG_TIMEOUT_MS } from "../../src/grep";
+import { MAX_RG_EVENT_BYTES, RG_TIMEOUT_MS } from "../../src/grep";
 import { setupIntegrationTest, withTempDir, toolError, getText } from "../support/fixtures";
 
 const state = vi.hoisted(() => ({
-  mode: "exit" as "exit" | "spawn-error" | "hang" | "partial",
+  mode: "exit" as "exit" | "spawn-error" | "hang" | "partial" | "oversized",
+  oversizedBytes: 0,
   partialPath: undefined as string | undefined,
   child: null as { killed: boolean; kill(signal?: string): boolean } | null,
   onSpawn: null as (() => void) | null,
@@ -21,6 +22,7 @@ vi.mock("node:child_process", async (importOriginal) => {
     killed = false;
     kill(_signal?: string): boolean {
       this.killed = true;
+      if (state.mode === "oversized") setImmediate(() => this.emit("close", null));
       return true;
     }
   }
@@ -45,6 +47,15 @@ vi.mock("node:child_process", async (importOriginal) => {
           child.stdout.write(`${JSON.stringify({ type: "match", data: { path: { text: path }, line_number: 1, submatches: [{ start: 0, end: 5 }] } })}\n`);
           child.stderr.write(`${path}: Permission denied (os error 13)\n`);
           setTimeout(() => child.emit("close", 2), 10);
+        }
+        if (state.mode === "oversized") {
+          if (state.partialPath !== undefined) {
+            child.stdout.write(`${JSON.stringify({ type: "match", data: { path: { text: state.partialPath }, line_number: 1, submatches: [{ start: 0, end: 5 }] } })}\n`);
+          }
+          setImmediate(() => {
+            child.stdout.write(Buffer.alloc(state.oversizedBytes, 0x78));
+            setImmediate(() => child.stdout.write("yy\n"));
+          });
         }
       });
       return child;
@@ -98,6 +109,38 @@ describe("grep ripgrep failure contract", () => {
       expect(text).toContain("alpha");
       expect(text).toContain("some paths could not be searched");
       expect(text).toContain("Permission denied");
+      expect(result.isError).toBeFalsy();
+    });
+  });
+
+  it("stops ripgrep at an event over the cap and keeps the matches read before it", async () => {
+    await withTempDir("grep-rg-oversized-", async (dir) => {
+      const sample = join(dir, "sample.txt");
+      await writeFile(sample, "alpha\nbeta\n", "utf-8");
+      state.mode = "oversized";
+      state.oversizedBytes = MAX_RG_EVENT_BYTES;
+      state.partialPath = sample;
+      const { ctx, getTool } = setupIntegrationTest(dir);
+      const result = await getTool("grep").execute("g1", { pattern: ".", path: "." }, undefined, undefined, ctx);
+      const text = getText(result);
+      expect(state.child?.killed).toBe(true);
+      expect(text).toContain("=== sample.txt ===");
+      expect(text).toContain("the search stopped there");
+      expect(result.isError).toBeFalsy();
+    });
+  });
+
+  it("reports an event over the cap when nothing else matched", async () => {
+    await withTempDir("grep-rg-oversized-only-", async (dir) => {
+      await writeFile(join(dir, "sample.txt"), "alpha\n", "utf-8");
+      state.mode = "oversized";
+      state.oversizedBytes = MAX_RG_EVENT_BYTES;
+      const { ctx, getTool } = setupIntegrationTest(dir);
+      const result = await getTool("grep").execute("g1", { pattern: ".", path: "sample.txt" }, undefined, undefined, ctx);
+      const text = getText(result);
+      expect(state.child?.killed).toBe(true);
+      expect(text).toContain("No matches found.");
+      expect(text).toContain("the search stopped there");
       expect(result.isError).toBeFalsy();
     });
   });
