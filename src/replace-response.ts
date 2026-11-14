@@ -1,9 +1,9 @@
-import { HASH_SEP, type NEdit } from "./hashline";
-import type { ReplaceDetails } from "./replace";
-import { genDiff, genPatch, type DiffSpan } from "./replace-diff";
-import { visLines, clipLine } from "./utils";
-import { annotateLiteralEscapeHints, dedupeLiteralEscapeHints, fidelityHints } from "./edit-fidelity";
-import { anchoredLine, anchoredLinesFromDiff, diffAnchorsOmitted, toEditVerb, type EditStructured, type EditVerb, type Json } from "./structured";
+import { HASH_SEP, type NEdit } from "./hashline/index.ts";
+import type { ReplaceDetails } from "./replace.ts";
+import { genDiff, genPatch, type DiffSpan } from "./replace-diff.ts";
+import { visLines, clipLine } from "./utils.ts";
+import { annotateLiteralEscapeHints, dedupeLiteralEscapeHints, fidelityHints } from "./edit-fidelity.ts";
+import { anchoredLine, anchoredLinesFromDiff, diffAnchorsOmitted, toEditVerb, type EditStructured, type EditVerb, type Json } from "./structured.ts";
 
 export type TResult = {
 	content: Array<{ type: "text"; text: string }>;

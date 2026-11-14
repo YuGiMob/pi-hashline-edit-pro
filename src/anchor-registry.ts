@@ -3,15 +3,15 @@ import { appendFileSync, chmodSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { sessionClaimsDir } from "./paths";
-import { contentChecksum } from "./hashline/hasher";
-import { ANCHOR_COUNT, HASH_RE, anchorAt } from "./hashline/alphabet";
-import { HASH_PROBE_STRIDE, MAX_HASH_LINES } from "./hashline/hash";
-import { assertLineCount, errCode, isRec, splitLines, spliceAll } from "./utils";
+import { sessionClaimsDir } from "./paths.ts";
+import { contentChecksum } from "./hashline/hasher.ts";
+import { ANCHOR_COUNT, HASH_RE, anchorAt } from "./hashline/alphabet.ts";
+import { HASH_PROBE_STRIDE, MAX_HASH_LINES } from "./hashline/hash.ts";
+import { assertLineCount, errCode, isRec, splitLines, spliceAll } from "./utils.ts";
 import * as Diff from "diff";
-import { lineChecksum } from "./hashline";
-import { getAllocatedState, persistSnapshot, type HashStore } from "./hash-store";
-import { ANCHOR_POOL_EXHAUSTED_PREFIX, ANCHOR_RECLAIM_WARNING_CODE, MAX_RECLAIMED_PATHS_REPORTED } from "./constants";
+import { lineChecksum } from "./hashline/index.ts";
+import { getAllocatedState, persistSnapshot, type HashStore } from "./hash-store.ts";
+import { ANCHOR_POOL_EXHAUSTED_PREFIX, ANCHOR_RECLAIM_WARNING_CODE, MAX_RECLAIMED_PATHS_REPORTED } from "./constants.ts";
 
 export type RegistryEvent =
   | { kind: "session"; sessionFile: string }

@@ -1,6 +1,6 @@
-import { HASH_CLASS } from "./hashline/alphabet";
-import { lineChecksum } from "./hashline/hash";
-import { markServed } from "./anchor-registry";
+import { HASH_CLASS } from "./hashline/alphabet.ts";
+import { lineChecksum } from "./hashline/hash.ts";
+import { markServed } from "./anchor-registry.ts";
 
 const SERVED_DIFF_ROW_RE = new RegExp(`^[+ ](${HASH_CLASS})│`);
 

@@ -1,6 +1,6 @@
 import { Type } from "typebox";
-import { HASH_CLASS, HASH_SEP } from "./hashline/hash";
-import { ioErrorCode } from "./utils";
+import { HASH_CLASS, HASH_SEP } from "./hashline/hash.ts";
+import { ioErrorCode } from "./utils.ts";
 
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 

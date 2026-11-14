@@ -1,4 +1,4 @@
-import type { NormFile } from "./file-reader";
+import type { NormFile } from "./file-reader.ts";
 
 export interface PreEditSnapshot extends NormFile {
   served?: ReadonlyMap<string, string>;

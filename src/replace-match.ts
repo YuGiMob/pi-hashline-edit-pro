@@ -1,12 +1,12 @@
 import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { constants } from "node:fs";
-import { execPipeline, noteAnchorError, previewFromPipe, previewError, type ReplaceDetails } from "./replace";
-import { commitEdit } from "./commit";
-import { readNormFile, type NormFile } from "./file-reader";
-import { fmtRegion, MAX_HASH_LINES, parseHashRef, planEdit, preserveDeletionSeparators, resEdit, resolveAnchorLine, stripAnchorRow, type Anchor } from "./hashline";
-import { servedForPath, withAnchorSession } from "./anchor-registry";
-import { batchMemberFor, executeBatchMember, noteBatchFailure, registerBatchPlanner, type BatchMemberPlan, type BatchPlannerInput } from "./batch";
-import { loadP, loadGuidelines } from "./prompts";
+import { execPipeline, noteAnchorError, previewFromPipe, previewError, type ReplaceDetails } from "./replace.ts";
+import { commitEdit } from "./commit.ts";
+import { readNormFile, type NormFile } from "./file-reader.ts";
+import { fmtRegion, MAX_HASH_LINES, parseHashRef, planEdit, preserveDeletionSeparators, resEdit, resolveAnchorLine, stripAnchorRow, type Anchor } from "./hashline/index.ts";
+import { servedForPath, withAnchorSession } from "./anchor-registry.ts";
+import { batchMemberFor, executeBatchMember, noteBatchFailure, registerBatchPlanner, type BatchMemberPlan, type BatchPlannerInput } from "./batch.ts";
+import { loadP, loadGuidelines } from "./prompts.ts";
 import {
   assertReplaceMatchReq,
   buildReplaceMatchToolSchema,
@@ -15,11 +15,11 @@ import {
   replacementFragment,
   singleLineMatch,
   type ReplaceMatchReq,
-} from "./payload-contract";
-import { literalEscapeHints, makePrepareArguments, splitLines } from "./utils";
-import { type LineEnding } from "./normalize";
-import { MAX_RANGE_STALE_LINES } from "./constants";
-import { formatCharEscape, isFidelitySensitiveChar } from "./edit-fidelity";
+} from "./payload-contract.ts";
+import { literalEscapeHints, makePrepareArguments, splitLines } from "./utils.ts";
+import { type LineEnding } from "./normalize.ts";
+import { MAX_RANGE_STALE_LINES } from "./constants.ts";
+import { formatCharEscape, isFidelitySensitiveChar } from "./edit-fidelity.ts";
 import {
   assertBoundaryLinesServed,
   DEFAULT_EDIT_FLAGS,
@@ -32,10 +32,10 @@ import {
   trustRangeServed,
   withReplaceMatchPrompts,
   type EditToolFlags,
-} from "./edit-common";
-import { makeRenderCall, type RPreview, type RRState } from "./replace-render";
-import { editResultSchema, withStructuredErrors } from "./structured";
-import { notIsolatedMessage, scanMatchRange } from "./match-isolation";
+} from "./edit-common.ts";
+import { makeRenderCall, type RPreview, type RRState } from "./replace-render.ts";
+import { editResultSchema, withStructuredErrors } from "./structured.ts";
+import { notIsolatedMessage, scanMatchRange } from "./match-isolation.ts";
 
 interface MatchRefs {
   from: Anchor;

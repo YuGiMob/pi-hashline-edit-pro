@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { errCode } from "./utils";
+import { errCode } from "./utils.ts";
 
 export interface Guideline {
   id: string;

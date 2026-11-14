@@ -8,7 +8,7 @@
  */
 
 import type { Node } from "web-tree-sitter";
-import type { SymbolInfo, ImportInfo } from "../types.js";
+import type { SymbolInfo, ImportInfo } from "../types.ts";
 
 /**
  * Extract structural symbols from Java source code.

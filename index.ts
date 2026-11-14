@@ -1,22 +1,22 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createReadToolDefinition, createGrepToolDefinition, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "@earendil-works/pi-coding-agent";
-import { initHasher } from "./src/hashline";
-import { regReplaceMatch } from "./src/replace-match";
-import { regReplace } from "./src/replace";
-import { regInsert } from "./src/insert";
-import { regCopy, regMove } from "./src/copy-move";
-import { regGrep, regVanillaGrep } from "./src/grep";
-import { regUndo, clearUndo } from "./src/replace-undo";
-import { regRead, fmtReadPreview } from "./src/read";
-import { regOutline } from "./src/outline-tool";
-import { ANCHOR_TOOL_NAMES, modelDisabled, type ModelLike } from "./src/model-gate";
-import { buildAutoReadAllInjection, autoReadAllBudget, isOutlineAutoReadAll } from "./src/auto-read-all";
-import type { RMetrics } from "./src/replace-response";
-import type { ReplaceDetails } from "./src/replace";
-import { extractHints, extractWarnings } from "./src/replace-render";
-import { MAX_HASH_LINES } from "./src/hashline";
-import { withStructuredText } from "./src/structured";
-import type { AutoReadAllMode, AutoReadWriteMode, Config, ReadOnDisabledModels } from "./src/config";
+import { initHasher } from "./src/hashline/index.ts";
+import { regReplaceMatch } from "./src/replace-match.ts";
+import { regReplace } from "./src/replace.ts";
+import { regInsert } from "./src/insert.ts";
+import { regCopy, regMove } from "./src/copy-move.ts";
+import { regGrep, regVanillaGrep } from "./src/grep.ts";
+import { regUndo, clearUndo } from "./src/replace-undo.ts";
+import { regRead, fmtReadPreview } from "./src/read.ts";
+import { regOutline } from "./src/outline-tool.ts";
+import { ANCHOR_TOOL_NAMES, modelDisabled, type ModelLike } from "./src/model-gate.ts";
+import { buildAutoReadAllInjection, autoReadAllBudget, isOutlineAutoReadAll } from "./src/auto-read-all.ts";
+import type { RMetrics } from "./src/replace-response.ts";
+import type { ReplaceDetails } from "./src/replace.ts";
+import { extractHints, extractWarnings } from "./src/replace-render.ts";
+import { MAX_HASH_LINES } from "./src/hashline/index.ts";
+import { withStructuredText } from "./src/structured.ts";
+import type { AutoReadAllMode, AutoReadWriteMode, Config, ReadOnDisabledModels } from "./src/config.ts";
 import {
   readConfig,
   readConfigWithStatus,
@@ -36,21 +36,21 @@ import {
   getUndoRetentionDays,
   setAutoReadAllIgnoreFromText,
   setDisableOnModelsFromText,
-} from "./src/config";
-import { loadHashStore, pruneExpiredUndo, pruneMissing } from "./src/hash-store";
-import { type AnchorSessionContext, initRegistry, gcRegistrySidecars, clearRegistry, freeAnchors, freeAnchorsForPaths, sessionKeyFor, sessionContextReadable, withAnchorSession, releaseRegistrySession, formatAnchorReclaimNotice, takeReclaimedPaths } from "./src/anchor-registry";
-import { serveRows } from "./src/served";
-import { finalizeTurn, planAssistantMessage } from "./src/batch";
-import { currentEditFlags, editToolEnabled } from "./src/edit-common";
-import { HashlineConfigOverlay } from "./src/config-ui";
-import { registerWriteHook } from "./src/write-hook";
-import { readNormFile } from "./src/file-reader";
-import { stripBOM, toLF } from "./src/normalize";
-import { loadFileKindAndText } from "./src/file-kind";
-import { resolveInCwd } from "./src/fs-write";
-import { valAccess } from "./src/validation";
-import { splitLines, visLines } from "./src/utils";
-import { AUTO_READ_ALL_CUSTOM_TYPE } from "./src/constants";
+} from "./src/config.ts";
+import { loadHashStore, pruneExpiredUndo, pruneMissing } from "./src/hash-store.ts";
+import { type AnchorSessionContext, initRegistry, gcRegistrySidecars, clearRegistry, freeAnchors, freeAnchorsForPaths, sessionKeyFor, sessionContextReadable, withAnchorSession, releaseRegistrySession, formatAnchorReclaimNotice, takeReclaimedPaths } from "./src/anchor-registry.ts";
+import { serveRows } from "./src/served.ts";
+import { finalizeTurn, planAssistantMessage } from "./src/batch.ts";
+import { currentEditFlags, editToolEnabled } from "./src/edit-common.ts";
+import type { HashlineConfigOverlay } from "./src/config-ui.ts";
+import { registerWriteHook } from "./src/write-hook.ts";
+import { readNormFile } from "./src/file-reader.ts";
+import { stripBOM, toLF } from "./src/normalize.ts";
+import { loadFileKindAndText } from "./src/file-kind.ts";
+import { resolveInCwd } from "./src/fs-write.ts";
+import { valAccess } from "./src/validation.ts";
+import { splitLines, visLines } from "./src/utils.ts";
+import { AUTO_READ_ALL_CUSTOM_TYPE } from "./src/constants.ts";
 
 interface PendingRegistrySession {
   key: string | undefined;
@@ -305,6 +305,7 @@ export default function (pi: ExtensionAPI): void {
         return;
       }
       await ctx.ui.custom<void>(async (tui, theme, _keybindings, done) => {
+        const { HashlineConfigOverlay } = await import("./src/config-ui.ts");
         const overlay = new HashlineConfigOverlay({
           tui,
           maxHeight: () => tui.terminal ? Math.max(6, Math.floor(tui.terminal.rows * 0.9)) : undefined,

@@ -1,19 +1,19 @@
 import { readFile } from "node:fs/promises";
-import type { PipelineResult } from "./replace";
-import { abortIf, assertByteLimit, errCode, mapIoError, splitLines } from "./utils";
-import { buildChanged, buildNoop, type RMeta, type TResult } from "./replace-response";
-import { saveUndo } from "./replace-undo";
-import { getDiffContextLines } from "./config";
-import { safeSnapId } from "./file-reader";
-import { writeAtomic } from "./fs-write";
-import { formatAnchorReclaimNotice, servedForPath, takeReclaimedPaths } from "./anchor-registry";
-import { servedHashesFromDiff, serveRows } from "./served";
-import { recordPreEditSnapshot } from "./pre-edit-snapshot";
-import { lineHashes } from "./hashline";
-import { spanForEdit } from "./replace";
-import { restoreEndings, stripBOM, toLF, type LineEnding } from "./normalize";
-import { applyEndingOverrides, joinSeparators, separatorsForSpans } from "./line-endings";
-import { toEditVerb } from "./structured";
+import type { PipelineResult } from "./replace.ts";
+import { abortIf, assertByteLimit, errCode, mapIoError, splitLines } from "./utils.ts";
+import { buildChanged, buildNoop, type RMeta, type TResult } from "./replace-response.ts";
+import { saveUndo } from "./replace-undo.ts";
+import { getDiffContextLines } from "./config.ts";
+import { safeSnapId } from "./file-reader.ts";
+import { writeAtomic } from "./fs-write.ts";
+import { formatAnchorReclaimNotice, servedForPath, takeReclaimedPaths } from "./anchor-registry.ts";
+import { servedHashesFromDiff, serveRows } from "./served.ts";
+import { recordPreEditSnapshot } from "./pre-edit-snapshot.ts";
+import { lineHashes } from "./hashline/index.ts";
+import { spanForEdit } from "./replace.ts";
+import { restoreEndings, stripBOM, toLF, type LineEnding } from "./normalize.ts";
+import { applyEndingOverrides, joinSeparators, separatorsForSpans } from "./line-endings.ts";
+import { toEditVerb } from "./structured.ts";
 export type FileStateSinceRead = "unchanged" | "deleted" | "changed";
 
 export async function fileStateSinceRead(

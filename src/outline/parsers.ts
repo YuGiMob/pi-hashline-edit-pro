@@ -19,7 +19,7 @@ export interface OutlineParser {
 
 async function load(): Promise<OutlineParser | undefined> {
 	try {
-		const parsers = await import("./vendor/parsers/index.js");
+		const parsers = await import("./vendor/parsers/index.ts");
 		return {
 			languageFor: (path) => parsers.detectLanguage(path),
 			parse: async (path, content) => {

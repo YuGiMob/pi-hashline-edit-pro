@@ -1,9 +1,9 @@
 import { Markdown, Text } from "@earendil-works/pi-tui";
 import { keyHint, type Theme } from "@earendil-works/pi-coding-agent";
-import type { ReplaceDetails } from "./replace";
-import { abortedBatchMessageFor } from "./batch";
-import { withLineNumbers } from "./utils";
-import { getPreviewInput } from "./payload-contract";
+import type { ReplaceDetails } from "./replace.ts";
+import { abortedBatchMessageFor } from "./batch.ts";
+import { withLineNumbers } from "./utils.ts";
+import { getPreviewInput } from "./payload-contract.ts";
 export { getPreviewInput };
 
 export type FgT = Pick<Theme, "fg">;

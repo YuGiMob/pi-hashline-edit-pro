@@ -1,5 +1,5 @@
 import type { Node } from "web-tree-sitter";
-import type { SymbolInfo } from "../types.js";
+import type { SymbolInfo } from "../types.ts";
 
 const PHP_TYPE_LABELS: Record<string, string> = {
   class_declaration: "class",

@@ -1,11 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { constants } from "node:fs";
-import { toDisplayPath } from "./paths";
-import { readConfig, getDiffContextLines } from "./config";
-import { throwIfStrictInput, tryResolveEditTarget } from "./edit-common";
-import { readNormFile, safeSnapId } from "./file-reader";
-import { clearPreEditSnapshots, recordPreEditSnapshot } from "./pre-edit-snapshot";
-import { resolveInCwd, writeAtomic, type FileIdentity } from "./fs-write";
+import { toDisplayPath } from "./paths.ts";
+import { readConfig, getDiffContextLines } from "./config.ts";
+import { throwIfStrictInput, tryResolveEditTarget } from "./edit-common.ts";
+import { readNormFile, safeSnapId } from "./file-reader.ts";
+import { clearPreEditSnapshots, recordPreEditSnapshot } from "./pre-edit-snapshot.ts";
+import { resolveInCwd, writeAtomic, type FileIdentity } from "./fs-write.ts";
 import {
   AnchorMismatchError,
   RangeStaleError,
@@ -17,18 +17,18 @@ import {
   type HEdit,
   type PlannedEdit,
   type StripWarningLocation,
-} from "./hashline";
-import { adoptAnchors, servedForPath, formatAnchorReclaimNotice, takeReclaimedPaths } from "./anchor-registry";
-import { restoreEndings, stripBOM, toLF, type LineEnding } from "./normalize";
-import { applySpanEndings, joinSeparators, separatorsForSpans } from "./line-endings";
-import { assertInsertReq, assertReplaceMatchReq, assertReq, assertTransferReq, normReq } from "./payload-contract";
-import type { PipelineResult } from "./replace";
-import { genPatch } from "./replace-diff";
-import { saveUndo } from "./replace-undo";
-import { buildChanged, buildNoop, type RMetrics, type TResult } from "./replace-response";
-import { toEditVerb, withStructuredText, type EditStructured } from "./structured";
-import { serveRows, servedHashesFromDiff } from "./served";
-import { abortIf, assertByteLimit, assertLineLimit, errCode, isRec, mapIoError, splitLines, spliceAll } from "./utils";
+} from "./hashline/index.ts";
+import { adoptAnchors, servedForPath, formatAnchorReclaimNotice, takeReclaimedPaths } from "./anchor-registry.ts";
+import { restoreEndings, stripBOM, toLF, type LineEnding } from "./normalize.ts";
+import { applySpanEndings, joinSeparators, separatorsForSpans } from "./line-endings.ts";
+import { assertInsertReq, assertReplaceMatchReq, assertReq, assertTransferReq, normReq } from "./payload-contract.ts";
+import type { PipelineResult } from "./replace.ts";
+import { genPatch } from "./replace-diff.ts";
+import { saveUndo } from "./replace-undo.ts";
+import { buildChanged, buildNoop, type RMetrics, type TResult } from "./replace-response.ts";
+import { toEditVerb, withStructuredText, type EditStructured } from "./structured.ts";
+import { serveRows, servedHashesFromDiff } from "./served.ts";
+import { abortIf, assertByteLimit, assertLineLimit, errCode, isRec, mapIoError, splitLines, spliceAll } from "./utils.ts";
 
 export interface PlannedMember {
   batchKey: number;

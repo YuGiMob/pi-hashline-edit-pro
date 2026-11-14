@@ -1,9 +1,9 @@
-import { abortIf, rejectUnknownFields, clipLine, decodeStringArray, assertNoNul, isBlankLine } from "../utils";
-import { parseHashRef, parsePayloadText, parseTextWithSeparators, type Anchor, type ParsedText } from "./parse";
-import { HASH_SEP, stripRowPrefix, lineChecksum, type RowPrefixKind } from "./hash";
-import { HASH_RUN } from "./alphabet";
-import { NEW_CONTENT_NOT_ARRAY_MSG, NEW_CONTENT_NOT_STRING_MSG, MAX_RANGE_STALE_LINES } from "../constants";
-import type { LineEnding } from "../normalize";
+import { abortIf, rejectUnknownFields, clipLine, decodeStringArray, assertNoNul, isBlankLine } from "../utils.ts";
+import { parseHashRef, parsePayloadText, parseTextWithSeparators, type Anchor, type ParsedText } from "./parse.ts";
+import { HASH_SEP, stripRowPrefix, lineChecksum, type RowPrefixKind } from "./hash.ts";
+import { HASH_RUN } from "./alphabet.ts";
+import { NEW_CONTENT_NOT_ARRAY_MSG, NEW_CONTENT_NOT_STRING_MSG, MAX_RANGE_STALE_LINES } from "../constants.ts";
+import type { LineEnding } from "../normalize.ts";
 
 export type RAnchor = {
 	line: number;

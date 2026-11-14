@@ -1,11 +1,11 @@
 import {
 	ANCHOR_LEN,
 	HASH_RUN,
-} from "./hash";
-import { ALPH_RE } from "./alphabet";
-import { NEW_CONTENT_NOT_ARRAY_MSG } from "../constants";
-import { splitWithEndings } from "../line-endings";
-import type { LineEnding } from "../normalize";
+} from "./hash.ts";
+import { ALPH_RE } from "./alphabet.ts";
+import { NEW_CONTENT_NOT_ARRAY_MSG } from "../constants.ts";
+import { splitWithEndings } from "../line-endings.ts";
+import type { LineEnding } from "../normalize.ts";
 
 const HASH_EXTRACT_RE = new RegExp(HASH_RUN);
 

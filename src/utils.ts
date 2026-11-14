@@ -1,7 +1,7 @@
-import { NUL_CONTENT_MSG, MAX_BYTES } from "./constants";
-import { HASH_CLASS } from "./hashline/alphabet";
-import { splitWithEndings } from "./line-endings";
-import type { LineEnding } from "./normalize";
+import { NUL_CONTENT_MSG, MAX_BYTES } from "./constants.ts";
+import { HASH_CLASS } from "./hashline/alphabet.ts";
+import { splitWithEndings } from "./line-endings.ts";
+import type { LineEnding } from "./normalize.ts";
 
 export function isRec(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);

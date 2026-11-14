@@ -1,10 +1,10 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { HASH_RUN } from "./hashline/alphabet";
-import { HASH_SEP } from "./hashline/hash";
-import { sessionContextReadable, servedForPath, withAnchorSession, type AnchorSessionContext } from "./anchor-registry";
-import { resolveInCwd } from "./fs-write";
-import { abortIf, splitLines, isRec } from "./utils";
-import type { ModelLike } from "./model-gate";
+import { HASH_RUN } from "./hashline/alphabet.ts";
+import { HASH_SEP } from "./hashline/hash.ts";
+import { sessionContextReadable, servedForPath, withAnchorSession, type AnchorSessionContext } from "./anchor-registry.ts";
+import { resolveInCwd } from "./fs-write.ts";
+import { abortIf, splitLines, isRec } from "./utils.ts";
+import type { ModelLike } from "./model-gate.ts";
 
 const HASH_ECHO_RE = new RegExp(`^(?: *[0-9]+(?: │ |[:-]│ ))?[+ -]?(${HASH_RUN})${HASH_SEP}`);
 

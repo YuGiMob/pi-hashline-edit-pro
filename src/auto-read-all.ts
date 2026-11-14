@@ -9,17 +9,17 @@ import {
   AUTO_READ_ALL_MAX_FILES,
   AUTO_READ_ALL_MIN_BUDGET_BYTES,
   SNIFF_BYTES,
-} from "./constants";
-import { normalizeAutoReadAllIgnoreEntry, type AutoReadAllMode } from "./config";
-import { serveRows } from "./served";
-import { formatAnchorReclaimNotice, takeReclaimedPaths } from "./anchor-registry";
-import { readNormFile } from "./file-reader";
-import { resolveRgPath } from "./grep";
-import { globToRegex } from "./glob";
-import { MAX_HASH_LINES } from "./hashline";
-import { fmtReadPreview } from "./read";
-import { buildFileOutline } from "./outline";
-import { splitLines } from "./utils";
+} from "./constants.ts";
+import { normalizeAutoReadAllIgnoreEntry, type AutoReadAllMode } from "./config.ts";
+import { serveRows } from "./served.ts";
+import { formatAnchorReclaimNotice, takeReclaimedPaths } from "./anchor-registry.ts";
+import { readNormFile } from "./file-reader.ts";
+import { resolveRgPath } from "./grep.ts";
+import { globToRegex } from "./glob.ts";
+import { MAX_HASH_LINES } from "./hashline/index.ts";
+import { fmtReadPreview } from "./read.ts";
+import { buildFileOutline } from "./outline/index.ts";
+import { splitLines } from "./utils.ts";
 
 const EXEC_TIMEOUT_MS = 20_000;
 const EXEC_MAX_BYTES = 64 * 1024 * 1024;

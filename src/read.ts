@@ -10,20 +10,20 @@ import {
 	type TruncationResult,
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { loadFileKindAndText } from "./file-kind";
-import { MAX_OVERSIZED_WARNING_LINES } from "./constants";
-import { readNormFile, safeSnapId } from "./file-reader";
-import { lineHashes, fmtRegion, fmtRow, HASH_SEP, MAX_HASH_LINES, parseHashRef, resolveAnchorLine, AnchorMismatchError } from "./hashline";
-import { toCwd } from "./paths";
-import { abortIf, isRec, makePrepareArguments, numberedRead, visLines, splitLines } from "./utils";
-import { loadP, loadGuidelines, type Guideline } from "./prompts";
-import { withReadPrompts, DEFAULT_EDIT_FLAGS, staleAnchorMessage, type EditToolFlags } from "./edit-common";
-import { valAccess } from "./validation";
-import { withAnchorSession, adoptAnchors, ownerOf, formatAnchorReclaimNotice, takeReclaimedPaths } from "./anchor-registry";
-import { serveRows } from "./served";
-import { snapshotCache } from "./hash-store/cache";
+import { loadFileKindAndText } from "./file-kind.ts";
+import { MAX_OVERSIZED_WARNING_LINES } from "./constants.ts";
+import { readNormFile, safeSnapId } from "./file-reader.ts";
+import { lineHashes, fmtRegion, fmtRow, HASH_SEP, MAX_HASH_LINES, parseHashRef, resolveAnchorLine, AnchorMismatchError } from "./hashline/index.ts";
+import { toCwd } from "./paths.ts";
+import { abortIf, isRec, makePrepareArguments, numberedRead, visLines, splitLines } from "./utils.ts";
+import { loadP, loadGuidelines, type Guideline } from "./prompts.ts";
+import { withReadPrompts, DEFAULT_EDIT_FLAGS, staleAnchorMessage, type EditToolFlags } from "./edit-common.ts";
+import { valAccess } from "./validation.ts";
+import { withAnchorSession, adoptAnchors, ownerOf, formatAnchorReclaimNotice, takeReclaimedPaths } from "./anchor-registry.ts";
+import { serveRows } from "./served.ts";
+import { snapshotCache } from "./hash-store/cache.ts";
 import { Text } from "@earendil-works/pi-tui";
-import { anchoredLine, readResultSchema, withStructuredErrors, type AnchoredLine, type ReadResult, type ReadTextResult } from "./structured";
+import { anchoredLine, readResultSchema, withStructuredErrors, type AnchoredLine, type ReadResult, type ReadTextResult } from "./structured.ts";
 const R_DESC = loadP("../tool-prompts/read.md");
 const R_SNIPPET = loadP("../tool-prompts/read-snippet.md");
 function readGuide(): Guideline[] {

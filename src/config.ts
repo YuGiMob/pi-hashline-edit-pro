@@ -1,8 +1,8 @@
 import { mkdir, readFile, rename, rm, stat } from "node:fs/promises";
 import { dirname } from "node:path";
-import { configPath } from "./paths";
-import { errCode, isRec } from "./utils";
-import { writeAtomic } from "./fs-write";
+import { configPath } from "./paths.ts";
+import { errCode, isRec } from "./utils.ts";
+import { writeAtomic } from "./fs-write.ts";
 export type AutoReadAllMode = "off" | "outline" | "full";
 const AUTO_READ_ALL_MODES: AutoReadAllMode[] = ["off", "outline", "full"];
 

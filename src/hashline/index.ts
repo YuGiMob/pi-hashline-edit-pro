@@ -13,7 +13,7 @@ export {
 	canon,
 	hashSource,
 	lineChecksum,
-} from "./hash";
+} from "./hash.ts";
 
 export {
 	parseHashRef,
@@ -22,7 +22,7 @@ export {
 	parsePayloadText,
 	type Anchor,
 	type ParsedText,
-} from "./parse";
+} from "./parse.ts";
 
 export {
 	type HEdit,
@@ -42,7 +42,7 @@ export {
 	assertRangeServed,
 	RangeStaleError,
 	AnchorMismatchError,
-} from "./resolve";
+} from "./resolve.ts";
 
 export {
 	buildIdx,
@@ -52,4 +52,4 @@ export {
 	fmtRegion,
 	fmtRow,
 	changedRange,
-} from "./apply";
+} from "./apply.ts";

@@ -1,21 +1,21 @@
 import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { constants } from "node:fs";
-import { execPipeline, type ReplaceDetails, previewFromPipe, previewError } from "./replace";
-import { commitEdit } from "./commit";
-import { batchMemberFor, executeBatchMember, noteBatchFailure, registerBatchPlanner, type BatchMemberPlan, type BatchPlannerInput } from "./batch";
-import { readNormFile, type NormFile } from "./file-reader";
-import { MAX_HASH_LINES, parseHashRef, parsePayloadText, planEdit, preserveDeletionSeparators, resEdit, resolveAnchorLine, type Anchor, type HTEdit, type StripWarningLocation } from "./hashline";
-import { TEXT_ENDING_NOTE } from "./constants";
-import type { LineEnding } from "./normalize";
-import { stripAnchorRow } from "./hashline/resolve";
-import { withAnchorSession } from "./anchor-registry";
-import { loadP, loadGuidelines } from "./prompts";
-import { assertInsertReq, normReq, pathRequiredSchema, type InsertReq } from "./payload-contract";
-import { anchorCarryIndex, isRec, literalEscapeHints, splitLines } from "./utils";
-import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper, resolveEditTargetWithRequirement, throwIfStrictInput, withInsertPrompts, DEFAULT_EDIT_FLAGS, type EditToolFlags } from "./edit-common";
-import type { RPreview, RRState } from "./replace-render";
-import { editResultSchema, withStructuredErrors } from "./structured";
+import { execPipeline, type ReplaceDetails, previewFromPipe, previewError } from "./replace.ts";
+import { commitEdit } from "./commit.ts";
+import { batchMemberFor, executeBatchMember, noteBatchFailure, registerBatchPlanner, type BatchMemberPlan, type BatchPlannerInput } from "./batch.ts";
+import { readNormFile, type NormFile } from "./file-reader.ts";
+import { MAX_HASH_LINES, parseHashRef, parsePayloadText, planEdit, preserveDeletionSeparators, resEdit, resolveAnchorLine, type Anchor, type HTEdit, type StripWarningLocation } from "./hashline/index.ts";
+import { TEXT_ENDING_NOTE } from "./constants.ts";
+import type { LineEnding } from "./normalize.ts";
+import { stripAnchorRow } from "./hashline/resolve.ts";
+import { withAnchorSession } from "./anchor-registry.ts";
+import { loadP, loadGuidelines } from "./prompts.ts";
+import { assertInsertReq, normReq, pathRequiredSchema, type InsertReq } from "./payload-contract.ts";
+import { anchorCarryIndex, isRec, literalEscapeHints, splitLines } from "./utils.ts";
+import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper, resolveEditTargetWithRequirement, throwIfStrictInput, withInsertPrompts, DEFAULT_EDIT_FLAGS, type EditToolFlags } from "./edit-common.ts";
+import type { RPreview, RRState } from "./replace-render.ts";
+import { editResultSchema, withStructuredErrors } from "./structured.ts";
 export { assertInsertReq, type InsertReq };
 
 const insertAnchorSchema = Type.String({

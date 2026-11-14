@@ -1,6 +1,6 @@
-import { isBlankLine, splitLines } from "./utils";
-import { HASH_CLASS, HASH_SEP, canon } from "./hashline";
-import type { DiffSpan } from "./replace-diff";
+import { isBlankLine, splitLines } from "./utils.ts";
+import { HASH_CLASS, HASH_SEP, canon } from "./hashline/index.ts";
+import type { DiffSpan } from "./replace-diff.ts";
 
 const INVISIBLE_RE = /\p{Default_Ignorable_Code_Point}/u;
 const LOOKALIKE_SPACE_RE = /[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]/u;

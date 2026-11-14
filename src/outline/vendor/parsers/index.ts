@@ -5,14 +5,14 @@
  * tree-sitter parser manager for WASM-based grammars.
  */
 
-import type { SymbolInfo } from "../types.js";
+import type { SymbolInfo } from "../types.ts";
 import {
   detectLanguage,
   languageLabel,
   parseCode,
   parseFileImports,
   type ImportInfo,
-} from "./manager.js";
+} from "./manager.ts";
 
 export { detectLanguage, languageLabel, parseFileImports };
 export type { ImportInfo };

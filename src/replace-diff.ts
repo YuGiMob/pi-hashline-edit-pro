@@ -6,16 +6,16 @@ import {
   HASH_SEP,
   HASH_CLASS,
   changedRange,
-} from "./hashline";
-import { MAX_DIFF_INPUT_BYTES } from "./constants";
-import { isBlankLine, splitLines } from "./utils";
+} from "./hashline/index.ts";
+import { MAX_DIFF_INPUT_BYTES } from "./constants.ts";
+import { isBlankLine, splitLines } from "./utils.ts";
 import {
   detectEnding,
   toLF,
   restoreEndings,
   stripBOM,
   type LineEnding,
-} from "./normalize";
+} from "./normalize.ts";
 
 export { detectEnding, toLF, restoreEndings, stripBOM, type LineEnding };
 

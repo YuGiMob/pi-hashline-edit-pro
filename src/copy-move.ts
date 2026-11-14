@@ -2,10 +2,10 @@ import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-age
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, truncateHead, withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { constants } from "node:fs";
-import { execPipeline, noteAnchorError, previewFromPipe, previewError, type PipelineResult, type ReplaceDetails } from "./replace";
-import { commitEdit, fileStateSinceRead } from "./commit";
-import { readNormFile, safeSnapId, type NormFile } from "./file-reader";
-import { preEditSnapshotFor } from "./pre-edit-snapshot";
+import { execPipeline, noteAnchorError, previewFromPipe, previewError, type PipelineResult, type ReplaceDetails } from "./replace.ts";
+import { commitEdit, fileStateSinceRead } from "./commit.ts";
+import { readNormFile, safeSnapId, type NormFile } from "./file-reader.ts";
+import { preEditSnapshotFor } from "./pre-edit-snapshot.ts";
 import {
   lineHashes,
   MAX_HASH_LINES,
@@ -18,20 +18,20 @@ import {
   type Anchor,
   type HEdit,
   type HTEdit,
-} from "./hashline";
-import { formatAnchorReclaimNotice, servedForPath, takeReclaimedPaths, withAnchorSession } from "./anchor-registry";
-import { batchMemberFor, batchServedFor, ensureBatchBase, executeBatchMember, noteBatchFailure, pendingBatchMemberFor, registerBatchPlanner, type BatchBase, type BatchMemberPlanner, type PlannedMember } from "./batch";
-import { loadP, loadGuidelines } from "./prompts";
-import { assertTransferReq, normReq, type TransferReq } from "./payload-contract";
-import { abortIf, anchorCarryIndex, assertByteLimit, isRec, splitLines } from "./utils";
-import { toDisplayPath } from "./paths";
-import { getDiffContextLines } from "./config";
-import { resolveInCwd, writeAtomic } from "./fs-write";
-import { restoreEndings, type LineEnding } from "./normalize";
-import { applyEndingOverrides, endingsForRange, joinSeparators, separatorsForSpans } from "./line-endings";
-import { saveUndo, type UndoEntry } from "./replace-undo";
-import { buildChanged, buildMetrics, type TResult } from "./replace-response";
-import { servedHashesFromDiff, serveRows } from "./served";
+} from "./hashline/index.ts";
+import { formatAnchorReclaimNotice, servedForPath, takeReclaimedPaths, withAnchorSession } from "./anchor-registry.ts";
+import { batchMemberFor, batchServedFor, ensureBatchBase, executeBatchMember, noteBatchFailure, pendingBatchMemberFor, registerBatchPlanner, type BatchBase, type BatchMemberPlanner, type PlannedMember } from "./batch.ts";
+import { loadP, loadGuidelines } from "./prompts.ts";
+import { assertTransferReq, normReq, type TransferReq } from "./payload-contract.ts";
+import { abortIf, anchorCarryIndex, assertByteLimit, isRec, splitLines } from "./utils.ts";
+import { toDisplayPath } from "./paths.ts";
+import { getDiffContextLines } from "./config.ts";
+import { resolveInCwd, writeAtomic } from "./fs-write.ts";
+import { restoreEndings, type LineEnding } from "./normalize.ts";
+import { applyEndingOverrides, endingsForRange, joinSeparators, separatorsForSpans } from "./line-endings.ts";
+import { saveUndo, type UndoEntry } from "./replace-undo.ts";
+import { buildChanged, buildMetrics, type TResult } from "./replace-response.ts";
+import { servedHashesFromDiff, serveRows } from "./served.ts";
 import {
   assertBoundaryLinesServed,
   assertPathOption,
@@ -45,9 +45,9 @@ import {
   trustRangeServed,
   withTransferPrompts,
   type EditToolFlags,
-} from "./edit-common";
-import { makeRenderCall, type RPreview, type RRState } from "./replace-render";
-import { anchoredLinesFromDiff, diffAnchorsOmitted, editResultSchema, withStructuredErrors, type EditStructured } from "./structured";
+} from "./edit-common.ts";
+import { makeRenderCall, type RPreview, type RRState } from "./replace-render.ts";
+import { anchoredLinesFromDiff, diffAnchorsOmitted, editResultSchema, withStructuredErrors, type EditStructured } from "./structured.ts";
 
 export type TransferKind = "copy" | "move";
 

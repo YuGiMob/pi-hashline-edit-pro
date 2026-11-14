@@ -1,6 +1,6 @@
-import { visLines } from "../utils";
-import { loadOutlineParser } from "./parsers";
-import { renderPreviewOutline, renderSymbolOutline, type OutlineRender } from "./render";
+import { visLines } from "../utils.ts";
+import { loadOutlineParser } from "./parsers.ts";
+import { renderPreviewOutline, renderSymbolOutline, type OutlineRender } from "./render.ts";
 
 export interface FileOutlineInput {
 	displayPath: string;
@@ -43,7 +43,7 @@ export async function buildFileOutline(input: FileOutlineInput): Promise<Outline
 	return { ...preview, preview: parsed === undefined ? "unsupported" : "no-symbols", ...(parsed?.hasSyntaxErrors ? { hasSyntaxErrors: true } : {}) };
 }
 
-export { loadOutlineParser } from "./parsers";
-export { renderPreviewOutline, renderSymbolOutline } from "./render";
-export type { OutlineParse, OutlineParser, OutlineSymbol } from "./parsers";
-export type { OutlineRender, OutlineRow } from "./render";
+export { loadOutlineParser } from "./parsers.ts";
+export { renderPreviewOutline, renderSymbolOutline } from "./render.ts";
+export type { OutlineParse, OutlineParser, OutlineSymbol } from "./parsers.ts";
+export type { OutlineRender, OutlineRow } from "./render.ts";

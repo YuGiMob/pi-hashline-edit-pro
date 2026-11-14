@@ -1,8 +1,7 @@
 import { open as fsOpen, stat as fsStat } from "node:fs/promises";
-import { fileTypeFromBuffer } from "file-type";
-import { SNIFF_BYTES, MAX_BYTES } from "./constants";
-import { assertLineLimit, lineLimitMoreThanMessage } from "./utils";
-import type { FileIdentity } from "./fs-write";
+import { SNIFF_BYTES, MAX_BYTES } from "./constants.ts";
+import { assertLineLimit, lineLimitMoreThanMessage } from "./utils.ts";
+import type { FileIdentity } from "./fs-write.ts";
 
 const IMG_TYPES = new Set<string>([
   "image/bmp",
@@ -50,6 +49,14 @@ function looksLikeText(sample: Uint8Array): boolean {
   } catch {
     return false;
   }
+}
+
+let mimeDetector: typeof import("file-type").fileTypeFromBuffer | null = null;
+
+async function sniffMimeType(sample: Uint8Array): Promise<string | undefined> {
+  const detect = mimeDetector ?? (await import("file-type")).fileTypeFromBuffer;
+  mimeDetector = detect;
+  return (await detect(sample))?.mime;
 }
 
 export type LFile =
@@ -109,7 +116,7 @@ export async function loadFileKindAndText(
         description: `${textBom} encoded text`
       };
     }
-    const detectedMimeType = (await fileTypeFromBuffer(sample))?.mime;
+    const detectedMimeType = await sniffMimeType(sample);
     if (
       detectedMimeType !== undefined &&
       !isTextType(detectedMimeType) &&

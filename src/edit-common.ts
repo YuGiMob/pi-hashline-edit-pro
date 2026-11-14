@@ -1,12 +1,12 @@
 import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
-import { resolveInCwd } from "./fs-write";
-import { abortIf, makePrepareArguments } from "./utils";
-import { anchorWasMinted, ownerOf } from "./anchor-registry";
-import { assertRangeServed, lineChecksum, parseHashRef, stripAnchorRow } from "./hashline";
-import { readConfig } from "./config";
-import { makeRenderCall, renderEditResult, type RPreview, type FgT } from "./replace-render";
-import type { ReplaceDetails } from "./replace";
-import type { Guideline } from "./prompts";
+import { resolveInCwd } from "./fs-write.ts";
+import { abortIf, makePrepareArguments } from "./utils.ts";
+import { anchorWasMinted, ownerOf } from "./anchor-registry.ts";
+import { assertRangeServed, lineChecksum, parseHashRef, stripAnchorRow } from "./hashline/index.ts";
+import { readConfig } from "./config.ts";
+import { makeRenderCall, renderEditResult, type RPreview, type FgT } from "./replace-render.ts";
+import type { ReplaceDetails } from "./replace.ts";
+import type { Guideline } from "./prompts.ts";
 export const editPrepare = makePrepareArguments();
 
 export interface EditToolFlags {

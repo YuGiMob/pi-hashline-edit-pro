@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { chmod, readFile, rename, mkdir, stat } from "node:fs/promises";
-import { hashStorePath, hashStoreDir, legacyHashStorePath } from "./paths";
-import { errCode, isModeUnsupported, isRec, splitLines } from "./utils";
-import { initHasher, contentChecksum, lineChecksum } from "./hashline/hasher";
-import { HASH_STORE_VERSION, HASH_STORE_BUSY_TIMEOUT } from "./constants";
+import { hashStorePath, hashStoreDir, legacyHashStorePath } from "./paths.ts";
+import { errCode, isModeUnsupported, isRec, splitLines } from "./utils.ts";
+import { initHasher, contentChecksum, lineChecksum } from "./hashline/hasher.ts";
+import { HASH_STORE_VERSION, HASH_STORE_BUSY_TIMEOUT } from "./constants.ts";
 import {
   isValidHashList,
   parseStoredHashes,
@@ -12,14 +12,14 @@ import {
   isCorruptionError,
   parseHashList,
   parseSeparators,
-} from "./hash-store/validation";
+} from "./hash-store/validation.ts";
 import {
   withBusyRetry,
   retriedWrite,
   withBusyRetryAsync,
-} from "./hash-store/retry";
-import { snapshotCache, cacheSnapshot, SNAPSHOT_CACHE_LIMIT } from "./hash-store/cache";
-import { countNewlines } from "./line-endings";
+} from "./hash-store/retry.ts";
+import { snapshotCache, cacheSnapshot, SNAPSHOT_CACHE_LIMIT } from "./hash-store/cache.ts";
+import { countNewlines } from "./line-endings.ts";
 
 export { isValidHashList, parseHashList, parseStoredHashes, isCorruptionError };
 export { SNAPSHOT_CACHE_LIMIT };

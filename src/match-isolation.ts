@@ -1,5 +1,5 @@
-import { fmtRegion } from "./hashline";
-import { formatCharEscape, isFidelitySensitiveChar } from "./edit-fidelity";
+import { fmtRegion } from "./hashline/index.ts";
+import { formatCharEscape, isFidelitySensitiveChar } from "./edit-fidelity.ts";
 
 export const MAX_ISOLATION_ROWS = 3;
 

@@ -12,8 +12,8 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { dirname, join, parse, resolve, sep } from "node:path";
-import { toCwd } from "./paths";
-import { errCode, isModeUnsupported, mapIoError } from "./utils";
+import { toCwd } from "./paths.ts";
+import { errCode, isModeUnsupported, mapIoError } from "./utils.ts";
 
 export interface FileIdentity {
   dev: number;

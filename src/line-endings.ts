@@ -1,4 +1,4 @@
-import type { LineEnding } from "./normalize";
+import type { LineEnding } from "./normalize.ts";
 
 export interface EndingSpan {
 	start: number;

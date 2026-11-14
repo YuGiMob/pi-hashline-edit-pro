@@ -1,7 +1,7 @@
 import { DEFAULT_MAX_BYTES } from "@earendil-works/pi-coding-agent";
-import { HASH_SEP } from "../hashline";
-import { clipLine } from "../utils";
-import type { OutlineSymbol } from "./parsers";
+import { HASH_SEP } from "../hashline/index.ts";
+import { clipLine } from "../utils.ts";
+import type { OutlineSymbol } from "./parsers.ts";
 
 const DEFAULT_MAX_ROWS = 400;
 const DEFAULT_MAX_DEPTH = 6;

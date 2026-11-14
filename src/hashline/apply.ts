@@ -1,4 +1,4 @@
-import { abortIf, splitLines } from "../utils";
+import { abortIf, splitLines } from "../utils.ts";
 import {
 	valEdit,
 	stripBarePrefixes,
@@ -12,7 +12,7 @@ import {
 	type NEdit,
 	type HEdit,
 	type StripWarningLocation,
-} from "./resolve";
+} from "./resolve.ts";
 
 type LIdx = {
 	fileLines: string[];
@@ -249,7 +249,7 @@ export function applyEdit(
 	};
 }
 
-export { fmtRegion, fmtRow } from "./resolve";
+export { fmtRegion, fmtRow } from "./resolve.ts";
 export function changedRange(
 	original: string,
 	result: string,

@@ -1,6 +1,6 @@
 import xxhash from "xxhash-wasm";
-import { truncateToBytes } from "../utils";
-import { MAX_HASH_SOURCE_BYTES } from "../constants";
+import { truncateToBytes } from "../utils.ts";
+import { MAX_HASH_SOURCE_BYTES } from "../constants.ts";
 
 export type Hasher = {
 	h32(input: string, seed?: number): number;

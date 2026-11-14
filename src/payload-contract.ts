@@ -1,7 +1,7 @@
 import { Type } from "typebox";
-import { isRec, normalizeRequest, rejectUnknownFields, assertNoNul } from "./utils";
-import { TEXT_ENDING_NOTE, TEXT_NOT_STRING_MSG, NEW_CONTENT_NOT_STRING_MSG } from "./constants";
-import { toLF } from "./normalize";
+import { isRec, normalizeRequest, rejectUnknownFields, assertNoNul } from "./utils.ts";
+import { TEXT_ENDING_NOTE, TEXT_NOT_STRING_MSG, NEW_CONTENT_NOT_STRING_MSG } from "./constants.ts";
+import { toLF } from "./normalize.ts";
 
 const textSchema = Type.String({
   description:
@@ -89,7 +89,7 @@ export function assertReq(request: unknown): asserts request is ReqParams {
   assertNoNul([request.text]);
 }
 
-export { normalizeRequest as normReq } from "./utils";
+export { normalizeRequest as normReq } from "./utils.ts";
 
 export function getPreviewInput(args: unknown): { path?: string; remove_from: string; remove_to: string; text: string } | null {
   let normalized: unknown;

@@ -1,9 +1,9 @@
-import { splitLines, getCached } from "../utils";
-import { loadHashStore, type HashStore } from "../hash-store";
-import { allocateFileAnchors } from "../anchor-registry";
-import { xxh32, initHasher, canon, hashSource, lineChecksum } from "./hasher";
+import { splitLines, getCached } from "../utils.ts";
+import { loadHashStore, type HashStore } from "../hash-store.ts";
+import { allocateFileAnchors } from "../anchor-registry.ts";
+import { xxh32, initHasher, canon, hashSource, lineChecksum } from "./hasher.ts";
 export { canon, hashSource, lineChecksum };
-import { HASH_LEN, ANCHOR_COUNT, anchorAt, HASH_CLASS, HASH_RUN } from "./alphabet";
+import { HASH_LEN, ANCHOR_COUNT, anchorAt, HASH_CLASS, HASH_RUN } from "./alphabet.ts";
 export { initHasher, HASH_LEN, HASH_CLASS, HASH_RUN };
 
 export const ANCHOR_LEN = HASH_LEN;

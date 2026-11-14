@@ -1,4 +1,4 @@
-import { HASH_RE } from "../hashline/alphabet";
+import { HASH_RE } from "../hashline/alphabet.ts";
 
 export function isValidHashList(value: unknown): value is string[] {
   if (!Array.isArray(value)) return false;

@@ -1,5 +1,5 @@
 import type { Node } from "web-tree-sitter";
-import type { SymbolInfo } from "../types.js";
+import type { SymbolInfo } from "../types.ts";
 
 const BLOCK_LABELS: Record<string, string> = {
   section: "section",

@@ -7,13 +7,13 @@ import {
   genDiff,
   type DiffSpan,
   type LineEnding,
-} from "./replace-diff";
-import { readNormFile, type NormFile } from "./file-reader";
-import { editToolSchema, buildEditToolSchema, type ReqParams, type RawReqParams, assertReq, normReq } from "./payload-contract";
-import { isRec, literalEscapeHints, makePrepareArguments, splitLines } from "./utils";
-import { editResultSchema, withStructuredErrors } from "./structured";
-import { loadP, loadGuidelines } from "./prompts";
-import { type FileIdentity } from "./fs-write";
+} from "./replace-diff.ts";
+import { readNormFile, type NormFile } from "./file-reader.ts";
+import { editToolSchema, buildEditToolSchema, type ReqParams, type RawReqParams, assertReq, normReq } from "./payload-contract.ts";
+import { isRec, literalEscapeHints, makePrepareArguments, splitLines } from "./utils.ts";
+import { editResultSchema, withStructuredErrors } from "./structured.ts";
+import { loadP, loadGuidelines } from "./prompts.ts";
+import { type FileIdentity } from "./fs-write.ts";
 import { applyEdit,
   lineHashes,
   planEdit,
@@ -25,19 +25,19 @@ import { applyEdit,
   type HEdit,
   type NEdit,
   type StripWarningLocation,
-} from "./hashline";
-import { type RMetrics } from "./replace-response";
+} from "./hashline/index.ts";
+import { type RMetrics } from "./replace-response.ts";
 import {
   type RPreview,
   type RRState,
-} from "./replace-render";
-import { loadHashStore, type HashStore } from "./hash-store";
-import { adoptAnchors, servedForPath, withAnchorSession } from "./anchor-registry";
-import { resolveTarget } from "./fs-write";
-import { toCwd, toDisplayPath } from "./paths";
-import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper, resolveEditTargetWithRequirement, throwIfStrictInput, withReplacePrompts, DEFAULT_EDIT_FLAGS, type EditToolFlags } from "./edit-common";
-import { commitEdit } from "./commit";
-import { batchMemberFor, executeBatchMember, noteBatchFailure, registerBatchPlanner, type BatchMemberPlan, type BatchPlannerInput } from "./batch";
+} from "./replace-render.ts";
+import { loadHashStore, type HashStore } from "./hash-store.ts";
+import { adoptAnchors, servedForPath, withAnchorSession } from "./anchor-registry.ts";
+import { resolveTarget } from "./fs-write.ts";
+import { toCwd, toDisplayPath } from "./paths.ts";
+import { queuedEdit, editToolBase, editRenderCallWrapper, editRenderResultWrapper, resolveEditTargetWithRequirement, throwIfStrictInput, withReplacePrompts, DEFAULT_EDIT_FLAGS, type EditToolFlags } from "./edit-common.ts";
+import { commitEdit } from "./commit.ts";
+import { batchMemberFor, executeBatchMember, noteBatchFailure, registerBatchPlanner, type BatchMemberPlan, type BatchPlannerInput } from "./batch.ts";
 
 export { editToolSchema, type ReqParams, assertReq };
 

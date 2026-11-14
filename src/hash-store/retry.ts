@@ -1,4 +1,4 @@
-import { isBusyError } from "./validation";
+import { isBusyError } from "./validation.ts";
 
 const sleepSab = new Int32Array(new SharedArrayBuffer(4));
 

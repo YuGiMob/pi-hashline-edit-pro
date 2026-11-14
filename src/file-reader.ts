@@ -1,15 +1,15 @@
 import { constants } from "node:fs";
 import { stat } from "node:fs/promises";
-import { lineHashes } from "./hashline";
-import { loadFileKindAndText, type LFile } from "./file-kind";
-import { resolveTarget, type FileIdentity } from "./fs-write";
-import { toCwd, toDisplayPath } from "./paths";
-import { detectEnding, toLF, stripBOM, type LineEnding } from "./normalize";
-import { splitSeparators } from "./line-endings";
-import { abortIf, errCode, assertLineLimit } from "./utils";
-import { ANCHOR_POOL_EXHAUSTED_PREFIX } from "./constants";
-import { valKind, valAccess } from "./validation";
-import type { HashStore } from "./hash-store";
+import { lineHashes } from "./hashline/index.ts";
+import { loadFileKindAndText, type LFile } from "./file-kind.ts";
+import { resolveTarget, type FileIdentity } from "./fs-write.ts";
+import { toCwd, toDisplayPath } from "./paths.ts";
+import { detectEnding, toLF, stripBOM, type LineEnding } from "./normalize.ts";
+import { splitSeparators } from "./line-endings.ts";
+import { abortIf, errCode, assertLineLimit } from "./utils.ts";
+import { ANCHOR_POOL_EXHAUSTED_PREFIX } from "./constants.ts";
+import { valKind, valAccess } from "./validation.ts";
+import type { HashStore } from "./hash-store.ts";
 export interface NormFile {
   absolutePath: string;
   normalized: string;

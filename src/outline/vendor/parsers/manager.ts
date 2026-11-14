@@ -7,12 +7,12 @@
 
 import { fileURLToPath } from "node:url";
 import { Parser, Language, type Node } from "web-tree-sitter";
-import type { SymbolInfo, ImportInfo } from "../types.js";
-import { extractJava, extractJavaImports } from "./java.js";
-import { extractPhp } from "./php.js";
-import { extractBlade } from "./blade.js";
-import { extractScss, extractScssImports } from "./scss.js";
-import { extractSass, extractSassImports } from "./sass.js";
+import type { SymbolInfo, ImportInfo } from "../types.ts";
+import { extractJava, extractJavaImports } from "./java.ts";
+import { extractPhp } from "./php.ts";
+import { extractBlade } from "./blade.ts";
+import { extractScss, extractScssImports } from "./scss.ts";
+import { extractSass, extractSassImports } from "./sass.ts";
 
 // ---- WASM path resolution ----
 

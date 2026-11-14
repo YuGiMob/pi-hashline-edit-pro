@@ -1,6 +1,6 @@
 import { Key, matchesKey, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { DEFAULT_UNDO_RETENTION_DAYS, readConfig, type Config } from "./config";
+import { DEFAULT_UNDO_RETENTION_DAYS, readConfig, type Config } from "./config.ts";
 
 export type ConfigToggleKey = "autoRead" | "autoReadWrite" | "autoReadAll" | "autoReadAllRequireGit" | "autoReadAllIgnore" | "anchorGrepEnabled" | "copyMoveEnabled" | "replaceMatchEnabled" | "outlineEnabled" | "requirePath" | "strictInput" | "diffContextLines" | "disableOnModels" | "readOnDisabledModels" | "undoRetentionDays";
 
