@@ -4,6 +4,7 @@ import { formatCharEscape, isFidelitySensitiveChar } from "./edit-fidelity.ts";
 export const MAX_ISOLATION_ROWS = 3;
 
 const IDENTIFIER_CHAR_RE = /^[\p{ID_Continue}$]$/u;
+const CJK_SCRIPT_RE = /^[\p{Script_Extensions=Han}\p{Script_Extensions=Hiragana}\p{Script_Extensions=Katakana}\p{Script_Extensions=Hangul}]$/u;
 const DOLLAR_SIGN = 0x24;
 
 export type IsolationSide = "before" | "after" | "both";
@@ -35,7 +36,8 @@ function codePointBefore(text: string, index: number): number | undefined {
 export function isIdentifierChar(codePoint: number | undefined): boolean {
   if (codePoint === undefined) return false;
   if (codePoint === DOLLAR_SIGN) return true;
-  return IDENTIFIER_CHAR_RE.test(String.fromCodePoint(codePoint));
+  const char = String.fromCodePoint(codePoint);
+  return IDENTIFIER_CHAR_RE.test(char) && !CJK_SCRIPT_RE.test(char);
 }
 
 function identifierStart(line: string, index: number): number {

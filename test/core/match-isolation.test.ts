@@ -14,7 +14,7 @@ function scan(lines: string[], matchText: string, firstLine = 1) {
 
 describe("isIdentifierChar", () => {
   it("accepts letters, digits, $, _, and Unicode identifier characters", () => {
-    for (const char of ["a", "Z", "0", "9", "$", "_", "é", "λ", "漢"]) {
+    for (const char of ["a", "Z", "0", "9", "$", "_", "é", "λ"]) {
       expect(isIdentifierChar(char.codePointAt(0))).toBe(true);
     }
   });
@@ -29,6 +29,12 @@ describe("isIdentifierChar", () => {
       expect(isIdentifierChar(char.codePointAt(0))).toBe(false);
     }
     expect(isIdentifierChar(undefined)).toBe(false);
+  });
+
+  it("excludes CJK ideographs, kana, and hangul that lack word spaces", () => {
+    for (const char of ["漢", "的", "あ", "ア", "ー", "・", "々", "한"]) {
+      expect(isIdentifierChar(char.codePointAt(0))).toBe(false);
+    }
   });
 });
 
@@ -88,6 +94,18 @@ describe("scanMatchRange", () => {
 
   it("returns an empty scan for an empty match", () => {
     expect(scan(["anything"], "")).toEqual({ occurrences: 0, violations: [] });
+  });
+
+  it("allows unspaced CJK phrases and ASCII tokens inside CJK prose", () => {
+    expect(scan(["例行运行发布的状态评论或交付报告本身不算产物。"], "交付报告本身不算产物。").violations).toEqual([]);
+    expect(scan(["运行bun脚本并检查输出"], "bun").violations).toEqual([]);
+    expect(scan(["コーヒーを飲む"], "ヒー").violations).toEqual([]);
+    expect(scan(["한국어테스트"], "테스트").violations).toEqual([]);
+  });
+
+  it("still flags an ASCII identifier boundary next to CJK text", () => {
+    const result = scan(["执行run_bun脚本"], "bun");
+    expect(result.violations[0]).toMatchObject({ side: "before", identifier: "run_bun" });
   });
 });
 
