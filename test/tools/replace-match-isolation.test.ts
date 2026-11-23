@@ -292,4 +292,30 @@ describe("replace_match identifier isolation", () => {
       expect(await readFile(path, "utf-8")).toBe(CONTEXTS);
     });
   });
+
+  it("allows substring edits in unspaced CJK prose without allowEmbeddedMatch", async () => {
+    const content = "例行运行发布的状态评论或交付报告本身不算产物。\n运行bun脚本验证\n";
+    await withTempFile("notes.md", content, async ({ cwd, path }) => {
+      const { ctx, readTool, getTool } = setupIntegrationTest(cwd);
+      const text = getText(await readTool.execute("r1", { path: "notes.md" }, undefined, undefined, ctx));
+      const first = anchorFor(text, "例行运行发布的状态评论或交付报告本身不算产物。");
+      const second = anchorFor(text, "运行bun脚本验证");
+
+      await getTool("replace_match").execute(
+        "w1",
+        { replace_from: first, replace_to: first, match: "交付报告本身不算产物。", replacement: "测试摘要不算产物。" },
+        undefined,
+        undefined,
+        ctx,
+      );
+      await getTool("replace_match").execute(
+        "w2",
+        { replace_from: second, replace_to: second, match: "bun", replacement: "node" },
+        undefined,
+        undefined,
+        ctx,
+      );
+      expect(await readFile(path, "utf-8")).toBe("例行运行发布的状态评论或测试摘要不算产物。\n运行node脚本验证\n");
+    });
+  });
 });
